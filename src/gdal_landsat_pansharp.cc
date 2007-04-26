@@ -35,10 +35,11 @@ void usage(char *cmdname) {
 	fprintf(stderr, "    lum.tif    Bands used to simulate lo-res pan band\n");
 	fprintf(stderr, "    pan.tif    Hi-res panchromatic band\n");
 	fprintf(stderr, "Examples:\n");
-	fprintf(stderr, "    %s -rgb lansat321.tif -pan landsat234.tif 0.25 0.23 0.52 -ndv 0 -o out.tif\n\n", cmdname);
+	fprintf(stderr, "    %s -rgb lansat321.tif -lum landsat234.tif 0.25 0.23 0.52 \\\n", cmdname);
+	fprintf(stderr, "      -pan landsat8.tif -ndv 0 -o out.tif\n\n");
 	fprintf(stderr, "    %s -rgb landsat3.tif -rgb landsat2.tif -rgb landsat1.tif \\\n", cmdname);
 	fprintf(stderr, "      -lum landsat2.tif 0.25 -lum landsat3.tif 0.23 -lum landsat4.tif 0.52 \\\n");
-	fprintf(stderr, "      -ndv 0 -out.tif\n\n");
+	fprintf(stderr, "      -pan landsat8.tif -ndv 0 -out.tif\n\n");
 	fprintf(stderr, "    %s -rgb quickbird_rgb.tif -pan quickbird_pan.tif -o out.tif\n", cmdname);
 	exit(1);
 }
