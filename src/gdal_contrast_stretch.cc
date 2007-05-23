@@ -9,15 +9,17 @@
 #include <common.h>
 
 void compute_histogram(GDALRasterBandH src_band, int w, int h, int *hist_out, int input_range);
-void get_scale_from_stddev(int *histogram, int input_range, double dst_avg, double dst_stddev,
-	double *scale_out, double *offset_out);
-void get_scale_from_percentile(int *histogram, int input_range, double from_percentile, double to_percentile,
-	double *scale_out, double *offset_out);
+void get_scale_from_stddev(int *histogram, int input_range, int output_range,
+	double dst_avg, double dst_stddev, double *scale_out, double *offset_out);
+void get_scale_from_percentile(int *histogram, int input_range, int output_range,
+	double from_percentile, double to_percentile, double *scale_out, double *offset_out);
+// FIXME - output_range
 void invert_histogram_to_gaussian(int *histogram_in, double variance, 
 	int *table_out, int bin_count, double max_rel_freq);
+void copyGeoCode(GDALDatasetH dst_ds, GDALDatasetH src_ds);
 
 void usage(char *cmdname) {
-	fprintf(stderr, "Usage: %s <chroma.tif> <dst.tif>\n", cmdname);
+	fprintf(stderr, "Usage: %s <src.tif> <dst.tif>\n", cmdname);
 	fprintf(stderr, "  { { -linear-stretch <target_avg> <target_stddev> } |\n");
 	fprintf(stderr, "    { -percentile-range <from: 0.0-1.0> <to: 0.0-1.0> } |\n");
 	fprintf(stderr, "    { -histeq <target_stddev> } }\n");
@@ -122,11 +124,13 @@ int main(int argc, char *argv[]) {
 
 	//////// open output ////////
 
-	printf("Initializing output file...\n");
+	printf("Output size is %d x %d x %d\n", w, h, band_count);
 
 	GDALDriverH dst_driver = GDALGetDriverByName(output_format);
 	if(!dst_driver) fatal_error("unrecognized output format");
-	GDALDatasetH dst_ds = GDALCreateCopy(dst_driver, dst_fn, src_ds, FALSE, NULL, NULL, NULL);
+	GDALDatasetH dst_ds = GDALCreate(dst_driver, dst_fn, w, h, band_count, GDT_Byte, NULL);
+	if(!dst_ds) fatal_error("could create output");
+	copyGeoCode(dst_ds, src_ds);
 
 	//////// open bands ////////
 
@@ -141,7 +145,8 @@ int main(int argc, char *argv[]) {
 
 	//////// compute lookup table ////////
 
-	int input_range = 256;
+	int input_range = 65536;
+	int output_range = 256;
 
 	int **xform_table = (int **)malloc_or_die(sizeof(int *) * band_count);
 
@@ -163,23 +168,16 @@ int main(int argc, char *argv[]) {
 			if(mode_stddev || mode_percentile) {
 				double scale, offset;
 				if(mode_stddev) {
-					get_scale_from_stddev(histogram, input_range, 
+					get_scale_from_stddev(histogram, input_range, output_range,
 						dst_avg, dst_stddev, &scale, &offset);
 				} else if(mode_percentile) {
-					get_scale_from_percentile(histogram, input_range, 
+					get_scale_from_percentile(histogram, input_range, output_range,
 						from_percentile, to_percentile, &scale, &offset);
 				}
 				fprintf(stderr, "scale=%f, offset=%f, src_range=[%f, %f]\n",
-					scale, offset, -offset/scale, ((double)(input_range-1)-offset)/scale);
+					scale, offset, -offset/scale, ((double)(output_range-1)-offset)/scale);
 				for(i=0; i<input_range; i++) {
-					double dbl_val = (double)i * scale + offset;
-
-					unsigned char byte_val = 
-						dbl_val < 0 ? 0 :
-						dbl_val > input_range-1 ? input_range-1 :
-						(unsigned char)dbl_val;
-
-					xform_table[band_idx][i] = byte_val;
+					xform_table[band_idx][i] = (int)( (double)i * scale + offset );
 				}
 			} else if(mode_histeq) {
 				invert_histogram_to_gaussian(histogram, dst_stddev, xform_table[band_idx], input_range, 5.0);
@@ -192,7 +190,7 @@ int main(int argc, char *argv[]) {
 		for(i=0; i<input_range; i++) {
 			int v = xform_table[band_idx][i];
 			if(v < 0) v = 0;
-			if(v > input_range-1) v = input_range-1;
+			if(v > output_range-1) v = output_range-1;
 			xform_table[band_idx][i] = v;
 		}
 
@@ -203,7 +201,7 @@ int main(int argc, char *argv[]) {
 					v = ndv;
 				} else if(v == ndv) {
 					// avoid ndv in output
-					if(ndv < input_range/2) v++;
+					if(ndv < output_range/2) v++;
 					else v--;
 				}
 				xform_table[band_idx][i] = v;
@@ -217,7 +215,8 @@ int main(int argc, char *argv[]) {
 
 	int blocksize_x, blocksize_y;
 	GDALGetBlockSize(src_bands[0], &blocksize_x, &blocksize_y);
-	unsigned char *buf = (unsigned char *)malloc_or_die(blocksize_x*blocksize_y);
+	GUInt16 *buf_in = (GUInt16 *)malloc_or_die(sizeof(GUInt16)*blocksize_x*blocksize_y);
+	unsigned char *buf_out = (unsigned char *)malloc_or_die(blocksize_x*blocksize_y);
 
 	int boff_x, boff_y;
 	for(boff_y=0; boff_y<h; boff_y+=blocksize_y) {
@@ -235,21 +234,21 @@ int main(int argc, char *argv[]) {
 
 			for(band_idx=0; band_idx<band_count; band_idx++) {
 				GDALRasterIO(src_bands[band_idx], GF_Read, boff_x, boff_y, bsize_x, bsize_y, 
-					buf, bsize_x, bsize_y, GDT_Byte, 0, 0);
+					buf_in, bsize_x, bsize_y, GDT_UInt16, 0, 0);
 
 				int *xform = xform_table[band_idx];
-				unsigned char *p = buf;
+				GUInt16 *p_in = buf_in;
+				unsigned char *p_out = buf_out;
 
 				int bx, by;
 				for(by=0; by<bsize_y; by++) {
 					for(bx=0; bx<bsize_x; bx++) {
-						*p = xform[*p];
-						p++;
+						*(p_out++) = xform[*(p_in++)];
 					}
 				}
 
 				GDALRasterIO(dst_bands[band_idx], GF_Write, boff_x, boff_y, bsize_x, bsize_y, 
-					buf, bsize_x, bsize_y, GDT_Byte, 0, 0);
+					buf_out, bsize_x, bsize_y, GDT_Byte, 0, 0);
 			} // band
 		} // block x
 	} // block y
@@ -268,7 +267,7 @@ void compute_histogram(GDALRasterBandH src_band, int w, int h, int *histogram, i
 
 	int blocksize_x, blocksize_y;
 	GDALGetBlockSize(src_band, &blocksize_x, &blocksize_y);
-	unsigned char *buf = (unsigned char *)malloc_or_die(blocksize_x*blocksize_y);
+	GUInt16 *buf = (GUInt16 *)malloc_or_die(sizeof(GUInt16)*blocksize_x*blocksize_y);
 
 	int boff_x, boff_y;
 	for(boff_y=0; boff_y<h; boff_y+=blocksize_y) {
@@ -279,7 +278,7 @@ void compute_histogram(GDALRasterBandH src_band, int w, int h, int *histogram, i
 			if(bsize_x + boff_x > w) bsize_x = w - boff_x;
 
 			GDALRasterIO(src_band, GF_Read, boff_x, boff_y, bsize_x, bsize_y, 
-				buf, bsize_x, bsize_y, GDT_Byte, 0, 0);
+				buf, bsize_x, bsize_y, GDT_UInt16, 0, 0);
 
 			double progress = (double)(
 				(long)boff_y * (long)w +
@@ -287,7 +286,7 @@ void compute_histogram(GDALRasterBandH src_band, int w, int h, int *histogram, i
 				(double)((long)w * (long)h);
 			GDALTermProgress(progress, NULL, NULL);
 
-			unsigned char *p = buf;
+			GUInt16 *p = buf;
 			int bx, by;
 			for(by=0; by<bsize_y; by++) {
 				for(bx=0; bx<bsize_x; bx++) {
@@ -299,7 +298,8 @@ void compute_histogram(GDALRasterBandH src_band, int w, int h, int *histogram, i
 }
 
 void get_scale_from_stddev(
-	int *histogram, int input_range, double dst_avg, double dst_stddev,
+	int *histogram, int input_range, int output_range,
+	double dst_avg, double dst_stddev,
 	double *scale_out, double *offset_out
 ) {
 	int i;
@@ -325,7 +325,8 @@ void get_scale_from_stddev(
 }
 
 void get_scale_from_percentile(
-	int *histogram, int input_range, double from_percentile, double to_percentile,
+	int *histogram, int input_range, int output_range,
+	double from_percentile, double to_percentile,
 	double *scale_out, double *offset_out
 ) {
 	int i;
@@ -348,7 +349,7 @@ void get_scale_from_percentile(
 	if(from_val<0 || to_val<0) fatal_error("impossible: could not find window");
 	if(from_val == to_val) { from_val=0; to_val=input_range-1; } // FIXME
 
-	*scale_out = (double)(input_range-1) / (double)(to_val-from_val);
+	*scale_out = (double)(output_range-1) / (double)(to_val-from_val);
 	*offset_out = -(double)from_val * (*scale_out);
 }
 
@@ -407,4 +408,12 @@ int *table_out, int bin_count, double max_rel_freq) {
 	double *gaussian = gen_gaussian(variance, bin_count);
 	invert_histogram(histogram_in, gaussian, table_out, bin_count, max_rel_freq);
 	free(gaussian);
+}
+
+void copyGeoCode(GDALDatasetH dst_ds, GDALDatasetH src_ds) {
+	double affine[6];
+	if(GDALGetGeoTransform(src_ds, affine) == CE_None) {
+		GDALSetGeoTransform(dst_ds, affine);
+	}
+	GDALSetProjection(dst_ds, GDALGetProjectionRef(src_ds));
 }
