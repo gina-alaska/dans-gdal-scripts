@@ -4,7 +4,7 @@
 # UAF Confidential Information
 
 AC_PREREQ(2.59)
-AC_INIT([dans-gdal-scripts], [0.01], [dstahlke@gi.alaska.edu])
+AC_INIT([dans-gdal-scripts], [0.02], [dstahlke@gi.alaska.edu])
 AC_CONFIG_SRCDIR([src/common.h])
 AC_CONFIG_HEADER([config.h])
 
