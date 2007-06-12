@@ -15,7 +15,7 @@ void get_scale_from_percentile(int *histogram, int input_range, int output_range
 	double from_percentile, double to_percentile, double *scale_out, double *offset_out);
 // FIXME - output_range
 void invert_histogram_to_gaussian(int *histogram_in, double variance, 
-	int *table_out, int bin_count, double max_rel_freq);
+	int *table_out, int input_range, int output_range, double max_rel_freq);
 void copyGeoCode(GDALDatasetH dst_ds, GDALDatasetH src_ds);
 
 void usage(char *cmdname) {
@@ -180,7 +180,8 @@ int main(int argc, char *argv[]) {
 					xform_table[band_idx][i] = (int)( (double)i * scale + offset );
 				}
 			} else if(mode_histeq) {
-				invert_histogram_to_gaussian(histogram, dst_stddev, xform_table[band_idx], input_range, 5.0);
+				invert_histogram_to_gaussian(histogram, dst_stddev,
+					xform_table[band_idx], input_range, output_range, 5.0);
 			} else {
 				fatal_error("unrecognized mode");
 			}
@@ -376,14 +377,15 @@ double *gen_gaussian(double variance, int bin_count) {
 	return arr;
 }
 
-void invert_histogram(int *src_h, double *dst_h, int *out_h, int bin_count, double max_rel_freq) {
+void invert_histogram(int *src_h, double *dst_h, int *out_h, 
+int input_range, int output_range, double max_rel_freq) {
 	int i;
 	int pixel_count = 0;
-	for(i=0; i<bin_count; i++) pixel_count += src_h[i];
+	for(i=0; i<input_range; i++) pixel_count += src_h[i];
 
 	if(max_rel_freq) {
-		int bin_max = (int)(max_rel_freq * (double)pixel_count / (int)bin_count);
-		for(i=0; i<bin_count; i++) {
+		int bin_max = (int)(max_rel_freq * (double)pixel_count / (double)input_range);
+		for(i=0; i<input_range; i++) {
 			if(src_h[i] > bin_max) {
 				pixel_count -= src_h[i] - bin_max;
 				src_h[i] = bin_max;
@@ -394,19 +396,19 @@ void invert_histogram(int *src_h, double *dst_h, int *out_h, int bin_count, doub
 	double src_total = 0;
 	double dst_total = 0;
 	int j = 0;
-	for(i=0; i<bin_count; i++) {
+	for(i=0; i<input_range; i++) {
 		out_h[i] = j;
 		src_total += src_h[i];
-		while(j<bin_count && dst_total < src_total) {
+		while(j<output_range && dst_total < src_total) {
 			dst_total += dst_h[j++] * (double)pixel_count;
 		}
 	}
 }
 
 void invert_histogram_to_gaussian(int *histogram_in, double variance, 
-int *table_out, int bin_count, double max_rel_freq) {
-	double *gaussian = gen_gaussian(variance, bin_count);
-	invert_histogram(histogram_in, gaussian, table_out, bin_count, max_rel_freq);
+int *table_out, int input_range, int output_range, double max_rel_freq) {
+	double *gaussian = gen_gaussian(variance, output_range);
+	invert_histogram(histogram_in, gaussian, table_out, input_range, output_range, max_rel_freq);
 	free(gaussian);
 }
 
