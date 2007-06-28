@@ -49,17 +49,27 @@ void compute_tierow_invaffine(
 void usage(char *cmdname) {
 	fprintf(stderr, "Usage: %s\n", cmdname);
 	fprintf(stderr, "\t[-b input_band_id]\n");
-	fprintf(stderr, "\t[-res resolution] | [-s_srs srs_def]\n");
-	fprintf(stderr, "\t[-of format]\n");
-	fprintf(stderr, "\t[-ndv no_data_val [-ndv val] ...] [-min min_val] [-max max_val]   (set range of valid input values)\n");
-	fprintf(stderr, "\t[-palette palette.pal] | [-texture texture_image]   (default: gray background)\n");
-	fprintf(stderr, "\t[-exag slope_exageration]   (default: %.1f)\n", default_slope_exageration);
-	fprintf(stderr, "\t[-shade ambient diffuse specular_intensity specular_falloff]   (default: %.1f, %.1f, %.1f, %.1f)\n",
+	fprintf(stderr, "\t[-res input_resolution] | [-s_srs input_srs_def]\n");
+	fprintf(stderr, "\t[-of output_format]\n");
+	fprintf(stderr, "\t[-ndv no_data_val [-ndv val] ...] [-min min_val] [-max max_val]       (set range of valid input values)\n");
+	fprintf(stderr, "\t[-palette palette.pal] | [-texture texture_image] | [-alpha-overlay]  (default: gray background)\n");
+	fprintf(stderr, "\t[-exag slope_exageration]                                             (default: %.1f)\n", default_slope_exageration);
+	fprintf(stderr, "\t[-shade ambient diffuse specular_intensity specular_falloff]          (default: %.1f, %.1f, %.1f, %.1f)\n",
 		default_shade_params[0], default_shade_params[1], default_shade_params[2], default_shade_params[3]);
-	fprintf(stderr, "\t[-lightvec sun_x sun_y sun_z]   (default: %.1f, %.1f, %.1f)\n",
+	fprintf(stderr, "\t[-lightvec sun_x sun_y sun_z]                                         (default: %.1f, %.1f, %.1f)\n",
 		default_lightvec[0], default_lightvec[1], default_lightvec[2]);
-	fprintf(stderr, "\t[-offset new_zeropoint] [-scale scale_factor]   (default: offset=0 scale=1)\n");
+	fprintf(stderr, "\t[-offset new_zeropoint] [-scale scale_factor]                         (default: offset=0 scale=1)\n");
 	fprintf(stderr, "\tsrc_dataset dst_dataset\n");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "The -palette option creates a color-mapped image.  A default palette (dem.pal)\n");
+	fprintf(stderr, "is included in the distribution.  The -texture option is used for hillshading\n");
+	fprintf(stderr, "a raster image.  The texture and DEM must have the same geocoding.  The\n");
+	fprintf(stderr, "-alpha-overlay option generates an output with an alpha channel that can be\n");
+	fprintf(stderr, "drawn on top of a map to create a hillshaded image.\n");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "If the DEM has projection information it will be used to ensure that the\n");
+	fprintf(stderr, "shading is done relative to true north.\n");
+	fprintf(stderr, "\n");
 	exit(1);
 }
 
@@ -85,6 +95,7 @@ int main(int argc, char *argv[]) {
 	double src_scale = 1;
 	int data24bit = 0;
 	double data24bit_scale = 0;
+	int alpha_overlay = 0;
 
 	data_range_t valid_range;
 	valid_range.use_min = 0;
@@ -146,6 +157,8 @@ int main(int argc, char *argv[]) {
 			} else if(!strcmp(arg, "-texture")) {
 				if(argp == argc) usage(argv[0]);
 				tex_fn = argv[argp++];
+			} else if(!strcmp(arg, "-alpha-overlay")) {
+				alpha_overlay++;
 			} else if(!strcmp(arg, "-of")) {
 				if(argp == argc) usage(argv[0]);
 				output_format = argv[argp++];
@@ -196,6 +209,7 @@ int main(int argc, char *argv[]) {
 
 	if(!output_format) output_format = "GTiff";
 
+	// FIXME - alpha_overlay
 	if(palette_fn && tex_fn) fatal_error("cannot specify both palette and texture image");
 
 	GDALAllRegister();
@@ -214,6 +228,9 @@ int main(int argc, char *argv[]) {
 		if(!palette) fatal_error("could not read palette");
 		do_shade = 1;
 		out_numbands = 3;
+	} else if(alpha_overlay) {
+		do_shade = 1;
+		out_numbands = 4;
 	} else {
 		do_shade = 1;
 		out_numbands = 1;
@@ -333,6 +350,8 @@ int main(int argc, char *argv[]) {
 	int row, col;
 	float shade_table[SHADE_TABLE_SIZE*2+1][SHADE_TABLE_SIZE*2+1];
 	float spec_table[SHADE_TABLE_SIZE*2+1][SHADE_TABLE_SIZE*2+1];
+	float ALPHA_THRESH = .5F;
+	float thresh_brite = 1;
 	if(do_shade) {
 		float lightvec_len = sqrt(
 			lightvec[0] * lightvec[0] +
@@ -366,6 +385,15 @@ int main(int argc, char *argv[]) {
 				brite = shade_params[2]*powf(dotprod, shade_params[3]);
 				spec_table[row][col] = brite;
 			}
+		}
+					
+		if(shade_params[3] > 0) {
+			// this stuff is to ensure that the mask is
+			// fully bright when the transition is made
+			// from diffuse to specular
+			float thresh_dotprod = powf(ALPHA_THRESH / shade_params[2], 1.0F / shade_params[3]);
+			thresh_brite = shade_params[0] + shade_params[1] * thresh_dotprod;
+			if(thresh_brite > 1) thresh_brite = 1;
 		}
 	}
 
@@ -523,20 +551,42 @@ int main(int argc, char *argv[]) {
 				}
 				got_nan=1;
 			} else {
-				if(palette) {
-					get_palette_color(pixel, val, palette);
-				} else if(tex_ds) {
-					for(i=0; i<out_numbands; i++) pixel[i] = outbuf[i][col];
-				} else if(data24bit) {
+				if(data24bit) {
 					int ival = (int)round(val*data24bit_scale) + (1<<23);
 					if(ival >> 24) fatal_error("overflow in conversion to 24-bit");
 					pixel[2] = ival & 0xff;
 					pixel[1] = (ival >> 8) & 0xff;
 					pixel[0] = (ival >> 16) & 0xff;
+				} else if(alpha_overlay) {
+					if(thresh_brite < 1.0) {
+						brite += (spec / ALPHA_THRESH) * (1.0 - thresh_brite);
+					}
+
+					float alpha, white;
+					if(spec < ALPHA_THRESH) {
+						alpha = 1.0 - brite;
+						white = 0;
+					} else {
+						alpha = spec - ALPHA_THRESH;
+						white = 1;
+					}
+
+					if(alpha < 0) alpha = 0;
+					if(alpha > 1) alpha = 1;
+					if(white < 0) white = 0;
+					if(white > 1) white = 1;
+
+					pixel[0] = pixel[1] = pixel[2] = (int)(255.0 * white);
+					pixel[3] = (int)(255.0 * alpha);
 				} else {
-					for(i=0; i<out_numbands; i++) pixel[i] = 128;
-				}
-				if(do_shade) {
+					if(palette) {
+						get_palette_color(pixel, val, palette);
+					} else if(tex_ds) {
+						for(i=0; i<out_numbands; i++) pixel[i] = outbuf[i][col];
+					} else {
+						for(i=0; i<out_numbands; i++) pixel[i] = 128;
+					}
+
 					for(i=0; i<out_numbands; i++) {
 						int c = pixel[i];
 						c = (int)(c * brite + 255.0 * spec);
