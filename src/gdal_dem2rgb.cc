@@ -51,7 +51,7 @@ void usage(char *cmdname) {
 	fprintf(stderr, "\t[-b input_band_id]\n");
 	fprintf(stderr, "\t[-res resolution] | [-s_srs srs_def]\n");
 	fprintf(stderr, "\t[-of format]\n");
-	fprintf(stderr, "\t[-ndv no_data_val [-ndv val] ...] [-min min_val] | [-max max_val]\n");
+	fprintf(stderr, "\t[-ndv no_data_val [-ndv val] ...] [-min min_val] [-max max_val]   (set range of valid input values)\n");
 	fprintf(stderr, "\t[-palette palette.pal] | [-texture texture_image]   (default: gray background)\n");
 	fprintf(stderr, "\t[-exag slope_exageration]   (default: %.1f)\n", default_slope_exageration);
 	fprintf(stderr, "\t[-shade ambient diffuse specular_intensity specular_falloff]   (default: %.1f, %.1f, %.1f, %.1f)\n",

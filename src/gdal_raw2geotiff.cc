@@ -14,6 +14,7 @@ void usage(char *cmdname) {
 	fprintf(stderr, "\t-origin <left easting> <top northing>\n");
 	fprintf(stderr, "\t-res <pixel_size>\n");
 	fprintf(stderr, "\t-srs <proj4>\n");
+	fprintf(stderr, "\t[-datatype { UINT8 | UINT16 | INT16 | UINT32 | INT32 | FLOAT32 | FLOAT64 }]\n");
 	fprintf(stderr, "\t[-lsb | -msb]\n");
 	fprintf(stderr, "\t<input.bil> <output.tif>\n");
 	exit(1);

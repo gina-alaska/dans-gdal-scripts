@@ -13,7 +13,6 @@ void get_scale_from_stddev(int *histogram, int input_range, int output_range,
 	double dst_avg, double dst_stddev, double *scale_out, double *offset_out);
 void get_scale_from_percentile(int *histogram, int input_range, int output_range,
 	double from_percentile, double to_percentile, double *scale_out, double *offset_out);
-// FIXME - output_range
 void invert_histogram_to_gaussian(int *histogram_in, double variance, 
 	int *table_out, int input_range, int output_range, double max_rel_freq);
 void copyGeoCode(GDALDatasetH dst_ds, GDALDatasetH src_ds);
@@ -24,6 +23,7 @@ void usage(char *cmdname) {
 	fprintf(stderr, "    { -percentile-range <from: 0.0-1.0> <to: 0.0-1.0> } |\n");
 	fprintf(stderr, "    { -histeq <target_stddev> } }\n");
 	fprintf(stderr, "  [ -ndv <no_data_val> ]\n");
+	fprintf(stderr, "Input must be either 8-bit or 16-bit.  Output is 8-bit.\n");
 	exit(1);
 }
 
