@@ -41,7 +41,7 @@ void usage(char *cmdname) {
 Geocoding: \n\
   -s_srs '<s_srs>'                  Set or override source SRS \n\
   -ll_en <left_east> <lower_north>  Set or override lower-left coordinate \n\
-  -ul_en <left_east> <lower_north>  Set or override upper-left coordinate \n\
+  -ul_en <left_east> <lower_north>  Set or override upper-left coordinate (don't use both ll_en and ul_en)\n\
   -wh <width> <height>              Set or override image size \n\
   -res <res>                        Set or override resolution \n\
 \n\
