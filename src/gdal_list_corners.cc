@@ -245,7 +245,7 @@ int main(int argc, char **argv) {
 				if(*endptr) usage(argv[0]);
 				given_upper_n = strtod(argv[argp++], &endptr);
 				if(*endptr) usage(argv[0]);
-				got_ll_en++;
+				got_ul_en++;
 			} else if(!strcmp(arg, "-wh")) {
 				if(argp+2 > argc) usage(argv[0]);
 				char *endptr;
@@ -363,12 +363,13 @@ int main(int argc, char **argv) {
 	double *affine = NULL;
 	int has_rotation = 0;
 
-	if(got_ll_en && h && res) {
-		given_upper_n = given_lower_n + h*res;
-		got_ul_en = 1;
-	}
+	if((got_ul_en || got_ll_en) && res) {
+		if(got_ll_en) {
+			given_upper_n = given_lower_n + (double)h*res;
+			got_ul_en = 1;
+		}
 
-	if(got_ul_en && res) {
+		if(!got_ul_en) fatal_error("impossibility");
 		affine = (double *)malloc_or_die(sizeof(double) * 6);
 		affine[0] = given_left_e;  affine[1] = res; affine[2] =    0;
 		affine[3] = given_upper_n; affine[4] =   0; affine[5] = -res;
@@ -395,10 +396,18 @@ int main(int argc, char **argv) {
 			}
 		}
 
-		if(got_ul_en) {
-			if(!affine) fatal_error("missing -res parameter");
+		if(got_ul_en || got_ll_en) {
+			if(!affine || !res) fatal_error("missing -res parameter");
+
 			if(has_rotation) fatal_error(
 				"cannot override ll_en/ul_en if source\nimage has rotation or non-square pixels");
+
+			if(got_ll_en) {
+				given_upper_n = given_lower_n + (double)h*res;
+				got_ul_en = 1;
+			}
+
+			if(!got_ul_en) fatal_error("impossibility");
 			affine[0] = given_left_e;
 			affine[3] = given_upper_n;
 		}
