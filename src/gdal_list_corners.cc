@@ -41,6 +41,7 @@ void usage(char *cmdname) {
 Geocoding: \n\
   -s_srs '<s_srs>'                  Set or override source SRS \n\
   -ll_en <left_east> <lower_north>  Set or override lower-left coordinate \n\
+  -ul_en <left_east> <lower_north>  Set or override upper-left coordinate \n\
   -wh <width> <height>              Set or override image size \n\
   -res <res>                        Set or override resolution \n\
 \n\
@@ -199,7 +200,8 @@ int main(int argc, char **argv) {
 
 	int w=0, h=0;
 	int got_ll_en = 0;
-	double given_ll_e=0, given_ll_n=0;
+	int got_ul_en = 0;
+	double given_left_e=0, given_lower_n=0, given_upper_n=0;
 	double res=0;
 	int inspect_rect4 = 0;
 	int inspect_contour = 0;
@@ -231,9 +233,17 @@ int main(int argc, char **argv) {
 			} else if(!strcmp(arg, "-ll_en")) {
 				if(argp+2 > argc) usage(argv[0]);
 				char *endptr;
-				given_ll_e = strtod(argv[argp++], &endptr);
+				given_left_e = strtod(argv[argp++], &endptr);
 				if(*endptr) usage(argv[0]);
-				given_ll_n = strtod(argv[argp++], &endptr);
+				given_lower_n = strtod(argv[argp++], &endptr);
+				if(*endptr) usage(argv[0]);
+				got_ll_en++;
+			} else if(!strcmp(arg, "-ul_en")) {
+				if(argp+2 > argc) usage(argv[0]);
+				char *endptr;
+				given_left_e = strtod(argv[argp++], &endptr);
+				if(*endptr) usage(argv[0]);
+				given_upper_n = strtod(argv[argp++], &endptr);
 				if(*endptr) usage(argv[0]);
 				got_ll_en++;
 			} else if(!strcmp(arg, "-wh")) {
@@ -297,7 +307,8 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	if(!fn && !(s_srs && got_ll_en && w && h && res)) usage(argv[0]);
+	if(!fn && !(s_srs && (got_ll_en || got_ul_en) && w && h && res)) usage(argv[0]);
+	if(got_ll_en && got_ul_en) usage(argv[0]);
 
 	int do_wkt_output = wkt_xy_fn || wkt_en_fn || wkt_ll_fn;
 	int do_inspect = inspect_rect4 || inspect_contour;
@@ -352,12 +363,15 @@ int main(int argc, char **argv) {
 	double *affine = NULL;
 	int has_rotation = 0;
 
-	if(got_ll_en && res) {
+	if(got_ll_en && h && res) {
+		given_upper_n = given_lower_n + h*res;
+		got_ul_en = 1;
+	}
+
+	if(got_ul_en && res) {
 		affine = (double *)malloc_or_die(sizeof(double) * 6);
-		// FIXME - allow use of ul_en instead of ll_en
-		double ur_n = given_ll_n + h*res;
-		affine[0] = given_ll_e; affine[1] = res; affine[2] =    0;
-		affine[3] =       ur_n; affine[4] =   0; affine[5] = -res;
+		affine[0] = given_left_e;  affine[1] = res; affine[2] =    0;
+		affine[3] = given_upper_n; affine[4] =   0; affine[5] = -res;
 		has_rotation = 0;
 	} else if(ds) {
 		affine = (double *)malloc_or_die(sizeof(double) * 6);
@@ -368,7 +382,7 @@ int main(int argc, char **argv) {
 		}
 
 		if(res) {
-			if(!affine) fatal_error("missing -ll_en parameter");
+			if(!affine) fatal_error("missing ll_en/ul_en parameter");
 			if(has_rotation) fatal_error(
 				"cannot override resolution if source\nimage has rotation or non-square pixels");
 			affine[1] = res;
@@ -381,13 +395,12 @@ int main(int argc, char **argv) {
 			}
 		}
 
-		// FIXME - allow use of ul_en instead of ll_en
-		if(got_ll_en) {
+		if(got_ul_en) {
 			if(!affine) fatal_error("missing -res parameter");
 			if(has_rotation) fatal_error(
-				"cannot override ll_en if source\nimage has rotation or non-square pixels");
-			affine[0] = given_ll_e;
-			affine[3] = given_ll_n + h*res;
+				"cannot override ll_en/ul_en if source\nimage has rotation or non-square pixels");
+			affine[0] = given_left_e;
+			affine[3] = given_upper_n;
 		}
 	}
 
