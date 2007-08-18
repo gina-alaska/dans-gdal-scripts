@@ -49,10 +49,11 @@ Inspection: \n\
   -inspect-rect4                    Attempt to find 4-sided bounding polygon  \n\
   -inspect-contour                  Trace contour \n\
   -nodataval <val>                  Specify value of no-data pixels \n\
+  -ndv-toler <val>                  Tolerance for deciding if a pixel matches nodataval \n\
   -b <band_id> -b <band_id> ...     Bands to inspect (default is band 1 only) \n\
   -skip-erosion                     Don't use erosion filter \n\
   -m                                Output only the biggest outer ring \n\
-  -toler <val>                      Tolerance for point reduction (in pixel units) \n\
+  -dp-toler <val>                   Tolerance for point reduction (in pixel units) \n\
                                       default is 2 pixels\n\
   -report <fn.ppm>                  Output graphical report of bounds found \n\
   -wkt-xy <fn.wkt>                  Output bounds in WKT format (x/y coords) \n\
@@ -94,7 +95,7 @@ double polygon_area(contour_t *c);
 report_image_t *create_plot(double w, double h);
 void write_plot(report_image_t *dbuf, char *fn);
 unsigned char *get_mask_for_dataset(GDALDatasetH ds, int bandlist_size, int *bandlist, 
-	double nodataval, int specified_nodataval, report_image_t *dbuf);
+	double nodataval, int specified_nodataval, double ndv_tolerance, report_image_t *dbuf);
 vertex_t calc_centroid_from_mask(unsigned char *mask, int w, int h);
 contour_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *dbuf);
 mpoly_t calc_contour_from_mask(unsigned char *mask, int w, int h, report_image_t *dbuf,
@@ -207,6 +208,7 @@ int main(int argc, char **argv) {
 	int inspect_contour = 0;
 	int specified_nodataval = 0;
 	double nodataval = 0;
+	double ndv_tolerance = 0;
 	char *debug_report = NULL;
 	int inspect_numbands = 0;
 	int *inspect_bandids = NULL;
@@ -295,10 +297,15 @@ int main(int argc, char **argv) {
 				mask_out_fn = argv[argp++];
 			} else if(!strcmp(arg, "-m")) {
 				major_ring_only = 1;
-			} else if(!strcmp(arg, "-toler")) {
+			} else if(!strcmp(arg, "-dp-toler")) {
 				if(argp == argc) usage(argv[0]);
 				char *endptr;
 				reduction_tolerance = strtod(argv[argp++], &endptr);
+				if(*endptr) usage(argv[0]);
+			} else if(!strcmp(arg, "-ndv-toler")) {
+				if(argp == argc) usage(argv[0]);
+				char *endptr;
+				ndv_tolerance = strtod(argv[argp++], &endptr);
 				if(*endptr) usage(argv[0]);
 			} else usage(argv[0]);
 		} else {
@@ -436,7 +443,8 @@ int main(int argc, char **argv) {
 	unsigned char *mask = NULL;
 	if(do_inspect) {
 		if(debug_report) dbuf = create_plot(w, h);
-		mask = get_mask_for_dataset(ds, inspect_numbands, inspect_bandids, nodataval, specified_nodataval, dbuf);
+		mask = get_mask_for_dataset(ds, inspect_numbands, inspect_bandids,
+			nodataval, specified_nodataval, ndv_tolerance, dbuf);
 		if(!skip_erosion) {
 			unsigned char *eroded_mask = erode_mask(mask, w, h);
 			free(mask);
@@ -1393,7 +1401,7 @@ int major_ring_only, double reduction_tolerance) {
 }
 
 unsigned char *get_mask_for_dataset(GDALDatasetH ds, int bandlist_size, int *bandlist, 
-double nodataval, int specified_nodataval, report_image_t *dbuf) {
+double nodataval, int specified_nodataval, double ndv_tolerance, report_image_t *dbuf) {
 	int i, j;
 
 	int w = GDALGetRasterXSize(ds);
@@ -1452,7 +1460,7 @@ double nodataval, int specified_nodataval, report_image_t *dbuf) {
 					unsigned char *mask_bytep = mask + mask_rowlen*y + boff_x/8;
 					for(i=0; i<bsize_x; i++) {
 						double val = *(p++);
-						if(val != nodataval) {
+						if(fabs(val - nodataval) > ndv_tolerance) {
 							*mask_bytep |= mask_bitp;
 							if(dbuf) {
 								int x = i + boff_x;
@@ -1498,7 +1506,7 @@ typedef struct {
 
 // Implementation of Douglas-Peucker polyline reduction algorithm
 // rewrite of code from http://www.3dsoftware.com/Cartography/Programming/PolyLineReduction
-// (and adapted from src/linework/dp.c)
+// (and adapted from src/linework/dp.c in the sv_server module)
 
 #define VECLEN(x,y) sqrt((x)*(x)+(y)*(y))
 
