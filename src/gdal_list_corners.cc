@@ -32,7 +32,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #define EPSILON 10E-10
 
-int VERBOSE = 1;
+int VERBOSE = 0;
 
 void usage(char *cmdname) {
 	fprintf(stderr, "Usage:\n  %s <image_name> [options]\n", cmdname);
@@ -1363,12 +1363,12 @@ int major_ring_only, double min_ring_area, double reduction_tolerance) {
 		int num_filtered_contours = 0;
 		for(i=0; i<num_contours; i++) {
 			double area = polygon_area(contours+i);
-			if(VERBOSE) fprintf(stderr, "contour %d has area %f\n", i, area);
+			fprintf(stderr, "contour %d has area %f\n", i, area);
 			if(area >= min_ring_area) {
 				filtered_contours[num_filtered_contours++] = contours[i];
 			}
 		}
-		if(VERBOSE) fprintf(stderr, "filtered by area %d => %d contours\n",
+		fprintf(stderr, "filtered by area %d => %d contours\n",
 			num_contours, num_filtered_contours);
 
 		contours = filtered_contours;
