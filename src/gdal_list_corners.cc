@@ -32,7 +32,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #define EPSILON 10E-10
 
-int VERBOSE = 0;
+int VERBOSE = 1;
 
 void usage(char *cmdname) {
 	fprintf(stderr, "Usage:\n  %s <image_name> [options]\n", cmdname);
@@ -50,9 +50,10 @@ Inspection: \n\
   -inspect-contour                  Trace contour \n\
   -nodataval <val>                  Specify value of no-data pixels \n\
   -ndv-toler <val>                  Tolerance for deciding if a pixel matches nodataval \n\
-  -b <band_id> -b <band_id> ...     Bands to inspect (default is band 1 only) \n\
+  -b <band_id> -b <band_id> ...     Bands to inspect (default is all bands) \n\
   -skip-erosion                     Don't use erosion filter \n\
-  -m                                Output only the biggest outer ring \n\
+  -major-ring                       Output only the biggest outer ring \n\
+  -min-ring-area <val>              Drop rings with less than this area (in square pixels) \n\
   -dp-toler <val>                   Tolerance for point reduction (in pixel units) \n\
                                       default is 2 pixels\n\
   -report <fn.ppm>                  Output graphical report of bounds found \n\
@@ -89,6 +90,10 @@ typedef struct {
 	int img_w, img_h;
 } report_image_t;
 
+void xy2en(double *affine, double xpos, double ypos, double *e_out, double *n_out);
+void en2ll(OGRCoordinateTransformationH xform, double east, double north, double *lon_out, double *lat_out);
+void xy2ll(double *affine, OGRCoordinateTransformationH xform, double x, double y, double *lon_out, double *lat_out);
+void output_wkt_mpoly(char *wkt_fn, mpoly_t mpoly);
 void reduce_linestring_detail(contour_t *orig_string, contour_t *new_string, double res);
 int polygon_contains(contour_t *c1, contour_t *c2);
 double polygon_area(contour_t *c);
@@ -99,104 +104,12 @@ unsigned char *get_mask_for_dataset(GDALDatasetH ds, int bandlist_size, int *ban
 vertex_t calc_centroid_from_mask(unsigned char *mask, int w, int h);
 contour_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *dbuf);
 mpoly_t calc_contour_from_mask(unsigned char *mask, int w, int h, report_image_t *dbuf,
-	int major_ring_only, double reduction_tolerance);
+	int major_ring_only, double min_ring_area, double reduction_tolerance);
 unsigned char *erode_mask(unsigned char *in_mask, int w, int h);
 void mask_from_mpoly(mpoly_t *mpoly, int w, int h, char *fn);
 
-void xy2en(
-	double *affine,
-	double xpos, double ypos,
-	double *e_out, double *n_out
-) {
-	*e_out = affine[0] + affine[1] * xpos + affine[2] * ypos;
-	*n_out = affine[3] + affine[4] * xpos + affine[5] * ypos;
-}
-
-void en2ll(
-	OGRCoordinateTransformationH xform,
-	double east, double north,
-	double *lon_out, double *lat_out
-) {
-	if(xform) {
-		if(!OCTTransform(xform, 1, &east, &north, NULL)) {
-			fatal_error("OCTTransform failed");
-		}
-	}
-
-	if(east < -180.0 || east > 180.0) fatal_error("longitude out of range");
-	if(north < -90.0 || north > 90.0) fatal_error("latitude out of range");
-
-	*lon_out = east;
-	*lat_out = north;
-}
-
-void xy2ll(
-	double *affine, OGRCoordinateTransformationH xform,
-	double x, double y,
-	double *lon_out, double *lat_out
-) {
-	double east, north;
-	xy2en(affine, x, y, &east, &north);
-	en2ll(xform, east, north, lon_out, lat_out);
-}
-
-void output_wkt_mpoly(char *wkt_fn, mpoly_t mpoly) {
-	int num_contours = mpoly.num_contours;
-	contour_t *contours = mpoly.contours;
-
-	FILE *fout = fopen(wkt_fn, "w");
-	if(!fout) fatal_error("cannot open output file for WKT");
-
-	fprintf(fout, "MULTIPOLYGON(\n");
-	int r_idx, h_idx, p_idx;
-	int is_first_ring = 1;
-	for(r_idx=0; r_idx<num_contours; r_idx++) {
-		contour_t *ring = contours + r_idx;
-		if(ring->is_hole) continue;
-
-		if(!is_first_ring) fprintf(fout, ", ");
-		is_first_ring = 0;
-		fprintf(fout, "((\n");
-		//fprintf(fout, "  ring:%d\n", r_idx);
-		for(p_idx=0; p_idx<ring->npts+1; p_idx++) {
-			double x = ring->pts[p_idx % ring->npts].x;
-			double y = ring->pts[p_idx % ring->npts].y;
-			if(!(p_idx%4)) {
-				if(p_idx) fprintf(fout, "\n");
-				fprintf(fout, "  ");
-			}
-			fprintf(fout, "%f %f", x, y);
-			if(p_idx < ring->npts) fprintf(fout, ", ");
-		}
-		fprintf(fout, "\n)");
-
-		for(h_idx=0; h_idx<num_contours; h_idx++) {
-			contour_t *hole = contours + h_idx;
-			if(hole->parent_id != r_idx) continue;
-
-			fprintf(fout, ", (\n");
-			//fprintf(fout, "  hole:%d\n", h_idx);
-			for(p_idx=0; p_idx<hole->npts+1; p_idx++) {
-				double x = hole->pts[p_idx % hole->npts].x;
-				double y = hole->pts[p_idx % hole->npts].y;
-				if(!(p_idx%4)) {
-					if(p_idx) fprintf(fout, "\n");
-					fprintf(fout, "  ");
-				}
-				fprintf(fout, "%f %f", x, y);
-				if(p_idx < hole->npts) fprintf(fout, ", ");
-			}
-			fprintf(fout, "\n)");
-		}
-		fprintf(fout, ")");
-	}
-	fprintf(fout, ")\n");
-
-	fclose(fout);
-}
-
 int main(int argc, char **argv) {
-	char *fn = NULL;
+	char *input_raster_fn = NULL;
 	char *s_srs = NULL;
 
 	int w=0, h=0;
@@ -217,6 +130,7 @@ int main(int argc, char **argv) {
 	char *wkt_ll_fn = NULL;
 	char *mask_out_fn = NULL;
 	int major_ring_only = 0;
+	double min_ring_area = 0;
 	double reduction_tolerance = 2;
 	int skip_erosion = 0;
 
@@ -295,8 +209,13 @@ int main(int argc, char **argv) {
 			} else if(!strcmp(arg, "-mask-out")) {
 				if(argp == argc) usage(argv[0]);
 				mask_out_fn = argv[argp++];
-			} else if(!strcmp(arg, "-m")) {
+			} else if(!strcmp(arg, "-major-ring")) {
 				major_ring_only = 1;
+			} else if(!strcmp(arg, "-min-ring-area")) { // FIXME - docs
+				if(argp == argc) usage(argv[0]);
+				char *endptr;
+				min_ring_area = strtod(argv[argp++], &endptr);
+				if(*endptr) usage(argv[0]);
 			} else if(!strcmp(arg, "-dp-toler")) {
 				if(argp == argc) usage(argv[0]);
 				char *endptr;
@@ -309,30 +228,37 @@ int main(int argc, char **argv) {
 				if(*endptr) usage(argv[0]);
 			} else usage(argv[0]);
 		} else {
-			if(fn) usage(argv[0]);
-			fn = arg;
+			if(input_raster_fn) usage(argv[0]);
+			input_raster_fn = arg;
 		}
 	}
 
-	if(!fn && !(s_srs && (got_ll_en || got_ul_en) && w && h && res)) usage(argv[0]);
+	// FIXME - require fn for inspect
+	// FIXME - test case of no fn
+
+	if(!input_raster_fn && !(s_srs && (got_ll_en || got_ul_en) && w && h && res)) usage(argv[0]);
 	if(got_ll_en && got_ul_en) usage(argv[0]);
 
 	int do_wkt_output = wkt_xy_fn || wkt_en_fn || wkt_ll_fn;
 	int do_inspect = inspect_rect4 || inspect_contour;
-	if((do_wkt_output || mask_out_fn) && !do_inspect)
-		fatal_error("must specify -inspect-rect4 or -inspect-contour");
-	if(do_inspect && !inspect_numbands) {
-		inspect_bandids = (int *)realloc_or_die(inspect_bandids,
-			sizeof(int)*(inspect_numbands+1));
-		inspect_bandids[inspect_numbands++] = 1;
-	}
+	if((do_wkt_output || mask_out_fn) && !do_inspect) fatal_error(
+		"must specify -inspect-rect4 or -inspect-contour");
+
+	if(major_ring_only && min_ring_area) fatal_error(
+		"-major-ring and -min-ring-area options cannot both be used at the same time");
 
 	GDALAllRegister();
 
 	GDALDatasetH ds = NULL;
-	if(fn) {
-		ds = GDALOpen(fn, GA_ReadOnly);
+	if(input_raster_fn) {
+		ds = GDALOpen(input_raster_fn, GA_ReadOnly);
 		if(!ds) fatal_error("open failed");
+	}
+
+	if(do_inspect && !inspect_numbands) {
+		inspect_numbands = GDALGetRasterCount(ds);
+		inspect_bandids = (int *)malloc_or_die(sizeof(int)*inspect_numbands);
+		for(i=0; i<inspect_numbands; i++) inspect_bandids[i] = i+1;
 	}
 
 	CPLPushErrorHandler(CPLQuietErrorHandler);
@@ -557,7 +483,7 @@ int main(int argc, char **argv) {
 
 	if(inspect_contour) {
 		bpoly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
-		*bpoly = calc_contour_from_mask(mask, w, h, dbuf, major_ring_only, reduction_tolerance);
+		*bpoly = calc_contour_from_mask(mask, w, h, dbuf, major_ring_only, min_ring_area, reduction_tolerance);
 	}
 
 	if(mask_out_fn) {
@@ -611,6 +537,98 @@ int main(int argc, char **argv) {
 	CPLPopErrorHandler();
 
 	return 0;
+}
+
+void xy2en(
+	double *affine,
+	double xpos, double ypos,
+	double *e_out, double *n_out
+) {
+	*e_out = affine[0] + affine[1] * xpos + affine[2] * ypos;
+	*n_out = affine[3] + affine[4] * xpos + affine[5] * ypos;
+}
+
+void en2ll(
+	OGRCoordinateTransformationH xform,
+	double east, double north,
+	double *lon_out, double *lat_out
+) {
+	if(xform) {
+		if(!OCTTransform(xform, 1, &east, &north, NULL)) {
+			fatal_error("OCTTransform failed");
+		}
+	}
+
+	if(east < -180.0 || east > 180.0) fatal_error("longitude out of range");
+	if(north < -90.0 || north > 90.0) fatal_error("latitude out of range");
+
+	*lon_out = east;
+	*lat_out = north;
+}
+
+void xy2ll(
+	double *affine, OGRCoordinateTransformationH xform,
+	double x, double y,
+	double *lon_out, double *lat_out
+) {
+	double east, north;
+	xy2en(affine, x, y, &east, &north);
+	en2ll(xform, east, north, lon_out, lat_out);
+}
+
+void output_wkt_mpoly(char *wkt_fn, mpoly_t mpoly) {
+	int num_contours = mpoly.num_contours;
+	contour_t *contours = mpoly.contours;
+
+	FILE *fout = fopen(wkt_fn, "w");
+	if(!fout) fatal_error("cannot open output file for WKT");
+
+	fprintf(fout, "MULTIPOLYGON(\n");
+	int r_idx, h_idx, p_idx;
+	int is_first_ring = 1;
+	for(r_idx=0; r_idx<num_contours; r_idx++) {
+		contour_t *ring = contours + r_idx;
+		if(ring->is_hole) continue;
+
+		if(!is_first_ring) fprintf(fout, ", ");
+		is_first_ring = 0;
+		fprintf(fout, "((\n");
+		//fprintf(fout, "  ring:%d\n", r_idx);
+		for(p_idx=0; p_idx<ring->npts+1; p_idx++) {
+			double x = ring->pts[p_idx % ring->npts].x;
+			double y = ring->pts[p_idx % ring->npts].y;
+			if(!(p_idx%4)) {
+				if(p_idx) fprintf(fout, "\n");
+				fprintf(fout, "  ");
+			}
+			fprintf(fout, "%f %f", x, y);
+			if(p_idx < ring->npts) fprintf(fout, ", ");
+		}
+		fprintf(fout, "\n)");
+
+		for(h_idx=0; h_idx<num_contours; h_idx++) {
+			contour_t *hole = contours + h_idx;
+			if(hole->parent_id != r_idx) continue;
+
+			fprintf(fout, ", (\n");
+			//fprintf(fout, "  hole:%d\n", h_idx);
+			for(p_idx=0; p_idx<hole->npts+1; p_idx++) {
+				double x = hole->pts[p_idx % hole->npts].x;
+				double y = hole->pts[p_idx % hole->npts].y;
+				if(!(p_idx%4)) {
+					if(p_idx) fprintf(fout, "\n");
+					fprintf(fout, "  ");
+				}
+				fprintf(fout, "%f %f", x, y);
+				if(p_idx < hole->npts) fprintf(fout, ", ");
+			}
+			fprintf(fout, "\n)");
+		}
+		fprintf(fout, ")");
+	}
+	fprintf(fout, ")\n");
+
+	fclose(fout);
 }
 
 report_image_t *create_plot(double w, double h) {
@@ -1050,8 +1068,65 @@ int create_descender_pair(int *num_descenders, descender_t **descenders, int y, 
 	return n;
 }
 
+void compute_containments(contour_t *contours, int num_contours) {
+	int i, j;
+
+	unsigned char **containments = (unsigned char **)malloc_or_die(
+		sizeof(unsigned char *) * num_contours);
+	for(i=0; i<num_contours; i++) {
+		containments[i] = (unsigned char *)malloc_or_die(num_contours);
+		for(j=0; j<num_contours; j++) {
+			if(i == j) {
+				containments[i][j] = 0;
+			} else {
+				containments[i][j] = polygon_contains(&contours[i], &contours[j]);
+				//fprintf(stderr, "containtments[%d][%d] = %d\n", i, j, containments[i][j]);
+			}
+		}
+	}
+	int *containment_levels = (int *)malloc_or_die(
+		sizeof(int) * num_contours);
+	int max_level = 0;
+	for(i=0; i<num_contours; i++) {
+		containment_levels[i] = 0;
+		for(j=0; j<num_contours; j++) {
+			if(containments[i][j] && containments[j][i]) {
+				// FIXME
+				// This is unlikely but possible due to the point
+				// reduction algorithm.  There is probably no way
+				// to fix it though.
+				fprintf(stderr, "topology error: %d and %d contain each other\n", i, j);
+				fatal_error("topology error");
+			}
+			if(containments[j][i]) containment_levels[i]++;
+		}
+		if(VERBOSE) fprintf(stderr, "containment_levels[%d] = %d\n", i, containment_levels[i]);
+		if(containment_levels[i] > max_level) max_level = containment_levels[i];
+	}
+
+	for(i=0; i<num_contours; i++) {
+		contours[i].parent_id = -1;
+		contours[i].is_hole = 0;
+	}
+	int level;
+	for(level=0; level <= max_level; level+=2) {
+		for(i=0; i<num_contours; i++) {
+			if(containment_levels[i] != level) continue;
+			for(j=0; j<num_contours; j++) {
+				if(
+					containment_levels[j] == level+1 &&
+					containments[i][j]
+				) {
+					contours[j].parent_id = i;
+					contours[j].is_hole = 1;
+				}
+			}
+		}
+	}
+}
+
 mpoly_t calc_contour_from_mask(unsigned char *mask, int w, int h, report_image_t *dbuf,
-int major_ring_only, double reduction_tolerance) {
+int major_ring_only, double min_ring_area, double reduction_tolerance) {
 	int x, y;
 	int plot_mode = dbuf ? 2 : 0;
 
@@ -1203,7 +1278,7 @@ int major_ring_only, double reduction_tolerance) {
 		}
 	}
 
-	int i, j;
+	int i;
 
 	if(VERBOSE) {
 		for(i=0; i<num_descenders; i++) fprintf(stderr, "%d: top_link=%d bottom_link=%d\n",
@@ -1280,8 +1355,28 @@ int major_ring_only, double reduction_tolerance) {
 		contours[num_contours++] = contour;
 	}
 
+	if(min_ring_area > 0) {
+		if(VERBOSE) fprintf(stderr, "removing small rings...\n");
+
+		contour_t *filtered_contours = (contour_t *)malloc_or_die(sizeof(contour_t)*num_contours);
+		int num_filtered_contours = 0;
+		for(i=0; i<num_contours; i++) {
+			double area = polygon_area(contours+i);
+			if(VERBOSE) fprintf(stderr, "contour %d has area %f\n", i, area);
+			if(area >= min_ring_area) {
+				filtered_contours[num_filtered_contours++] = contours[i];
+			}
+		}
+		if(VERBOSE) fprintf(stderr, "filtered by area %d => %d contours\n",
+			num_contours, num_filtered_contours);
+
+		contours = filtered_contours;
+		num_contours = num_filtered_contours;
+	}
+
 	if(reduction_tolerance > 0) {
 		if(VERBOSE) fprintf(stderr, "reducing...\n");
+
 		contour_t *reduced_contours = (contour_t *)malloc_or_die(sizeof(contour_t)*num_contours);
 		int num_reduced_contours = 0;
 		int total_npts_in=0, total_npts_out=0;
@@ -1302,58 +1397,7 @@ int major_ring_only, double reduction_tolerance) {
 		num_contours = num_reduced_contours;
 	}
 
-	unsigned char **containments = (unsigned char **)malloc_or_die(
-		sizeof(unsigned char *) * num_contours);
-	for(i=0; i<num_contours; i++) {
-		containments[i] = (unsigned char *)malloc_or_die(num_contours);
-		for(j=0; j<num_contours; j++) {
-			if(i == j) {
-				containments[i][j] = 0;
-			} else {
-				containments[i][j] = polygon_contains(&contours[i], &contours[j]);
-				//fprintf(stderr, "containtments[%d][%d] = %d\n", i, j, containments[i][j]);
-			}
-		}
-	}
-	int *containment_levels = (int *)malloc_or_die(
-		sizeof(int) * num_contours);
-	int max_level = 0;
-	for(i=0; i<num_contours; i++) {
-		containment_levels[i] = 0;
-		for(j=0; j<num_contours; j++) {
-			if(containments[i][j] && containments[j][i]) {
-				// FIXME
-				// This is unlikely but possible due to the point
-				// reduction algorithm.  There is probably no way
-				// to fix it though.
-				fprintf(stderr, "topology error: %d and %d contain each other\n", i, j);
-				fatal_error("topology error");
-			}
-			if(containments[j][i]) containment_levels[i]++;
-		}
-		if(VERBOSE) fprintf(stderr, "containment_levels[%d] = %d\n", i, containment_levels[i]);
-		if(containment_levels[i] > max_level) max_level = containment_levels[i];
-	}
-
-	for(i=0; i<num_contours; i++) {
-		contours[i].parent_id = -1;
-		contours[i].is_hole = 0;
-	}
-	int level;
-	for(level=0; level <= max_level; level+=2) {
-		for(i=0; i<num_contours; i++) {
-			if(containment_levels[i] != level) continue;
-			for(j=0; j<num_contours; j++) {
-				if(
-					containment_levels[j] == level+1 &&
-					containments[i][j]
-				) {
-					contours[j].parent_id = i;
-					contours[j].is_hole = 1;
-				}
-			}
-		}
-	}
+	compute_containments(contours, num_contours);
 
 	if(major_ring_only) {
 		double biggest_area = 0;
