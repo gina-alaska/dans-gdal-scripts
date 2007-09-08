@@ -211,7 +211,7 @@ int main(int argc, char **argv) {
 				mask_out_fn = argv[argp++];
 			} else if(!strcmp(arg, "-major-ring")) {
 				major_ring_only = 1;
-			} else if(!strcmp(arg, "-min-ring-area")) { // FIXME - docs
+			} else if(!strcmp(arg, "-min-ring-area")) {
 				if(argp == argc) usage(argv[0]);
 				char *endptr;
 				min_ring_area = strtod(argv[argp++], &endptr);
@@ -233,14 +233,12 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	// FIXME - require fn for inspect
-	// FIXME - test case of no fn
-
 	if(!input_raster_fn && !(s_srs && (got_ll_en || got_ul_en) && w && h && res)) usage(argv[0]);
 	if(got_ll_en && got_ul_en) usage(argv[0]);
 
 	int do_wkt_output = wkt_xy_fn || wkt_en_fn || wkt_ll_fn;
 	int do_inspect = inspect_rect4 || inspect_contour;
+	if(do_inspect && !input_raster_fn) fatal_error("must specify filename of image");
 	if((do_wkt_output || mask_out_fn) && !do_inspect) fatal_error(
 		"must specify -inspect-rect4 or -inspect-contour");
 
@@ -349,22 +347,6 @@ int main(int argc, char **argv) {
 	if((wkt_en_fn || wkt_ll_fn) && !affine) fatal_error("missing affine transform");
 	if(wkt_ll_fn && !xform) fatal_error("missing coordinate transform");
 
-	int band_count = GDALGetRasterCount(ds);
-	const char *datatypes = "";
-	for(i=0; i<band_count; i++) {
-		GDALRasterBandH band = GDALGetRasterBand(ds, i+1);
-		GDALDataType gdt = GDALGetRasterDataType(band);
-		const char *dt = GDALGetDataTypeName(gdt);
-		if(i) {
-			char *join_str = (char *)malloc_or_die(
-				strlen(datatypes) + 1 + strlen(dt) + 1);
-			sprintf(join_str, "%s,%s", datatypes, dt);
-			datatypes = join_str;
-		} else {
-			datatypes = dt;
-		}
-	}
-
 	report_image_t *dbuf = NULL;
 	unsigned char *mask = NULL;
 	if(do_inspect) {
@@ -381,8 +363,27 @@ int main(int argc, char **argv) {
 	// output phase
 
 	printf("width: %d\nheight: %d\n", w, h);
-	printf("num_bands: %d\n", band_count);
-	printf("datatype: %s\n", datatypes);
+
+	if(ds) {
+		int band_count = GDALGetRasterCount(ds);
+		const char *datatypes = "";
+		for(i=0; i<band_count; i++) {
+			GDALRasterBandH band = GDALGetRasterBand(ds, i+1);
+			GDALDataType gdt = GDALGetRasterDataType(band);
+			const char *dt = GDALGetDataTypeName(gdt);
+			if(i) {
+				char *join_str = (char *)malloc_or_die(
+					strlen(datatypes) + 1 + strlen(dt) + 1);
+				sprintf(join_str, "%s,%s", datatypes, dt);
+				datatypes = join_str;
+			} else {
+				datatypes = dt;
+			}
+		}
+		printf("num_bands: %d\n", band_count);
+		printf("datatype: %s\n", datatypes);
+	}
+
 	if(res) printf("source_res: %f\n", res);
 	if(s_srs && strlen(s_srs)) {
 		printf("s_srs: '%s'\n", s_srs);
