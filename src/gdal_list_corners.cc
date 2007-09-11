@@ -1893,7 +1893,7 @@ void mask_from_mpoly(mpoly_t *mpoly, int w, int h, char *fn) {
 		unsigned char bitp = 128;
 		row_crossings_t *r = rows+y;
 		for(i=0; i<w; i++) {
-			unsigned char v = 0;
+			unsigned char v = 1;
 			// not the fastest way...
 			for(j=0; j<r->num_crossings; j++) {
 				if(i >= r->crossings[j]) v = !v;
