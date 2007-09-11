@@ -53,6 +53,7 @@ Inspection: \n\
   -b <band_id> -b <band_id> ...     Bands to inspect (default is all bands) \n\
   -skip-erosion                     Don't use erosion filter \n\
   -major-ring                       Output only the biggest outer ring \n\
+  -no-donuts                        Output only top-level rings \n\
   -min-ring-area <val>              Drop rings with less than this area (in square pixels) \n\
   -dp-toler <val>                   Tolerance for point reduction (in pixel units) \n\
                                       default is 2 pixels\n\
@@ -104,7 +105,7 @@ unsigned char *get_mask_for_dataset(GDALDatasetH ds, int bandlist_size, int *ban
 vertex_t calc_centroid_from_mask(unsigned char *mask, int w, int h);
 contour_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *dbuf);
 mpoly_t calc_contour_from_mask(unsigned char *mask, int w, int h, report_image_t *dbuf,
-	int major_ring_only, double min_ring_area, double reduction_tolerance);
+	int major_ring_only, int no_donuts, double min_ring_area, double reduction_tolerance);
 unsigned char *erode_mask(unsigned char *in_mask, int w, int h);
 void mask_from_mpoly(mpoly_t *mpoly, int w, int h, char *fn);
 
@@ -130,6 +131,7 @@ int main(int argc, char **argv) {
 	char *wkt_ll_fn = NULL;
 	char *mask_out_fn = NULL;
 	int major_ring_only = 0;
+	int no_donuts = 0;
 	double min_ring_area = 0;
 	double reduction_tolerance = 2;
 	int skip_erosion = 0;
@@ -211,6 +213,8 @@ int main(int argc, char **argv) {
 				mask_out_fn = argv[argp++];
 			} else if(!strcmp(arg, "-major-ring")) {
 				major_ring_only = 1;
+			} else if(!strcmp(arg, "-no-donuts")) {
+				no_donuts = 1;
 			} else if(!strcmp(arg, "-min-ring-area")) {
 				if(argp == argc) usage(argv[0]);
 				char *endptr;
@@ -244,6 +248,8 @@ int main(int argc, char **argv) {
 
 	if(major_ring_only && min_ring_area) fatal_error(
 		"-major-ring and -min-ring-area options cannot both be used at the same time");
+	if(major_ring_only && no_donuts) fatal_error(
+		"-major-ring and -no-donuts options cannot both be used at the same time");
 
 	GDALAllRegister();
 
@@ -484,7 +490,7 @@ int main(int argc, char **argv) {
 
 	if(inspect_contour) {
 		bpoly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
-		*bpoly = calc_contour_from_mask(mask, w, h, dbuf, major_ring_only, min_ring_area, reduction_tolerance);
+		*bpoly = calc_contour_from_mask(mask, w, h, dbuf, major_ring_only, no_donuts, min_ring_area, reduction_tolerance);
 	}
 
 	if(mask_out_fn) {
@@ -1106,28 +1112,26 @@ void compute_containments(contour_t *contours, int num_contours) {
 	}
 
 	for(i=0; i<num_contours; i++) {
-		contours[i].parent_id = -1;
-		contours[i].is_hole = 0;
+		// only odd levels are holes
+		contours[i].is_hole = containment_levels[i] % 2;
 	}
-	int level;
-	for(level=0; level <= max_level; level+=2) {
-		for(i=0; i<num_contours; i++) {
-			if(containment_levels[i] != level) continue;
-			for(j=0; j<num_contours; j++) {
-				if(
-					containment_levels[j] == level+1 &&
-					containments[i][j]
-				) {
-					contours[j].parent_id = i;
-					contours[j].is_hole = 1;
-				}
+
+	for(i=0; i<num_contours; i++) {
+		contours[i].parent_id = -1;
+
+		for(j=0; j<num_contours; j++) {
+			if(
+				containments[j][i] &&
+				containment_levels[i] == containment_levels[j] + 1
+			) {
+				contours[i].parent_id = j;
 			}
 		}
 	}
 }
 
 mpoly_t calc_contour_from_mask(unsigned char *mask, int w, int h, report_image_t *dbuf,
-int major_ring_only, double min_ring_area, double reduction_tolerance) {
+int major_ring_only, int no_donuts, double min_ring_area, double reduction_tolerance) {
 	int x, y;
 	int plot_mode = dbuf ? 2 : 0;
 
@@ -1363,7 +1367,7 @@ int major_ring_only, double min_ring_area, double reduction_tolerance) {
 		int num_filtered_contours = 0;
 		for(i=0; i<num_contours; i++) {
 			double area = polygon_area(contours+i);
-			fprintf(stderr, "contour %d has area %f\n", i, area);
+			if(VERBOSE) if(area > 10) fprintf(stderr, "contour %d has area %f\n", i, area);
 			if(area >= min_ring_area) {
 				filtered_contours[num_filtered_contours++] = contours[i];
 			}
@@ -1417,9 +1421,28 @@ int major_ring_only, double min_ring_area, double reduction_tolerance) {
 		num_contours = 1;
 	}
 
-	if(VERBOSE) fprintf(stderr, "plotting...\n");
+	if(no_donuts) {
+		int out_idx = 0;
+		for(i=0; i<num_contours; i++) {
+			if(contours[i].parent_id < 0) {
+				contours[out_idx++] = contours[i];
+			}
+		}
+		num_contours = out_idx;
+		if(VERBOSE) fprintf(stderr, "number of non-donut contours is %d", num_contours);
+	}
+
+	int num_outer=0, num_inner=0, total_pts=0;
+	for(i=0; i<num_contours; i++) {
+		if(contours[i].is_hole) num_inner++;
+		else num_outer++;
+		total_pts += contours[i].npts;
+	}
+	fprintf(stderr, "Found %d outer rings and %d holes with a total of %d vertices.\n", num_outer, num_inner, total_pts);
 
 	if(plot_mode == 2) {
+		if(VERBOSE) fprintf(stderr, "plotting...\n");
+
 		int j;
 		for(i=0; i<num_contours; i++) {
 			int v = (i%62)+1;
