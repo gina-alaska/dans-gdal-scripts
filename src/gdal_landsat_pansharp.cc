@@ -197,7 +197,7 @@ int main(int argc, char *argv[]) {
 	GDALDriverH dst_driver = GDALGetDriverByName(output_format);
 	if(!dst_driver) fatal_error("unrecognized output format");
 	GDALDatasetH dst_ds = GDALCreate(dst_driver, dst_fn, w, h, rgb_band_count, GDT_Byte, NULL);
-	if(!dst_ds) fatal_error("could create output");
+	if(!dst_ds) fatal_error("could not create output");
 	copyGeoCode(dst_ds, pan_ds);
 
 	GDALRasterBandH *dst_bands = (GDALRasterBandH *)malloc_or_die(sizeof(GDALRasterBandH) * rgb_band_count);
