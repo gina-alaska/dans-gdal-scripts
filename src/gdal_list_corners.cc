@@ -85,10 +85,14 @@ typedef struct {
 	contour_t *contours;
 } mpoly_t;
 
+#define PLOT_RECT4 1
+#define PLOT_DESCENDERS 2
+#define PLOT_CONTOURS 3
 typedef struct {
 	unsigned char *img;
 	double canvas_w, canvas_h;
 	int img_w, img_h;
+	int mode;
 } report_image_t;
 
 void xy2en(double *affine, double xpos, double ypos, double *e_out, double *n_out);
@@ -104,10 +108,12 @@ unsigned char *get_mask_for_dataset(GDALDatasetH ds, int bandlist_size, int *ban
 	double nodataval, int specified_nodataval, double ndv_tolerance, report_image_t *dbuf);
 vertex_t calc_centroid_from_mask(unsigned char *mask, int w, int h);
 contour_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *dbuf);
-mpoly_t calc_contour_from_mask(unsigned char *mask, int w, int h, report_image_t *dbuf,
-	int major_ring_only, int no_donuts, double min_ring_area, double reduction_tolerance);
+mpoly_t calc_contour_from_mask(unsigned char *mask, int w, int h,
+	report_image_t *dbuf, int major_ring_only, int no_donuts, double min_ring_area);
 unsigned char *erode_mask(unsigned char *in_mask, int w, int h);
 void mask_from_mpoly(mpoly_t *mpoly, int w, int h, char *fn);
+mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance);
+void debug_plot_contours(mpoly_t *mpoly, report_image_t *dbuf);
 
 int main(int argc, char **argv) {
 	char *input_raster_fn = NULL;
@@ -356,7 +362,11 @@ int main(int argc, char **argv) {
 	report_image_t *dbuf = NULL;
 	unsigned char *mask = NULL;
 	if(do_inspect) {
-		if(debug_report) dbuf = create_plot(w, h);
+		if(debug_report) {
+			dbuf = create_plot(w, h);
+			if(inspect_rect4) dbuf->mode = PLOT_RECT4;
+			else dbuf->mode = PLOT_CONTOURS;
+		}
 		mask = get_mask_for_dataset(ds, inspect_numbands, inspect_bandids,
 			nodataval, specified_nodataval, ndv_tolerance, dbuf);
 		if(!skip_erosion) {
@@ -490,7 +500,7 @@ int main(int argc, char **argv) {
 
 	if(inspect_contour) {
 		bpoly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
-		*bpoly = calc_contour_from_mask(mask, w, h, dbuf, major_ring_only, no_donuts, min_ring_area, reduction_tolerance);
+		*bpoly = calc_contour_from_mask(mask, w, h, dbuf, major_ring_only, no_donuts, min_ring_area);
 	}
 
 	if(mask_out_fn) {
@@ -498,8 +508,25 @@ int main(int argc, char **argv) {
 		mask_from_mpoly(bpoly, w, h, mask_out_fn);
 	}
 
+	if(bpoly && reduction_tolerance > 0) {
+		*bpoly = compute_reduced_pointset(bpoly, reduction_tolerance);
+	}
+
+	if(dbuf && dbuf->mode == PLOT_CONTOURS) {
+		if(!bpoly) fatal_error("missing bound polygon");
+		debug_plot_contours(bpoly, dbuf);
+	}
+
 	if(do_wkt_output) {
 		if(!bpoly) fatal_error("missing bound polygon");
+
+		int num_outer=0, num_inner=0, total_pts=0;
+		for(i=0; i<bpoly->num_contours; i++) {
+			if(bpoly->contours[i].is_hole) num_inner++;
+			else num_outer++;
+			total_pts += bpoly->contours[i].npts;
+		}
+		fprintf(stderr, "Found %d outer rings and %d holes with a total of %d vertices.\n", num_outer, num_inner, total_pts);
 
 		if(wkt_xy_fn) output_wkt_mpoly(wkt_xy_fn, *bpoly);
 
@@ -817,7 +844,7 @@ contour_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t
 
 	int chop_dx = 1, chop_dy = 0;
 	for(;;) {
-		if(dbuf) plot_point_big(dbuf, fulcrum_x, fulcrum_y, 0, 255, 0);
+		if(dbuf && dbuf->mode == PLOT_RECT4) plot_point_big(dbuf, fulcrum_x, fulcrum_y, 0, 255, 0);
 
 		int best_dx = -chop_dx, best_dy = -chop_dy;
 		int best_x=-1, best_y=-1;
@@ -1017,7 +1044,7 @@ contour_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t
 		if(VERBOSE) fprintf(stderr, "vert[%d] = %f, %f\n", i, x, y);
 	}
 
-	if(dbuf) {
+	if(dbuf && dbuf->mode == PLOT_RECT4) {
 		for(i=0; i<num_groups; i++) {
 			j = i<num_groups-1 ? i+1 : 0;
 			double x0 = verts[i].x;
@@ -1098,10 +1125,6 @@ void compute_containments(contour_t *contours, int num_contours) {
 		containment_levels[i] = 0;
 		for(j=0; j<num_contours; j++) {
 			if(containments[i][j] && containments[j][i]) {
-				// FIXME
-				// This is unlikely but possible due to the point
-				// reduction algorithm.  There is probably no way
-				// to fix it though.
 				fprintf(stderr, "topology error: %d and %d contain each other\n", i, j);
 				fatal_error("topology error");
 			}
@@ -1130,10 +1153,9 @@ void compute_containments(contour_t *contours, int num_contours) {
 	}
 }
 
-mpoly_t calc_contour_from_mask(unsigned char *mask, int w, int h, report_image_t *dbuf,
-int major_ring_only, int no_donuts, double min_ring_area, double reduction_tolerance) {
+mpoly_t calc_contour_from_mask(unsigned char *mask, int w, int h,
+report_image_t *dbuf, int major_ring_only, int no_donuts, double min_ring_area) {
 	int x, y;
-	int plot_mode = dbuf ? 2 : 0;
 
 	if(VERBOSE) fprintf(stderr, "finding contour...\n");
 
@@ -1203,8 +1225,10 @@ int major_ring_only, int no_donuts, double min_ring_area, double reduction_toler
 				(up_tid < up_row.num_transitions && up_row.closings[up_tid] <= down_row.openings[down_tid])
 			) {
 				//      \----/ 
-				if(plot_mode == 1) for(x=up_row.openings[up_tid]; x<=up_row.closings[up_tid]; x++)
-					plot_point(dbuf, x, y, 255, 0, 0);
+				if(dbuf && dbuf->mode == PLOT_DESCENDERS) {
+					for(x=up_row.openings[up_tid]; x<=up_row.closings[up_tid]; x++)
+						plot_point(dbuf, x, y, 255, 0, 0);
+				}
 				int d1 = up_row.descender_ids[up_tid*2];
 				int d2 = up_row.descender_ids[up_tid*2+1];
 				descenders[d1].bottom_linkage = d2;
@@ -1221,8 +1245,10 @@ int major_ring_only, int no_donuts, double min_ring_area, double reduction_toler
 				(down_tid < down_row.num_transitions && down_row.closings[down_tid] <= up_row.openings[up_tid])
 			) {
 				//      /----\  .
-				if(plot_mode == 1) for(x=down_row.openings[down_tid]; x<=down_row.closings[down_tid]; x++)
-					plot_point(dbuf, x, y, 0, 255, 0);
+				if(dbuf && dbuf->mode == PLOT_DESCENDERS) {
+					for(x=down_row.openings[down_tid]; x<=down_row.closings[down_tid]; x++)
+						plot_point(dbuf, x, y, 0, 255, 0);
+				}
 				int d = create_descender_pair(&num_descenders, &descenders, y, h-y+1);
 				descenders[d  ].pts[0] = down_row.openings[down_tid];
 				descenders[d+1].pts[0] = down_row.closings[down_tid];
@@ -1230,7 +1256,7 @@ int major_ring_only, int no_donuts, double min_ring_area, double reduction_toler
 				down_row.descender_ids[down_tid*2+1] = d+1;
 				down_tid++;
 			} else if(up_tid < up_row.num_transitions && down_tid < down_row.num_transitions) {
-				if(plot_mode == 1) {
+				if(dbuf && dbuf->mode == PLOT_DESCENDERS) {
 					plot_point(dbuf, up_row.openings[up_tid], y, 255, 255, 0);
 					plot_point(dbuf, down_row.openings[down_tid], y, 255, 255, 0);
 				}
@@ -1243,8 +1269,10 @@ int major_ring_only, int no_donuts, double min_ring_area, double reduction_toler
 						(up_tid < up_row.num_transitions-1) &&
 						(up_row.openings[up_tid+1] < down_row.closings[down_tid])
 					) {
-						if(plot_mode == 1) for(x=up_row.closings[up_tid]; x<=up_row.openings[up_tid+1]; x++)
-							plot_point(dbuf, x, y, 255, 0, 255);
+						if(dbuf && dbuf->mode == PLOT_DESCENDERS) {
+							for(x=up_row.closings[up_tid]; x<=up_row.openings[up_tid+1]; x++)
+								plot_point(dbuf, x, y, 255, 0, 255);
+						}
 						int d1 = up_row.descender_ids[up_tid*2+1];
 						int d2 = up_row.descender_ids[up_tid*2+2];
 						descenders[d1].bottom_linkage = d2;
@@ -1260,8 +1288,10 @@ int major_ring_only, int no_donuts, double min_ring_area, double reduction_toler
 						(down_tid < down_row.num_transitions-1) &&
 						(down_row.openings[down_tid+1] < up_row.closings[up_tid])
 					) {
-						if(plot_mode == 1) for(x=down_row.closings[down_tid]; x<=down_row.openings[down_tid+1]; x++)
-							plot_point(dbuf, x, y, 0, 255, 255);
+						if(dbuf && dbuf->mode == PLOT_DESCENDERS) {
+							for(x=down_row.closings[down_tid]; x<=down_row.openings[down_tid+1]; x++)
+								plot_point(dbuf, x, y, 0, 255, 255);
+						}
 						int d = create_descender_pair(&num_descenders, &descenders, y, h-y+1);
 						descenders[d  ].pts[0] = down_row.closings[down_tid];
 						descenders[d+1].pts[0] = down_row.openings[down_tid+1];
@@ -1270,7 +1300,7 @@ int major_ring_only, int no_donuts, double min_ring_area, double reduction_toler
 						down_tid++;
 					} else break;
 				}
-				if(plot_mode == 1) {
+				if(dbuf && dbuf->mode == PLOT_DESCENDERS) {
 					plot_point(dbuf, up_row.closings[up_tid], y, 255, 255, 0);
 					plot_point(dbuf, down_row.closings[down_tid], y, 255, 255, 0);
 				}
@@ -1379,36 +1409,10 @@ int major_ring_only, int no_donuts, double min_ring_area, double reduction_toler
 		num_contours = num_filtered_contours;
 	}
 
-	if(reduction_tolerance > 0) {
-		if(VERBOSE) fprintf(stderr, "reducing...\n");
-
-		contour_t *reduced_contours = (contour_t *)malloc_or_die(sizeof(contour_t)*num_contours);
-		int num_reduced_contours = 0;
-		int total_npts_in=0, total_npts_out=0;
-		for(i=0; i<num_contours; i++) {
-			contour_t r;
-			reduce_linestring_detail(&contours[i], &r, reduction_tolerance);
-			if(VERBOSE) fprintf(stderr, "contour %d: %d => %d pts\n", i, contours[i].npts, r.npts);
-			total_npts_in += contours[i].npts;
-			if(r.npts > 2) {
-				reduced_contours[num_reduced_contours++] = r;
-				total_npts_out += r.npts;
-			}
-		}
-		if(VERBOSE) fprintf(stderr, "reduced %d => %d contours, %d => %d pts\n",
-			num_contours, num_reduced_contours, total_npts_in, total_npts_out);
-
-		contours = reduced_contours;
-		num_contours = num_reduced_contours;
-	}
-
-	compute_containments(contours, num_contours);
-
 	if(major_ring_only) {
 		double biggest_area = 0;
 		int best_idx = 0;
 		for(i=0; i<num_contours; i++) {
-			if(contours[i].is_hole) continue;
 			double area = polygon_area(contours+i);
 			if(area > biggest_area) {
 				biggest_area = area;
@@ -1421,6 +1425,10 @@ int major_ring_only, int no_donuts, double min_ring_area, double reduction_toler
 		num_contours = 1;
 	}
 
+	fprintf(stderr, "compute_containments begin\n");
+	compute_containments(contours, num_contours);
+	fprintf(stderr, "compute_containments end\n");
+
 	if(no_donuts) {
 		int out_idx = 0;
 		for(i=0; i<num_contours; i++) {
@@ -1432,40 +1440,55 @@ int major_ring_only, int no_donuts, double min_ring_area, double reduction_toler
 		if(VERBOSE) fprintf(stderr, "number of non-donut contours is %d", num_contours);
 	}
 
-	int num_outer=0, num_inner=0, total_pts=0;
-	for(i=0; i<num_contours; i++) {
-		if(contours[i].is_hole) num_inner++;
-		else num_outer++;
-		total_pts += contours[i].npts;
-	}
-	fprintf(stderr, "Found %d outer rings and %d holes with a total of %d vertices.\n", num_outer, num_inner, total_pts);
+	return (mpoly_t){ num_contours, contours };
+}
 
-	if(plot_mode == 2) {
-		if(VERBOSE) fprintf(stderr, "plotting...\n");
+mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance) {
+	if(VERBOSE) fprintf(stderr, "reducing...\n");
 
-		int j;
-		for(i=0; i<num_contours; i++) {
-			int v = (i%62)+1;
-			int r = ((v&1) ? 150 : 0) + ((v&8) ? 100 : 0);
-			int g = ((v&2) ? 150 : 0) + ((v&16) ? 100 : 0);
-			int b = ((v&4) ? 150 : 0) + ((v&32) ? 100 : 0);
-			contour_t c = contours[i];
-			if(c.is_hole) { r=255; g=0; b=0; }
-			else { r=255; g=255; b=0; }
-			if(VERBOSE) fprintf(stderr, "contour %d: %d pts color=%02x%02x%02x\n", i, c.npts, r, g, b);
-			for(j=0; j<c.npts; j++) {
-				double x0 = c.pts[j].x;
-				double y0 = c.pts[j].y;
-				double x1 = c.pts[(j+1)%c.npts].x;
-				double y1 = c.pts[(j+1)%c.npts].y;
-				plot_line(dbuf, x0, y0, x1, y1, r, g, b);
-				plot_point(dbuf, x0, y0, 255, 255, 255);
-				plot_point(dbuf, x1, y1, 255, 255, 255);
-			}
+	contour_t *reduced_contours = (contour_t *)malloc_or_die(sizeof(contour_t)*in_mpoly->num_contours);
+	int num_reduced_contours = 0;
+	int total_npts_in=0, total_npts_out=0;
+	int i;
+	for(i=0; i<in_mpoly->num_contours; i++) {
+		contour_t r;
+		reduce_linestring_detail(&in_mpoly->contours[i], &r, tolerance);
+		if(VERBOSE) fprintf(stderr, "contour %d: %d => %d pts\n", i, in_mpoly->contours[i].npts, r.npts);
+		total_npts_in += in_mpoly->contours[i].npts;
+		if(r.npts > 2) {
+			reduced_contours[num_reduced_contours++] = r;
+			total_npts_out += r.npts;
 		}
 	}
+	if(VERBOSE) fprintf(stderr, "reduced %d => %d contours, %d => %d pts\n",
+		in_mpoly->num_contours, num_reduced_contours, total_npts_in, total_npts_out);
 
-	return (mpoly_t){ num_contours, contours };
+	return (mpoly_t){ num_reduced_contours, reduced_contours };
+}
+
+void debug_plot_contours(mpoly_t *mpoly, report_image_t *dbuf) {
+	if(VERBOSE) fprintf(stderr, "plotting...\n");
+
+	int i, j;
+	for(i=0; i<mpoly->num_contours; i++) {
+		int v = (i%62)+1;
+		int r = ((v&1) ? 150 : 0) + ((v&8) ? 100 : 0);
+		int g = ((v&2) ? 150 : 0) + ((v&16) ? 100 : 0);
+		int b = ((v&4) ? 150 : 0) + ((v&32) ? 100 : 0);
+		contour_t c = mpoly->contours[i];
+		if(c.is_hole) { r=255; g=0; b=0; }
+		else { r=255; g=255; b=0; }
+		if(VERBOSE) fprintf(stderr, "contour %d: %d pts color=%02x%02x%02x\n", i, c.npts, r, g, b);
+		for(j=0; j<c.npts; j++) {
+			double x0 = c.pts[j].x;
+			double y0 = c.pts[j].y;
+			double x1 = c.pts[(j+1)%c.npts].x;
+			double y1 = c.pts[(j+1)%c.npts].y;
+			plot_line(dbuf, x0, y0, x1, y1, r, g, b);
+			plot_point(dbuf, x0, y0, 255, 255, 255);
+			plot_point(dbuf, x1, y1, 255, 255, 255);
+		}
+	}
 }
 
 unsigned char *get_mask_for_dataset(GDALDatasetH ds, int bandlist_size, int *bandlist, 
