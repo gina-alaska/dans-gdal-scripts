@@ -35,36 +35,36 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 int VERBOSE = 0;
 
 void usage(char *cmdname) {
-	fprintf(stderr, "Usage:\n  %s <image_name> [options]\n", cmdname);
+	fprintf(stderr, "Usage:\n  %s image_name [options]\n", cmdname);
 	fprintf(stderr, "\
 \n\
 Geocoding: \n\
-  -s_srs '<s_srs>'                  Set or override source SRS \n\
-  -ll_en <left_east> <lower_north>  Set or override lower-left coordinate \n\
-  -ul_en <left_east> <lower_north>  Set or override upper-left coordinate (don't use both ll_en and ul_en)\n\
-  -wh <width> <height>              Set or override image size \n\
-  -res <res>                        Set or override resolution \n\
+  -s_srs 's_srs'                  Set or override source SRS \n\
+  -ll_en left_east lower_north    Set or override lower-left coordinate \n\
+  -ul_en left_east lower_north    Set or override upper-left coordinate (don't use both ll_en and ul_en)\n\
+  -wh width height                Set or override image size \n\
+  -res res                        Set or override resolution \n\
 \n\
 Inspection: \n\
-  -inspect-rect4                    Attempt to find 4-sided bounding polygon  \n\
-  -inspect-contour                  Trace contour \n\
-  -nodataval <val>                  Specify value of no-data pixels \n\
-  -ndv-toler <val>                  Tolerance for deciding if a pixel matches nodataval \n\
-  -b <band_id> -b <band_id> ...     Bands to inspect (default is all bands) \n\
-  -skip-erosion                     Don't use erosion filter \n\
-  -major-ring                       Output only the biggest outer ring \n\
-  -no-donuts                        Output only top-level rings \n\
-  -min-ring-area <val>              Drop rings with less than this area (in square pixels) \n\
-  -dp-toler <val>                   Tolerance for point reduction (in pixel units) \n\
+  -inspect-rect4                  Attempt to find 4-sided bounding polygon  \n\
+  -inspect-contour                Trace contour \n\
+  -nodataval 'val [val ...]'      Specify value of no-data pixels \n\
+  -ndv-toler val                  Tolerance for deciding if a pixel matches nodataval \n\
+  -b band_id -b band_id ...       Bands to inspect (default is all bands) \n\
+  -skip-erosion                   Don't use erosion filter \n\
+  -major-ring                     Output only the biggest outer ring \n\
+  -no-donuts                      Output only top-level rings \n\
+  -min-ring-area val              Drop rings with less than this area (in square pixels) \n\
+  -dp-toler val                   Tolerance for point reduction (in pixel units) \n\
                                       default is 2 pixels\n\
-  -report <fn.ppm>                  Output graphical report of bounds found \n\
-  -wkt-xy <fn.wkt>                  Output bounds in WKT format (x/y coords) \n\
-  -wkt-en <fn.wkt>                  Output bounds in WKT format (east/north coords) \n\
-  -wkt-ll <fn.wkt>                  Output bounds in WKT format (lat/lon coords) \n\
-  -mask-out <fn.pbm>                Output mask of bounding polygon in PBM format \n\
+  -report fn.ppm                  Output graphical report of bounds found \n\
+  -wkt-xy fn.wkt                  Output bounds in WKT format (x/y coords) \n\
+  -wkt-en fn.wkt                  Output bounds in WKT format (east/north coords) \n\
+  -wkt-ll fn.wkt                  Output bounds in WKT format (lat/lon coords) \n\
+  -mask-out fn.pbm                Output mask of bounding polygon in PBM format \n\
 \n\
 Misc: \n\
-  -v                                Verbose\n\
+  -v                              Verbose\n\
 ");
 	exit(1);
 }
@@ -95,6 +95,7 @@ typedef struct {
 	int mode;
 } report_image_t;
 
+int parse_list_of_doubles(char *input, int *num_out, double **list_out);
 void xy2en(double *affine, double xpos, double ypos, double *e_out, double *n_out);
 void en2ll(OGRCoordinateTransformationH xform, double east, double north, double *lon_out, double *lat_out);
 void xy2ll(double *affine, OGRCoordinateTransformationH xform, double x, double y, double *lon_out, double *lat_out);
@@ -104,8 +105,9 @@ int polygon_contains(contour_t *c1, contour_t *c2);
 double polygon_area(contour_t *c);
 report_image_t *create_plot(double w, double h);
 void write_plot(report_image_t *dbuf, char *fn);
+void setup_ndv_list(GDALDatasetH ds, int bandlist_size, int *bandlist, int *num_ndv, double **ndv_list);
 unsigned char *get_mask_for_dataset(GDALDatasetH ds, int bandlist_size, int *bandlist, 
-	double nodataval, int specified_nodataval, double ndv_tolerance, report_image_t *dbuf);
+	int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf);
 vertex_t calc_centroid_from_mask(unsigned char *mask, int w, int h);
 contour_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *dbuf);
 mpoly_t calc_contour_from_mask(unsigned char *mask, int w, int h,
@@ -126,8 +128,8 @@ int main(int argc, char **argv) {
 	double res=0;
 	int inspect_rect4 = 0;
 	int inspect_contour = 0;
-	int specified_nodataval = 0;
-	double nodataval = 0;
+	int num_ndv = 0;
+	double *ndv_list = NULL;
 	double ndv_tolerance = 0;
 	char *debug_report = NULL;
 	int inspect_numbands = 0;
@@ -188,10 +190,8 @@ int main(int argc, char **argv) {
 				inspect_contour++;
 			} else if(!strcmp(arg, "-nodataval")) {
 				if(argp == argc) usage(argv[0]);
-				char *endptr;
-				nodataval = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
-				specified_nodataval++;
+				int result = parse_list_of_doubles(argv[argp++], &num_ndv, &ndv_list);
+				if(result) fatal_error("input to -nodataval must be space-separated list of numbers");
 			} else if(!strcmp(arg, "-report")) {
 				if(argp == argc) usage(argv[0]);
 				debug_report = argv[argp++];
@@ -362,13 +362,16 @@ int main(int argc, char **argv) {
 	report_image_t *dbuf = NULL;
 	unsigned char *mask = NULL;
 	if(do_inspect) {
+		setup_ndv_list(ds, inspect_numbands, inspect_bandids, &num_ndv, &ndv_list);
+
 		if(debug_report) {
 			dbuf = create_plot(w, h);
 			if(inspect_rect4) dbuf->mode = PLOT_RECT4;
 			else dbuf->mode = PLOT_CONTOURS;
 		}
+
 		mask = get_mask_for_dataset(ds, inspect_numbands, inspect_bandids,
-			nodataval, specified_nodataval, ndv_tolerance, dbuf);
+			num_ndv, ndv_list, ndv_tolerance, dbuf);
 		if(!skip_erosion) {
 			unsigned char *eroded_mask = erode_mask(mask, w, h);
 			free(mask);
@@ -569,6 +572,31 @@ int main(int argc, char **argv) {
 	if(dbuf) write_plot(dbuf, debug_report);
 
 	CPLPopErrorHandler();
+
+	return 0;
+}
+
+int parse_list_of_doubles(char *input, int *num_out, double **list_out) {
+	input = strdup(input);
+	if(!input) fatal_error("out of memory");
+
+	int num = 0;
+	double *list = NULL;
+
+	char *s1 = input;
+	char *s2 = " \t\n\r";
+	char *tok;
+	while((tok = strtok(s1, s2))) {
+		s1 = NULL;
+		char *endptr;
+		double val = strtod(tok, &endptr);
+		if(*endptr) return 1;
+		list = (double *)realloc_or_die(list, sizeof(double) * (num+1));
+		list[num++] = val;
+	}
+
+	*num_out = num;
+	*list_out = list;
 
 	return 0;
 }
@@ -1157,7 +1185,7 @@ mpoly_t calc_contour_from_mask(unsigned char *mask, int w, int h,
 report_image_t *dbuf, int major_ring_only, int no_donuts, double min_ring_area) {
 	int x, y;
 
-	if(VERBOSE) fprintf(stderr, "finding contour...\n");
+	fprintf(stderr, "finding contours: begin\n");
 
 	rowstat_t up_row, down_row;
 	up_row.openings        = (int *)malloc_or_die(sizeof(int) * (w+1)/2);
@@ -1389,6 +1417,7 @@ report_image_t *dbuf, int major_ring_only, int no_donuts, double min_ring_area) 
 		contours = (contour_t *)realloc_or_die(contours, sizeof(contour_t)*(num_contours+1));
 		contours[num_contours++] = contour;
 	}
+	fprintf(stderr, "finding contours: end\n");
 
 	if(min_ring_area > 0) {
 		if(VERBOSE) fprintf(stderr, "removing small rings...\n");
@@ -1425,9 +1454,9 @@ report_image_t *dbuf, int major_ring_only, int no_donuts, double min_ring_area) 
 		num_contours = 1;
 	}
 
-	fprintf(stderr, "compute_containments begin\n");
+	fprintf(stderr, "computing containments: begin\n");
 	compute_containments(contours, num_contours);
-	fprintf(stderr, "compute_containments end\n");
+	fprintf(stderr, "computing containments: end\n");
 
 	if(no_donuts) {
 		int out_idx = 0;
@@ -1491,8 +1520,36 @@ void debug_plot_contours(mpoly_t *mpoly, report_image_t *dbuf) {
 	}
 }
 
+void setup_ndv_list(GDALDatasetH ds, int bandlist_size, int *bandlist, int *num_ndv, double **ndv_list) {
+	if(*num_ndv == 0) {
+		*num_ndv = bandlist_size;
+		*ndv_list = (double *)malloc_or_die(sizeof(double) * bandlist_size);
+
+		int band_count = GDALGetRasterCount(ds);
+		int bandlist_idx;
+		for(bandlist_idx=0; bandlist_idx<bandlist_size; bandlist_idx++) {
+			int band_idx = bandlist[bandlist_idx];
+			if(band_idx < 1 || band_idx > band_count) fatal_error("bandid out of range");
+
+			GDALRasterBandH band = GDALGetRasterBand(ds, band_idx);
+
+			int success;
+			(*ndv_list)[bandlist_idx] = GDALGetRasterNoDataValue(band, &success);
+			if(!success) fatal_error("could not determine nodataval");
+		}
+	} else if(*num_ndv == 1) {
+		double ndv = (*ndv_list)[0];
+		*num_ndv = bandlist_size;
+		*ndv_list = (double *)malloc_or_die(sizeof(double) * bandlist_size);
+		int i;
+		for(i=0; i<bandlist_size; i++) (*ndv_list)[i] = ndv;
+	} else if(*num_ndv != bandlist_size) {
+		fatal_error("number of vals passed to -nodataval must be one or equal to number of bands used");
+	}
+}
+
 unsigned char *get_mask_for_dataset(GDALDatasetH ds, int bandlist_size, int *bandlist, 
-double nodataval, int specified_nodataval, double ndv_tolerance, report_image_t *dbuf) {
+int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 	int i, j;
 
 	int w = GDALGetRasterXSize(ds);
@@ -1513,14 +1570,10 @@ double nodataval, int specified_nodataval, double ndv_tolerance, report_image_t 
 
 		GDALRasterBandH band = GDALGetRasterBand(ds, band_idx);
 
-		if(!specified_nodataval) {
-			int success;
-			nodataval = GDALGetRasterNoDataValue(band, &success);
-			if(!success) fatal_error("could not determine nodataval");
-		}
-
 		int blocksize_x, blocksize_y;
 		GDALGetBlockSize(band, &blocksize_x, &blocksize_y);
+
+		double nodataval = ndv_list[bandlist_idx];
 
 		if(VERBOSE) fprintf(stderr, "band %d: block size = %d,%d  nodataval = %f\n",
 			band_idx, blocksize_x, blocksize_y, nodataval);
