@@ -1744,6 +1744,7 @@ void reduce_linestring_detail(contour_t *orig_string, contour_t *new_string, dou
 	}
 //fprintf(stderr, "keeping %d of %d\n", num_to_keep, num_in);
 
+	*new_string = *orig_string; // copy parent_id, is_hole, etc.
 	new_string->npts = num_to_keep;
 	new_string->pts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * num_to_keep);
 	vertex_t *pts_out = new_string->pts;
