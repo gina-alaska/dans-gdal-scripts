@@ -25,8 +25,16 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 
-#include <config.h>
-#include <math.h>
+#include <ogr_spatialref.h>
+#include <cpl_string.h>
+#include <gdal.h>
+
+// these constants from GDAL interfere with config.h
+#undef PACKAGE_VERSION
+#undef PACKAGE_TARNAME
+#undef PACKAGE_STRING
+#undef PACKAGE_NAME
+#undef PACKAGE_BUGREPORT
 
 #if HAVE_INTTYPES_H
 #  include <inttypes.h>
@@ -41,9 +49,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 
 #include <stdio.h>
-#include <cpl_string.h>
-#include <gdal.h>
-#include <ogr_spatialref.h>
+
+#include <config.h>
+#include <math.h>
 
 void fatal_error(char *s);
 void *malloc_or_die(size_t size);
