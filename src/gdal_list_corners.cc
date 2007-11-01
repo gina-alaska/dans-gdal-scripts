@@ -278,7 +278,7 @@ int main(int argc, char **argv) {
 	OGRSpatialReferenceH p1 = NULL;
 	if(s_srs) {
 		p1 = OSRNewSpatialReference(NULL);
-		OSRImportFromProj4(p1, s_srs);
+		if(OSRImportFromProj4(p1, s_srs) != OGRERR_NONE) fatal_error("cannot parse proj4 definition");
 	} else if(ds) {
 		const char *wkt = GDALGetProjectionRef(ds);
 		if(wkt && strlen(wkt)) {
