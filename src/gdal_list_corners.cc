@@ -403,38 +403,51 @@ int main(int argc, char **argv) {
 		printf("datatype: %s\n", datatypes);
 	}
 
-	if(res) printf("source_res: %f\n", res);
+	if(res) printf("source_res: %.15f\n", res);
 	if(s_srs && strlen(s_srs)) {
 		printf("s_srs: '%s'\n", s_srs);
 	}
 	if(affine) {
 		printf("affine:\n");
-		for(i=0; i<6; i++) printf("  - %f\n", affine[i]);
+		for(i=0; i<6; i++) printf("  - %.15f\n", affine[i]);
 	}
 
 	double lon, lat;
 	double east, north;
 
-	vertex_t centroid;
-	if(do_inspect) {
-		printf("centroid:\n");
-		centroid = calc_centroid_from_mask(mask, w, h);
-	} else {
-		printf("center:\n");
-		centroid = (vertex_t){ (double)w/2.0, (double)h/2.0 };
-	}
+	vertex_t center;
+	printf("center:\n");
+	center = (vertex_t){ (double)w/2.0, (double)h/2.0 };
 	if(xform && affine) {
-		xy2ll(affine, xform, centroid.x, centroid.y, &lon, &lat);
-		printf("  lon: %f\n", lon);
-		printf("  lat: %f\n", lat);
+		xy2ll(affine, xform, center.x, center.y, &lon, &lat);
+		printf("  lon: %.15f\n", lon);
+		printf("  lat: %.15f\n", lat);
 	}
 	if(affine) {
-		xy2en(affine, centroid.x, centroid.y, &east, &north);
-		printf("  east: %f\n", east);
-		printf("  north: %f\n", north);
+		xy2en(affine, center.x, center.y, &east, &north);
+		printf("  east: %.15f\n", east);
+		printf("  north: %.15f\n", north);
 	}
-	printf("  x: %f\n", centroid.x);
-	printf("  y: %f\n", centroid.y);
+	printf("  x: %.15f\n", center.x);
+	printf("  y: %.15f\n", center.y);
+
+	if(do_inspect) {
+		vertex_t centroid;
+		printf("centroid:\n");
+		centroid = calc_centroid_from_mask(mask, w, h);
+		if(xform && affine) {
+			xy2ll(affine, xform, centroid.x, centroid.y, &lon, &lat);
+			printf("  lon: %.15f\n", lon);
+			printf("  lat: %.15f\n", lat);
+		}
+		if(affine) {
+			xy2en(affine, centroid.x, centroid.y, &east, &north);
+			printf("  east: %.15f\n", east);
+			printf("  north: %.15f\n", north);
+		}
+		printf("  x: %.15f\n", centroid.x);
+		printf("  y: %.15f\n", centroid.y);
+	}
 
 	mpoly_t *bpoly = NULL;
 
@@ -452,22 +465,22 @@ int main(int argc, char **argv) {
 				printf("geometry_ll:\n  type: rectangle4\n");
 				for(i=0; i<4; i++) {
 					xy2ll(affine, xform, rect4.pts[i].x, rect4.pts[i].y, &lon, &lat);
-					printf("  %s_lon: %f\n", labels[i], lon);
-					printf("  %s_lat: %f\n", labels[i], lat);
+					printf("  %s_lon: %.15f\n", labels[i], lon);
+					printf("  %s_lat: %.15f\n", labels[i], lat);
 				}
 			}
 			if(affine) {
 				printf("geometry_en:\n  type: rectangle4\n");
 				for(i=0; i<4; i++) {
 					xy2en(affine, rect4.pts[i].x, rect4.pts[i].y, &east, &north);
-					printf("  %s_east: %f\n", labels[i], east);
-					printf("  %s_north: %f\n", labels[i], north);
+					printf("  %s_east: %.15f\n", labels[i], east);
+					printf("  %s_north: %.15f\n", labels[i], north);
 				}
 			}
 			printf("geometry_xy:\n  type: rectangle4\n");
 			for(i=0; i<4; i++) {
-				printf("  %s_x: %f\n", labels[i], rect4.pts[i].x);
-				printf("  %s_y: %f\n", labels[i], rect4.pts[i].y);
+				printf("  %s_x: %.15f\n", labels[i], rect4.pts[i].x);
+				printf("  %s_y: %.15f\n", labels[i], rect4.pts[i].y);
 			}
 		}
 	} else {
@@ -480,8 +493,8 @@ int main(int argc, char **argv) {
 			for(i=0; i<3; i++) for(j=0; j<3; j++) {
 				if(!strcmp(e_labels[i], "mid") && !strcmp(n_labels[j], "mid")) continue;
 				xy2ll(affine, xform, e_pos[i], n_pos[j], &lon, &lat);
-				printf("  %s_%s_lon: %f\n", n_labels[j], e_labels[i], lon);
-				printf("  %s_%s_lat: %f\n", n_labels[j], e_labels[i], lat);
+				printf("  %s_%s_lon: %.15f\n", n_labels[j], e_labels[i], lon);
+				printf("  %s_%s_lat: %.15f\n", n_labels[j], e_labels[i], lat);
 			}
 		}
 		if(affine) {
@@ -489,15 +502,15 @@ int main(int argc, char **argv) {
 			for(i=0; i<3; i++) for(j=0; j<3; j++) {
 				if(!strcmp(e_labels[i], "mid") && !strcmp(n_labels[j], "mid")) continue;
 				xy2en(affine, e_pos[i], n_pos[j], &east, &north);
-				printf("  %s_%s_east: %f\n", n_labels[j], e_labels[i], east);
-				printf("  %s_%s_north: %f\n", n_labels[j], e_labels[i], north);
+				printf("  %s_%s_east: %.15f\n", n_labels[j], e_labels[i], east);
+				printf("  %s_%s_north: %.15f\n", n_labels[j], e_labels[i], north);
 			}
 		}
 		printf("geometry_xy:\n  type: rectangle8\n");
 		for(i=0; i<3; i++) for(j=0; j<3; j++) {
 			if(!strcmp(e_labels[i], "mid") && !strcmp(n_labels[j], "mid")) continue;
-			printf("  %s_%s_x: %f\n", n_labels[j], e_labels[i], e_pos[i]);
-			printf("  %s_%s_y: %f\n", n_labels[j], e_labels[i], n_pos[j]);
+			printf("  %s_%s_x: %.15f\n", n_labels[j], e_labels[i], e_pos[i]);
+			printf("  %s_%s_y: %.15f\n", n_labels[j], e_labels[i], n_pos[j]);
 		}
 	}
 
@@ -621,8 +634,12 @@ void en2ll(
 		}
 	}
 
-	if(east < -180.0 || east > 180.0) fatal_error("longitude out of range");
 	if(north < -90.0 || north > 90.0) fatal_error("latitude out of range");
+	// images in latlong projection that cross the dateline can
+	// have numbers outside of this range...
+	//if(east < -180.0 || east > 180.0) fatal_error("longitude out of range");
+	// but it shouldn't be outside of *this* range no matter what!
+	if(east < -360.0 || east > 540.0) fatal_error("longitude out of range");
 
 	*lon_out = east;
 	*lat_out = north;
@@ -663,7 +680,7 @@ void output_wkt_mpoly(char *wkt_fn, mpoly_t mpoly) {
 				if(p_idx) fprintf(fout, "\n");
 				fprintf(fout, "  ");
 			}
-			fprintf(fout, "%f %f", x, y);
+			fprintf(fout, "%.15f %.15f", x, y);
 			if(p_idx < ring->npts) fprintf(fout, ", ");
 		}
 		fprintf(fout, "\n)");
@@ -681,7 +698,7 @@ void output_wkt_mpoly(char *wkt_fn, mpoly_t mpoly) {
 					if(p_idx) fprintf(fout, "\n");
 					fprintf(fout, "  ");
 				}
-				fprintf(fout, "%f %f", x, y);
+				fprintf(fout, "%.15f %.15f", x, y);
 				if(p_idx < hole->npts) fprintf(fout, ", ");
 			}
 			fprintf(fout, "\n)");
@@ -893,7 +910,7 @@ contour_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t
 					int bdist = best_dx*best_dx + best_dy*best_dy;
 					if(pdist < bdist) continue;
 				}
-				//if(VERBOSE) fprintf(stderr, "%d %d   %f\n", i, j, atan2((double)pix_dy, (double)pix_dx)*180.0/PI);
+				//if(VERBOSE) fprintf(stderr, "%d %d   %.15f\n", i, j, atan2((double)pix_dy, (double)pix_dx)*180.0/PI);
 				best_dx = pix_dx; best_dy = pix_dy;
 				best_x = i; best_y = j;
 			}
@@ -962,8 +979,8 @@ contour_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t
 		}
 
 		if(VERBOSE) {
-			fprintf(stderr, "a=%f  l=%f  ", l.angle, l.seg_len);
-			fprintf(stderr, "  l2=%f  ad=%f  ratio=%f", len, adiff, len/adiff);
+			fprintf(stderr, "a=%.15f  l=%.15f  ", l.angle, l.seg_len);
+			fprintf(stderr, "  l2=%.15f  ad=%.15f  ratio=%.15f", len, adiff, len/adiff);
 			l = all_edges[i];
 			r = all_edges[(i+1) % num_edges];
 			fprintf(stderr, "  lg=%d rg=%d\n", l.group, r.group);
@@ -981,8 +998,8 @@ contour_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t
 		edge_t r = all_edges[(i+1) % num_edges];
 		double len = l.seg_len + r.seg_len;
 		double adiff = ang_diff(l.angle, r.angle);
-		fprintf(stderr, "a=%f  l=%f  ", l.angle, l.seg_len);
-		fprintf(stderr, "  l2=%f  ad=%f  ratio=%f", len, adiff, len/adiff);
+		fprintf(stderr, "a=%.15f  l=%.15f  ", l.angle, l.seg_len);
+		fprintf(stderr, "  l2=%.15f  ad=%.15f  ratio=%.15f", len, adiff, len/adiff);
 		fprintf(stderr, "  group=%d\n", l.group);
 	}
 
@@ -1004,7 +1021,7 @@ contour_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t
 		groups[eg].wy += e.seg_len * sin(e.angle / 180.0 * PI);
 	}
 	for(i=0; i<num_groups; i++) {
-		if(VERBOSE) fprintf(stderr, "group %d: l=%f\n", i, groups[i].arc_len);
+		if(VERBOSE) fprintf(stderr, "group %d: l=%.15f\n", i, groups[i].arc_len);
 		if(groups[i].arc_len > (w+h)/10) { // FIXME - arbitrary
 			groups[i].use = 1;
 			groups[i].avg_ang = atan2(groups[i].wy, groups[i].wx) * 180.0 / PI;
@@ -1031,7 +1048,7 @@ contour_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t
 			double d2 = ang_diff(groups[i].avg_ang, groups[i].best_edge.angle);
 			if(d1 < d2) groups[i].best_edge = all_edges[j];
 		}
-		if(VERBOSE) fprintf(stderr, "group %d: l=%f  a=%f  b=%f\n", i, groups[i].arc_len, groups[i].avg_ang, groups[i].best_edge.angle);
+		if(VERBOSE) fprintf(stderr, "group %d: l=%.15f  a=%.15f  b=%.15f\n", i, groups[i].arc_len, groups[i].avg_ang, groups[i].best_edge.angle);
 		double ang = groups[i].best_edge.angle;
 		if(i==0 || (fabs(ang) < fabs(top_edge_angle))) top_edge_angle = ang;
 	}
@@ -1053,7 +1070,7 @@ contour_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t
 	}
 	if(VERBOSE) fprintf(stderr, "sorted:\n");
 	if(VERBOSE) for(i=0; i<num_groups; i++) {
-		fprintf(stderr, "group %d: l=%f  a=%f  s=%f\n", i, groups[i].arc_len, groups[i].best_edge.angle, groups[i].sort_key);
+		fprintf(stderr, "group %d: l=%.15f  a=%.15f  s=%.15f\n", i, groups[i].arc_len, groups[i].best_edge.angle, groups[i].sort_key);
 	}
 
 	//if(VERBOSE) fprintf(stderr, "%d edges\n", num_groups);
@@ -1069,7 +1086,7 @@ contour_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t
 			&x, &y);
 		verts[i].x = x;
 		verts[i].y = y;
-		if(VERBOSE) fprintf(stderr, "vert[%d] = %f, %f\n", i, x, y);
+		if(VERBOSE) fprintf(stderr, "vert[%d] = %.15f, %.15f\n", i, x, y);
 	}
 
 	if(dbuf && dbuf->mode == PLOT_RECT4) {
@@ -1426,7 +1443,7 @@ report_image_t *dbuf, int major_ring_only, int no_donuts, double min_ring_area) 
 		int num_filtered_contours = 0;
 		for(i=0; i<num_contours; i++) {
 			double area = polygon_area(contours+i);
-			if(VERBOSE) if(area > 10) fprintf(stderr, "contour %d has area %f\n", i, area);
+			if(VERBOSE) if(area > 10) fprintf(stderr, "contour %d has area %.15f\n", i, area);
 			if(area >= min_ring_area) {
 				filtered_contours[num_filtered_contours++] = contours[i];
 			}
@@ -1575,7 +1592,7 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 
 		double nodataval = ndv_list[bandlist_idx];
 
-		if(VERBOSE) fprintf(stderr, "band %d: block size = %d,%d  nodataval = %f\n",
+		if(VERBOSE) fprintf(stderr, "band %d: block size = %d,%d  nodataval = %.15f\n",
 			band_idx, blocksize_x, blocksize_y, nodataval);
 
 		double *buf = (double *)malloc_or_die(blocksize_x*blocksize_y*sizeof(double));
@@ -1592,7 +1609,7 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 
 				/*
 				if(!boff_x && !boff_y) {
-					if(VERBOSE) fprintf(stderr, "band %d: pixel[0] = %f\n", band_idx, buf[0]);
+					if(VERBOSE) fprintf(stderr, "band %d: pixel[0] = %.15f\n", band_idx, buf[0]);
 					nodataval = buf[0];
 				}
 				*/
@@ -1715,7 +1732,7 @@ void reduce_linestring_detail(contour_t *orig_string, contour_t *new_string, dou
 			}
 		}
 
-//fprintf(stderr, "max=%f, toler=%f, idx=%i\n", max_dist, tolerance, idx_of_max);
+//fprintf(stderr, "max=%.15f, toler=%.15f, idx=%i\n", max_dist, tolerance, idx_of_max);
 		if(max_dist >= tolerance) {
 			if(idx_of_max <= 0) fatal_error(
 				"idx_of_max out of range (perhaps it wasn't set?)");
@@ -1811,7 +1828,7 @@ int polygon_contains(contour_t *c1, contour_t *c2) {
 	for(j=0; j<c2npts; j++) {
 		double px = c2->pts[j].x;
 		double py = c2->pts[j].y;
-		//fprintf(stderr, "px=%f py=%f\n", px, py);
+		//fprintf(stderr, "px=%.15f py=%.15f\n", px, py);
 		int num_crossings = 0;
 		int i;
 		for(i=0; i<c1->npts; i++) {
@@ -1830,9 +1847,9 @@ int polygon_contains(contour_t *c1, contour_t *c2) {
 
 			double alpha = (py-y0)/(y1-y0);
 			double cx = x0 + (x1-x0)*alpha;
-			//fprintf(stderr, "x0=%f x1=%f\n", x0, x1);
-			//fprintf(stderr, "y0=%f y1=%f\n", y0, y1);
-			//fprintf(stderr, "alpha=%f cx=%f px=%f\n", alpha, cx, px);
+			//fprintf(stderr, "x0=%.15f x1=%.15f\n", x0, x1);
+			//fprintf(stderr, "y0=%.15f y1=%.15f\n", y0, y1);
+			//fprintf(stderr, "alpha=%.15f cx=%.15f px=%.15f\n", alpha, cx, px);
 			if(cx > px) num_crossings++;
 		}
 		//fprintf(stderr, "num_crossings=%d\n", num_crossings);
