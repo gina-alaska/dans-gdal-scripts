@@ -2,7 +2,7 @@ AM_CFLAGS = -Wall -O2 -g @GDAL_CFLAGS@
 AM_CXXFLAGS = -Wall -O2 -g @GDAL_CFLAGS@
 LIBS = @GDAL_LIBS@
 
-bin_PROGRAMS = gdal_raw2geotiff gdal_dem2rgb gdal_list_corners gdal_contrast_stretch gdal_landsat_pansharp
+bin_PROGRAMS = gdal_raw2geotiff gdal_dem2rgb gdal_list_corners gdal_contrast_stretch gdal_landsat_pansharp gdal_merge_simple
 
 gdal_raw2geotiff_SOURCES = gdal_raw2geotiff.cc common.cc
 gdal_raw2geotiff_CXXFLAGS = $(AM_CXXFLAGS)
@@ -18,5 +18,8 @@ gdal_contrast_stretch_CXXFLAGS = $(AM_CXXFLAGS)
 
 gdal_landsat_pansharp_SOURCES = gdal_landsat_pansharp.cc common.cc
 gdal_landsat_pansharp_CXXFLAGS = $(AM_CXXFLAGS)
+
+gdal_merge_simple_SOURCES = gdal_merge_simple.cc common.cc
+gdal_merge_simple_CXXFLAGS = $(AM_CXXFLAGS)
 
 noinst_HEADERS = common.h

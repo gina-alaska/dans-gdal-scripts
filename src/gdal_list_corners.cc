@@ -92,6 +92,7 @@ typedef struct {
 	unsigned char *img;
 	double canvas_w, canvas_h;
 	int img_w, img_h;
+	int stride_x, stride_y;
 	int mode;
 } report_image_t;
 
@@ -725,6 +726,11 @@ report_image_t *create_plot(double w, double h) {
 		dbuf->img_w = (int)(800.0 * (w+1) / (h+1));
 		dbuf->img_h = 800;
 	}
+
+	dbuf->stride_x = (int)floor(w / (double)dbuf->img_w);
+	dbuf->stride_y = (int)floor(h / (double)dbuf->img_h);
+	if(dbuf->stride_x < 1) dbuf->stride_x = 1;
+	if(dbuf->stride_y < 1) dbuf->stride_y = 1;
 
 	dbuf->img = (unsigned char *)malloc_or_die(dbuf->img_w*dbuf->img_h*3);
 	int i;
@@ -1617,13 +1623,16 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 				double *p = buf;
 				for(j=0; j<bsize_y; j++) {
 					int y = j + boff_y;
+					int is_dbuf_stride_y = dbuf && ((y % dbuf->stride_y) == 0);
 					unsigned char mask_bitp = 1 << (boff_x % 8);
 					unsigned char *mask_bytep = mask + mask_rowlen*y + boff_x/8;
 					for(i=0; i<bsize_x; i++) {
+						int is_dbuf_stride = is_dbuf_stride_y && ((i % dbuf->stride_x) == 0);
 						double val = *(p++);
 						if(fabs(val - nodataval) > ndv_tolerance) {
 							*mask_bytep |= mask_bitp;
-							if(dbuf) {
+
+							if(is_dbuf_stride) {
 								int x = i + boff_x;
 								unsigned char db_v = 100 + (unsigned char)(val/2);
 								if(db_v < 100) db_v = 100;
