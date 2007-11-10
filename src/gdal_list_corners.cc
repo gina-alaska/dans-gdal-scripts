@@ -518,6 +518,7 @@ int main(int argc, char **argv) {
 	if(inspect_contour) {
 		bpoly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
 		*bpoly = calc_contour_from_mask(mask, w, h, dbuf, major_ring_only, no_donuts, min_ring_area);
+		if(bpoly->num_contours == 0) bpoly = 0;
 	}
 
 	if(mask_out_fn) {
@@ -1369,6 +1370,14 @@ report_image_t *dbuf, int major_ring_only, int no_donuts, double min_ring_area) 
 	if(VERBOSE) {
 		for(i=0; i<num_descenders; i++) fprintf(stderr, "%d: top_link=%d bottom_link=%d\n",
 			i, descenders[i].top_linkage, descenders[i].bottom_linkage);
+	}
+
+	if(!num_descenders) {
+		fprintf(stderr, "image was completely blank - therefore there is no bounding polygon\n");
+		mpoly_t empty;
+		empty.num_contours = 0;
+		empty.contours = NULL;
+		return empty;
 	}
 
 	unsigned char *used_desc = (unsigned char *)malloc_or_die(num_descenders);
