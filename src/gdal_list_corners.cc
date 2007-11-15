@@ -30,6 +30,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define PI 3.141592653
 #endif
 
+#ifndef MIN
+#define MIN(a,b) ((a)<(b)?(a):(b))
+#endif
+
+#ifndef MAX
+#define MAX(a,b) ((a)>(b)?(a):(b))
+#endif
+
 #define EPSILON 10E-10
 
 int VERBOSE = 0;
@@ -1832,6 +1840,38 @@ vertex_t *seg_vert1, vertex_t *seg_vert2, vertex_t *test_vert) {
 			return sqrt(b_squared);
 		}
 	}
+}
+
+int line_intersects_line(
+	int x1, int y1, int x2, int y2,
+	int x3, int y3, int x4, int y4,
+	int fail_on_coincident
+) {
+	if(
+		MAX(x1, x2) < MIN(x3, x4) ||
+		MIN(x1, x2) > MAX(x3, x4) ||
+		MAX(y1, y2) < MIN(y3, y4) ||
+		MIN(y1, y2) > MAX(y3, y4)
+	) return 0;
+	// must cast to long or overflow will result from multiplication
+	long numer_a = (long)(x4-x3)*(long)(y1-y3) - (long)(y4-y3)*(long)(x1-x3);
+	long numer_b = (long)(x2-x1)*(long)(y1-y3) - (long)(y2-y1)*(long)(x1-x3);
+	long denom   = (long)(y4-y3)*(long)(x2-x1) - (long)(x4-x3)*(long)(y2-y1);
+	if(denom == 0) {
+		if(numer_a==0 && numer_b==0) { // coincident
+			if(fail_on_coincident) {
+				return 0;
+			} else {
+				// lines must touch because of min/max test above
+				return 1;
+			}
+		} else { // parallel
+			return 0;
+		}
+	}
+	double ua = (double)numer_a / (double)denom;
+	double ub = (double)numer_b / (double)denom;
+	return ua>=0 && ua<=1 && ub>=0 && ub<=1;
 }
 
 int polygon_contains(contour_t *c1, contour_t *c2) {
