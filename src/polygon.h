@@ -24,40 +24,33 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 
+#ifndef POLYGON_H
+#define POLYGON_H
 
-#ifndef COMMON_H
-#define COMMON_H
+#include "common.h"
 
-#include <ogr_spatialref.h>
-#include <cpl_string.h>
-#include <gdal.h>
+typedef struct {
+	double x, y;
+} vertex_t;
 
-// these constants from GDAL interfere with config.h
-#undef PACKAGE_VERSION
-#undef PACKAGE_TARNAME
-#undef PACKAGE_STRING
-#undef PACKAGE_NAME
-#undef PACKAGE_BUGREPORT
+typedef struct {
+	int npts;
+	vertex_t *pts;
+	int is_hole;
+	int parent_id;
+} contour_t;
 
-#if HAVE_INTTYPES_H
-#  include <inttypes.h>
-#endif
+typedef struct {
+	int num_contours;
+	contour_t *contours;
+} mpoly_t;
 
-#if HAVE_STDLIB_H
-#  include <stdlib.h>
-#endif
 
-#if HAVE_STRING_H
-#  include <string.h>
-#endif
+void output_wkt_mpoly(char *wkt_fn, mpoly_t mpoly);
+void reduce_linestring_detail(contour_t *orig_string, contour_t *new_string, double res);
+int polygon_contains(contour_t *c1, contour_t *c2);
+double polygon_area(contour_t *c);
+void mask_from_mpoly(mpoly_t *mpoly, int w, int h, char *fn);
+mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance);
 
-#include <stdio.h>
-
-#include <config.h>
-#include <math.h>
-
-void fatal_error(char *s);
-void *malloc_or_die(size_t size);
-void *realloc_or_die(void *p, size_t size);
-
-#endif // ifndef COMMON_H
+#endif // ifndef POLYGON_H

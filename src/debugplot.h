@@ -24,40 +24,29 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 
+#ifndef DEBUGPLOT_H
+#define DEBUGPLOT_H
 
-#ifndef COMMON_H
-#define COMMON_H
+#include "common.h"
+#include "polygon.h"
 
-#include <ogr_spatialref.h>
-#include <cpl_string.h>
-#include <gdal.h>
+#define PLOT_RECT4 1
+#define PLOT_DESCENDERS 2
+#define PLOT_CONTOURS 3
+typedef struct {
+	unsigned char *img;
+	double canvas_w, canvas_h;
+	int img_w, img_h;
+	int stride_x, stride_y;
+	int mode;
+} report_image_t;
 
-// these constants from GDAL interfere with config.h
-#undef PACKAGE_VERSION
-#undef PACKAGE_TARNAME
-#undef PACKAGE_STRING
-#undef PACKAGE_NAME
-#undef PACKAGE_BUGREPORT
+report_image_t *create_plot(double w, double h);
+void write_plot(report_image_t *dbuf, char *fn);
+void plot_point_big(report_image_t *dbuf, double x, double y, unsigned char r, unsigned char g, unsigned char b);
+void plot_point(report_image_t *dbuf, double x, double y, unsigned char r, unsigned char g, unsigned char b);
+void plot_line(report_image_t *dbuf, double x0, double y0, double x1, double y1, 
+	unsigned char r, unsigned char g, unsigned char b);
+void debug_plot_contours(mpoly_t *mpoly, report_image_t *dbuf);
 
-#if HAVE_INTTYPES_H
-#  include <inttypes.h>
-#endif
-
-#if HAVE_STDLIB_H
-#  include <stdlib.h>
-#endif
-
-#if HAVE_STRING_H
-#  include <string.h>
-#endif
-
-#include <stdio.h>
-
-#include <config.h>
-#include <math.h>
-
-void fatal_error(char *s);
-void *malloc_or_die(size_t size);
-void *realloc_or_die(void *p, size_t size);
-
-#endif // ifndef COMMON_H
+#endif // ifndef DEBUGPLOT_H
