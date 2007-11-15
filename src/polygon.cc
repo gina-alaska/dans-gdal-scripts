@@ -347,7 +347,7 @@ void fix_topology(mpoly_t *mpoly, reduced_contour_t *reduced_contours) {
 	for(c1_idx=0; c1_idx < mpoly->num_contours; c1_idx++) {
 		reduced_contour_t *r1 = &reduced_contours[c1_idx];
 		for(seg1_idx=0; seg1_idx < r1->num_segs; seg1_idx++) {
-			r->segs[seg1_idx].is_problem = 0;
+			r1->segs[seg1_idx].is_problem = 0;
 		}
 	}
 
@@ -368,18 +368,70 @@ void fix_topology(mpoly_t *mpoly, reduced_contour_t *reduced_contours) {
 
 					char crosses = segs_cross(c1, &r1->segs[seg1_idx], c2, &r2->segs[seg2_idx]);
 					if(crosses) {
-						printf("found a crossing: %d,%d,%d,%d\n",
+						fprintf(stderr, "found a crossing: %d,%d,%d,%d\n",
 							c1_idx, seg1_idx, c2_idx, seg2_idx);
 						r1->segs[seg1_idx].is_problem = 1;
 						r2->segs[seg2_idx].is_problem = 1;
 						have_problems = 1;
 					}
-				}
-			}
+				} // seg loop
+			} // seg loop
 		} // contour loop
 	} // contour loop
 
-	while(have_problems) {
+	int did_something = 1;
+	while(have_problems && did_something) {
+		did_something = 0;
+		// subdivide problem segments
+		for(c1_idx=0; c1_idx < mpoly->num_contours; c1_idx++) {
+			reduced_contour_t *r1 = &reduced_contours[c1_idx];
+			int orig_num_segs = r1->num_segs; // this number will change as we go, so copy it
+			for(seg1_idx=0; seg1_idx < orig_num_segs; seg1_idx++) {
+				if(!r1->segs[seg1_idx].is_problem) continue;
+				int begin = r1->segs[seg1_idx].begin;
+				int end = r1->segs[seg1_idx].end;
+				if(end < begin) continue; // this is a closure segment (and so doesn't have a midpoint)
+				if(end == begin+1) continue; // no midpoint
+
+				// subdivide this segment
+				int mid = (begin + end) / 2;
+				r1->segs[seg1_idx].end = mid;
+				r1->segs[r1->num_segs].begin = mid;
+				r1->segs[r1->num_segs].end = end;
+				r1->segs[r1->num_segs].is_problem = 1;
+				r1->num_segs++;
+				did_something = 1;
+			} // seg loop
+		} // contour loop
+
+		have_problems = 0;
+		// now test for resolved problems and new problems
+		for(c1_idx=0; c1_idx < mpoly->num_contours; c1_idx++) {
+			contour_t *c1 = &mpoly->contours[c1_idx];
+			reduced_contour_t *r1 = &reduced_contours[c1_idx];
+			for(seg1_idx=0; seg1_idx < r1->num_segs; seg1_idx++) {
+				if(!r1->segs[seg1_idx].is_problem) continue;
+				r1->segs[seg1_idx].is_problem = 0;
+				for(c2_idx=0; c2_idx < mpoly->num_contours; c2_idx++) {
+					contour_t *c2 = &mpoly->contours[c2_idx];
+					reduced_contour_t *r2 = &reduced_contours[c2_idx];
+					for(seg2_idx=0; seg2_idx < r2->num_segs; seg2_idx++) {
+						char crosses = segs_cross(c1, &r1->segs[seg1_idx], c2, &r2->segs[seg2_idx]);
+						if(crosses) {
+							fprintf(stderr, "found a crossing (still): %d,%d,%d,%d\n",
+								c1_idx, seg1_idx, c2_idx, seg2_idx);
+							r1->segs[seg1_idx].is_problem = 1;
+							r2->segs[seg2_idx].is_problem = 1;
+							have_problems = 1;
+						}
+					} // seg loop
+				} // contour loop
+			} // seg loop
+		} // contour loop
+	} // while problems
+
+	if(have_problems) {
+		fprintf(stderr, "WARNING: Could not fix all topology problems.\n  Please inspect output shapefile manually.\n");
 	}
 }
 
