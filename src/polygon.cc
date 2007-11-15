@@ -40,7 +40,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 typedef struct {
 	int begin;
 	int end;
+	char is_problem;
 } segment_t;
+
+typedef struct {
+	segment_t *segs;
+	int num_segs;
+} reduced_contour_t;
 
 typedef struct {
 	int num_crossings;
@@ -48,9 +54,17 @@ typedef struct {
 	int *crossings;
 } row_crossings_t;
 
-void reduce_linestring_detail(contour_t *orig_string, contour_t *new_string, double res);
+reduced_contour_t reduce_linestring_detail(contour_t *orig_string, double res);
 double get_dist_to_seg(double seg_vec_x, double seg_vec_y, 
 	vertex_t *seg_vert1, vertex_t *seg_vert2, vertex_t *test_vert);
+contour_t make_contour_from_segs(contour_t *c_in, reduced_contour_t *r_in);
+void fix_topology(mpoly_t *mpoly, reduced_contour_t *reduced_contours);
+char segs_cross(contour_t *c1, segment_t *s1, contour_t *c2, segment_t *s2);
+int line_intersects_line(
+	double x1, double y1, double x2, double y2,
+	double x3, double y3, double x4, double y4,
+	int fail_on_coincident
+);
 
 extern int VERBOSE;
 
@@ -112,24 +126,37 @@ void output_wkt_mpoly(char *wkt_fn, mpoly_t mpoly) {
 mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance) {
 	if(VERBOSE) fprintf(stderr, "reducing...\n");
 
-	contour_t *reduced_contours = (contour_t *)malloc_or_die(sizeof(contour_t)*in_mpoly->num_contours);
-	int num_reduced_contours = 0;
+	reduced_contour_t *reduced_contours = (reduced_contour_t *)
+		malloc_or_die(sizeof(reduced_contour_t) * in_mpoly->num_contours);
+	int c_idx;
+	for(c_idx=0; c_idx<in_mpoly->num_contours; c_idx++) {
+		reduced_contours[c_idx] = reduce_linestring_detail(&in_mpoly->contours[c_idx], tolerance);
+	}
+
+	fix_topology(in_mpoly, reduced_contours);
+
+	contour_t *out_contours = (contour_t *)malloc_or_die(sizeof(contour_t)*in_mpoly->num_contours);
+	int num_out_contours = 0;
 	int total_npts_in=0, total_npts_out=0;
-	int i;
-	for(i=0; i<in_mpoly->num_contours; i++) {
-		contour_t r;
-		reduce_linestring_detail(&in_mpoly->contours[i], &r, tolerance);
-		if(VERBOSE) fprintf(stderr, "contour %d: %d => %d pts\n", i, in_mpoly->contours[i].npts, r.npts);
-		total_npts_in += in_mpoly->contours[i].npts;
-		if(r.npts > 2) {
-			reduced_contours[num_reduced_contours++] = r;
-			total_npts_out += r.npts;
+	for(c_idx=0; c_idx<in_mpoly->num_contours; c_idx++) {
+		contour_t *c_in = &in_mpoly->contours[c_idx];
+		reduced_contour_t *r_in = &reduced_contours[c_idx];
+
+		contour_t new_string = make_contour_from_segs(c_in, r_in);
+
+		if(VERBOSE) fprintf(stderr, "contour %d: %d => %d pts\n", c_idx, c_in->npts, new_string.npts);
+		total_npts_in += c_in->npts;
+		// FIXME - if skipping an outer ring, skip its holes too
+		if(new_string.npts > 2) {
+			out_contours[num_out_contours++] = new_string;
+			total_npts_out += new_string.npts;
 		}
 	}
-	if(VERBOSE) fprintf(stderr, "reduced %d => %d contours, %d => %d pts\n",
-		in_mpoly->num_contours, num_reduced_contours, total_npts_in, total_npts_out);
 
-	return (mpoly_t){ num_reduced_contours, reduced_contours };
+	if(VERBOSE) fprintf(stderr, "reduced %d => %d contours, %d => %d pts\n",
+		in_mpoly->num_contours, num_out_contours, total_npts_in, total_npts_out);
+
+	return (mpoly_t){ num_out_contours, out_contours };
 }
 
 // Implementation of Douglas-Peucker polyline reduction algorithm
@@ -138,7 +165,7 @@ mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance) {
 
 #define VECLEN(x,y) sqrt((x)*(x)+(y)*(y))
 
-void reduce_linestring_detail(contour_t *orig_string, contour_t *new_string, double res) {
+reduced_contour_t reduce_linestring_detail(contour_t *orig_string, double res) {
 //fprintf(stderr, "enter dp\n");
 
 	int num_in = orig_string->npts;
@@ -148,8 +175,14 @@ void reduce_linestring_detail(contour_t *orig_string, contour_t *new_string, dou
 
 	segment_t *stack = (segment_t *)malloc_or_die(sizeof(segment_t) * num_in);
 	int stack_ptr = 0;
-	char *keep_pts = (char *)malloc_or_die(sizeof(char) * num_in);
-	for(i=0; i<num_in; i++) keep_pts[i] = 0;
+
+	segment_t *keep_segs = (segment_t *)malloc_or_die(sizeof(segment_t) * num_in);
+	int num_keep_segs = 0;
+
+	// must keep closure segment
+	keep_segs[num_keep_segs].begin = num_in-1;
+	keep_segs[num_keep_segs].end = 0;
+	num_keep_segs++;
 
 	stack[stack_ptr].begin = 0;
 	stack[stack_ptr].end = num_in-1;
@@ -214,35 +247,23 @@ void reduce_linestring_detail(contour_t *orig_string, contour_t *new_string, dou
 		} else {
 			// segment doesn't need subdivision - tag
 			// endpoint for inclusion
-			keep_pts[seg_begin] = 1;
-			keep_pts[seg_end] = 1;
+			if(num_keep_segs == num_in) fatal_error("output stack overflow in dp.c");
+			keep_segs[num_keep_segs].begin = seg_begin;
+			keep_segs[num_keep_segs].end = seg_end;
+			num_keep_segs++;
 		}
 	}
 
-	int num_to_keep = 0;
-	for(i=0; i<num_in; i++) {
-		if(keep_pts[i]) num_to_keep++;
-	}
-//fprintf(stderr, "keeping %d of %d\n", num_to_keep, num_in);
-
-	*new_string = *orig_string; // copy parent_id, is_hole, etc.
-	new_string->npts = num_to_keep;
-	new_string->pts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * num_to_keep);
-	vertex_t *pts_out = new_string->pts;
-	int idx_out = 0;
-	for(i=0; i<num_in; i++) {
-		if(keep_pts[i]) {
-			pts_out[idx_out++] = pts_in[i];
-		}
-	}
-	if(idx_out != new_string->npts) {
-		fatal_error("count mismatch after point copy in dp.c");
-	}
+//fprintf(stderr, "keeping %d of %d\n", num_keep_segs, num_in);
+//fprintf(stderr, "exit dp\n");
 
 	free(stack);
-	free(keep_pts);
 
-//fprintf(stderr, "exit dp\n");
+	reduced_contour_t ret;
+	ret.segs = keep_segs;
+	ret.num_segs = num_keep_segs;
+
+	return ret;
 }
 
 double get_dist_to_seg(double seg_vec_x, double seg_vec_y, 
@@ -280,9 +301,111 @@ vertex_t *seg_vert1, vertex_t *seg_vert2, vertex_t *test_vert) {
 	}
 }
 
+contour_t make_contour_from_segs(contour_t *c_in, reduced_contour_t *r_in) {
+	int i;
+	char *keep_pts = (char *)malloc_or_die(c_in->npts);
+	for(i=0; i<c_in->npts; i++) keep_pts[i] = 0;
+
+	for(i=0; i<r_in->num_segs; i++) {
+		keep_pts[r_in->segs[i].begin]++;
+		keep_pts[r_in->segs[i].end]++;
+	}
+
+	int num_to_keep = 0;
+	for(i=0; i<c_in->npts; i++) {
+		if(keep_pts[i] && keep_pts[i] != 2) {
+			fatal_error("point must be in 0 or 2 segs");
+		}
+		if(keep_pts[i]) num_to_keep++;
+	}
+//fprintf(stderr, "keeping %d of %d\n", num_to_keep, num_in);
+
+	contour_t new_string = *c_in; // copy parent_id, is_hole, etc.
+	new_string.npts = num_to_keep;
+	new_string.pts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * num_to_keep);
+	vertex_t *pts_out = new_string.pts;
+	int idx_out = 0;
+	for(i=0; i<c_in->npts; i++) {
+		if(keep_pts[i]) {
+			pts_out[idx_out++] = c_in->pts[i];
+		}
+	}
+	if(idx_out != new_string.npts) {
+		fatal_error("count mismatch after point copy in dp.c");
+	}
+
+	free(keep_pts);
+
+	return new_string;
+}
+
+void fix_topology(mpoly_t *mpoly, reduced_contour_t *reduced_contours) {
+	int c1_idx, c2_idx;
+	int seg1_idx, seg2_idx;
+
+	// clear problem flags
+	for(c1_idx=0; c1_idx < mpoly->num_contours; c1_idx++) {
+		reduced_contour_t *r1 = &reduced_contours[c1_idx];
+		for(seg1_idx=0; seg1_idx < r1->num_segs; seg1_idx++) {
+			r->segs[seg1_idx].is_problem = 0;
+		}
+	}
+
+	// flag segments that cross
+	char have_problems = 0;
+	for(c1_idx=0; c1_idx < mpoly->num_contours; c1_idx++) {
+		contour_t *c1 = &mpoly->contours[c1_idx];
+		reduced_contour_t *r1 = &reduced_contours[c1_idx];
+		for(c2_idx=0; c2_idx < mpoly->num_contours; c2_idx++) {
+			if(c2_idx > c1_idx) continue; // symmetry optimization
+
+			contour_t *c2 = &mpoly->contours[c2_idx];
+			reduced_contour_t *r2 = &reduced_contours[c2_idx];
+
+			for(seg1_idx=0; seg1_idx < r1->num_segs; seg1_idx++) {
+				for(seg2_idx=0; seg2_idx < r2->num_segs; seg2_idx++) {
+					if(c2_idx == c1_idx && seg2_idx > seg1_idx) continue; // symmetry optimization
+
+					char crosses = segs_cross(c1, &r1->segs[seg1_idx], c2, &r2->segs[seg2_idx]);
+					if(crosses) {
+						printf("found a crossing: %d,%d,%d,%d\n",
+							c1_idx, seg1_idx, c2_idx, seg2_idx);
+						r1->segs[seg1_idx].is_problem = 1;
+						r2->segs[seg2_idx].is_problem = 1;
+						have_problems = 1;
+					}
+				}
+			}
+		} // contour loop
+	} // contour loop
+
+	while(have_problems) {
+	}
+}
+
+char segs_cross(contour_t *c1, segment_t *s1, contour_t *c2, segment_t *s2) {
+	if(c1 == c2) {
+		// don't test crossing if segments are identical or neighbors
+		if(
+			(s1->begin == s2->begin) ||
+			(s1->begin == s2->end) ||
+			(s1->end == s2->begin) ||
+			(s1->end == s2->end)
+		) return 0;
+	}
+	
+	return line_intersects_line(
+		c1->pts[s1->begin].x, c1->pts[s1->begin].y,
+		c1->pts[s1->end  ].x, c1->pts[s1->end  ].y,
+		c2->pts[s2->begin].x, c2->pts[s2->begin].y,
+		c2->pts[s2->end  ].x, c2->pts[s2->end  ].y,
+		1
+	);
+}
+
 int line_intersects_line(
-	int x1, int y1, int x2, int y2,
-	int x3, int y3, int x4, int y4,
+	double x1, double y1, double x2, double y2,
+	double x3, double y3, double x4, double y4,
 	int fail_on_coincident
 ) {
 	if(
@@ -291,10 +414,9 @@ int line_intersects_line(
 		MAX(y1, y2) < MIN(y3, y4) ||
 		MIN(y1, y2) > MAX(y3, y4)
 	) return 0;
-	// must cast to long or overflow will result from multiplication
-	long numer_a = (long)(x4-x3)*(long)(y1-y3) - (long)(y4-y3)*(long)(x1-x3);
-	long numer_b = (long)(x2-x1)*(long)(y1-y3) - (long)(y2-y1)*(long)(x1-x3);
-	long denom   = (long)(y4-y3)*(long)(x2-x1) - (long)(x4-x3)*(long)(y2-y1);
+	double numer_a = (x4-x3)*(y1-y3) - (y4-y3)*(x1-x3);
+	double numer_b = (x2-x1)*(y1-y3) - (y2-y1)*(x1-x3);
+	double denom   = (y4-y3)*(x2-x1) - (x4-x3)*(y2-y1);
 	if(denom == 0) {
 		if(numer_a==0 && numer_b==0) { // coincident
 			if(fail_on_coincident) {
