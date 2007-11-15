@@ -47,10 +47,9 @@ typedef struct {
 
 
 void output_wkt_mpoly(char *wkt_fn, mpoly_t mpoly);
-void reduce_linestring_detail(contour_t *orig_string, contour_t *new_string, double res);
+mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance);
 int polygon_contains(contour_t *c1, contour_t *c2);
 double polygon_area(contour_t *c);
 void mask_from_mpoly(mpoly_t *mpoly, int w, int h, char *fn);
-mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance);
 
 #endif // ifndef POLYGON_H

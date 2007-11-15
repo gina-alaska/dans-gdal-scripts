@@ -37,6 +37,21 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #define EPSILON 10E-10
 
+typedef struct {
+	int begin;
+	int end;
+} segment_t;
+
+typedef struct {
+	int num_crossings;
+	int array_size;
+	int *crossings;
+} row_crossings_t;
+
+void reduce_linestring_detail(contour_t *orig_string, contour_t *new_string, double res);
+double get_dist_to_seg(double seg_vec_x, double seg_vec_y, 
+	vertex_t *seg_vert1, vertex_t *seg_vert2, vertex_t *test_vert);
+
 extern int VERBOSE;
 
 void output_wkt_mpoly(char *wkt_fn, mpoly_t mpoly) {
@@ -94,19 +109,34 @@ void output_wkt_mpoly(char *wkt_fn, mpoly_t mpoly) {
 	fclose(fout);
 }
 
-typedef struct {
-	int begin;
-	int end;
-} segment_t;
+mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance) {
+	if(VERBOSE) fprintf(stderr, "reducing...\n");
+
+	contour_t *reduced_contours = (contour_t *)malloc_or_die(sizeof(contour_t)*in_mpoly->num_contours);
+	int num_reduced_contours = 0;
+	int total_npts_in=0, total_npts_out=0;
+	int i;
+	for(i=0; i<in_mpoly->num_contours; i++) {
+		contour_t r;
+		reduce_linestring_detail(&in_mpoly->contours[i], &r, tolerance);
+		if(VERBOSE) fprintf(stderr, "contour %d: %d => %d pts\n", i, in_mpoly->contours[i].npts, r.npts);
+		total_npts_in += in_mpoly->contours[i].npts;
+		if(r.npts > 2) {
+			reduced_contours[num_reduced_contours++] = r;
+			total_npts_out += r.npts;
+		}
+	}
+	if(VERBOSE) fprintf(stderr, "reduced %d => %d contours, %d => %d pts\n",
+		in_mpoly->num_contours, num_reduced_contours, total_npts_in, total_npts_out);
+
+	return (mpoly_t){ num_reduced_contours, reduced_contours };
+}
 
 // Implementation of Douglas-Peucker polyline reduction algorithm
 // rewrite of code from http://www.3dsoftware.com/Cartography/Programming/PolyLineReduction
 // (and adapted from src/linework/dp.c in the sv_server module)
 
 #define VECLEN(x,y) sqrt((x)*(x)+(y)*(y))
-
-double get_dist_to_seg(double seg_vec_x, double seg_vec_y, 
-vertex_t *seg_vert1, vertex_t *seg_vert2, vertex_t *test_vert);
 
 void reduce_linestring_detail(contour_t *orig_string, contour_t *new_string, double res) {
 //fprintf(stderr, "enter dp\n");
@@ -338,25 +368,73 @@ double polygon_area(contour_t *c) {
 	return fabs(accum) / 2.0;
 }
 
-mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance) {
-	if(VERBOSE) fprintf(stderr, "reducing...\n");
+void mask_from_mpoly(mpoly_t *mpoly, int w, int h, char *fn) {
+	int i, j, y;
 
-	contour_t *reduced_contours = (contour_t *)malloc_or_die(sizeof(contour_t)*in_mpoly->num_contours);
-	int num_reduced_contours = 0;
-	int total_npts_in=0, total_npts_out=0;
-	int i;
-	for(i=0; i<in_mpoly->num_contours; i++) {
-		contour_t r;
-		reduce_linestring_detail(&in_mpoly->contours[i], &r, tolerance);
-		if(VERBOSE) fprintf(stderr, "contour %d: %d => %d pts\n", i, in_mpoly->contours[i].npts, r.npts);
-		total_npts_in += in_mpoly->contours[i].npts;
-		if(r.npts > 2) {
-			reduced_contours[num_reduced_contours++] = r;
-			total_npts_out += r.npts;
+	fprintf(stderr, "mask draw: begin\n");
+
+	row_crossings_t *rows = (row_crossings_t *)malloc_or_die(sizeof(row_crossings_t) * h);
+	for(i=0; i<h; i++) {
+		rows[i].num_crossings = 0;
+		rows[i].array_size = 0;
+		rows[i].crossings = NULL;
+	}
+
+	for(i=0; i<mpoly->num_contours; i++) {
+		contour_t *c = mpoly->contours + i;
+		for(j=0; j<c->npts; j++) {
+			double x0 = c->pts[j].x;
+			double y0 = c->pts[j].y;
+			double x1 = c->pts[(j+1)%c->npts].x;
+			double y1 = c->pts[(j+1)%c->npts].y;
+			if(y0 == y1) continue;
+			if(y0 > y1) {
+				double tmp;
+				tmp=x0; x0=x1; x1=tmp; 
+				tmp=y0; y0=y1; y1=tmp; 
+			}
+			double alpha = (x1-x0) / (y1-y0);
+			for(y=(int)y0; y<(int)y1; y++) {
+				if(y<0 || y>h-1) continue;
+				int x = (int)(x0 + ((double)y - y0)*alpha);
+				row_crossings_t *r = rows+y;
+				if(r->num_crossings == r->array_size) {
+					r->array_size += 16;
+					r->crossings = (int *)realloc_or_die(r->crossings,
+						sizeof(int) * r->array_size);
+				}
+				r->crossings[r->num_crossings++] = x;
+			}
 		}
 	}
-	if(VERBOSE) fprintf(stderr, "reduced %d => %d contours, %d => %d pts\n",
-		in_mpoly->num_contours, num_reduced_contours, total_npts_in, total_npts_out);
 
-	return (mpoly_t){ num_reduced_contours, reduced_contours };
+	fprintf(stderr, "mask draw: write\n");
+
+	FILE *fout = fopen(fn, "wb");
+	if(!fout) fatal_error("cannot open mask output");
+	fprintf(fout, "P4\n%d %d\n", w, h);
+	unsigned char *buf = (unsigned char *)malloc_or_die((w+7)/8);
+	for(y=0; y<h; y++) {
+		memset(buf, 0, (w+7)/8);
+		unsigned char *p = buf;
+		unsigned char bitp = 128;
+		row_crossings_t *r = rows+y;
+		for(i=0; i<w; i++) {
+			unsigned char v = 1;
+			// not the fastest way...
+			for(j=0; j<r->num_crossings; j++) {
+				if(i >= r->crossings[j]) v = !v;
+			}
+			if(v) *p |= bitp;
+			bitp >>= 1;
+			if(!bitp) {
+				p++;
+				bitp = 128;
+			}
+		}
+		fwrite(buf, (w+7)/8, 1, fout);
+	}
+	fclose(fout);
+
+	fprintf(stderr, "mask draw: done\n");
 }
