@@ -58,13 +58,9 @@ reduced_contour_t reduce_linestring_detail(contour_t *orig_string, double res);
 double get_dist_to_seg(double seg_vec_x, double seg_vec_y, 
 	vertex_t *seg_vert1, vertex_t *seg_vert2, vertex_t *test_vert);
 contour_t make_contour_from_segs(contour_t *c_in, reduced_contour_t *r_in);
+mpoly_t reduction_to_mpoly(mpoly_t *in_mpoly, reduced_contour_t *reduced_contours);
 void fix_topology(mpoly_t *mpoly, reduced_contour_t *reduced_contours);
 char segs_cross(contour_t *c1, segment_t *s1, contour_t *c2, segment_t *s2);
-int line_intersects_line(
-	double x1, double y1, double x2, double y2,
-	double x3, double y3, double x4, double y4,
-	int fail_on_coincident
-);
 
 extern int VERBOSE;
 
@@ -87,13 +83,12 @@ void output_wkt_mpoly(char *wkt_fn, mpoly_t mpoly) {
 		fprintf(fout, "((\n");
 		//fprintf(fout, "  ring:%d\n", r_idx);
 		for(p_idx=0; p_idx<ring->npts+1; p_idx++) {
-			double x = ring->pts[p_idx % ring->npts].x;
-			double y = ring->pts[p_idx % ring->npts].y;
 			if(!(p_idx%4)) {
 				if(p_idx) fprintf(fout, "\n");
 				fprintf(fout, "  ");
 			}
-			fprintf(fout, "%.15f %.15f", x, y);
+			vertex_t v = ring->pts[p_idx % ring->npts];
+			fprintf(fout, "%.15f %.15f", v.x, v.y);
 			if(p_idx < ring->npts) fprintf(fout, ", ");
 		}
 		fprintf(fout, "\n)");
@@ -105,13 +100,12 @@ void output_wkt_mpoly(char *wkt_fn, mpoly_t mpoly) {
 			fprintf(fout, ", (\n");
 			//fprintf(fout, "  hole:%d\n", h_idx);
 			for(p_idx=0; p_idx<hole->npts+1; p_idx++) {
-				double x = hole->pts[p_idx % hole->npts].x;
-				double y = hole->pts[p_idx % hole->npts].y;
 				if(!(p_idx%4)) {
 					if(p_idx) fprintf(fout, "\n");
 					fprintf(fout, "  ");
 				}
-				fprintf(fout, "%.15f %.15f", x, y);
+				vertex_t v = hole->pts[p_idx % hole->npts];
+				fprintf(fout, "%.15f %.15f", v.x, v.y);
 				if(p_idx < hole->npts) fprintf(fout, ", ");
 			}
 			fprintf(fout, "\n)");
@@ -128,6 +122,7 @@ mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance) {
 
 	reduced_contour_t *reduced_contours = (reduced_contour_t *)
 		malloc_or_die(sizeof(reduced_contour_t) * in_mpoly->num_contours);
+
 	int c_idx;
 	for(c_idx=0; c_idx<in_mpoly->num_contours; c_idx++) {
 		reduced_contours[c_idx] = reduce_linestring_detail(&in_mpoly->contours[c_idx], tolerance);
@@ -135,28 +130,7 @@ mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance) {
 
 	fix_topology(in_mpoly, reduced_contours);
 
-	contour_t *out_contours = (contour_t *)malloc_or_die(sizeof(contour_t)*in_mpoly->num_contours);
-	int num_out_contours = 0;
-	int total_npts_in=0, total_npts_out=0;
-	for(c_idx=0; c_idx<in_mpoly->num_contours; c_idx++) {
-		contour_t *c_in = &in_mpoly->contours[c_idx];
-		reduced_contour_t *r_in = &reduced_contours[c_idx];
-
-		contour_t new_string = make_contour_from_segs(c_in, r_in);
-
-		if(VERBOSE) fprintf(stderr, "contour %d: %d => %d pts\n", c_idx, c_in->npts, new_string.npts);
-		total_npts_in += c_in->npts;
-		// FIXME - if skipping an outer ring, skip its holes too
-		if(new_string.npts > 2) {
-			out_contours[num_out_contours++] = new_string;
-			total_npts_out += new_string.npts;
-		}
-	}
-
-	if(VERBOSE) fprintf(stderr, "reduced %d => %d contours, %d => %d pts\n",
-		in_mpoly->num_contours, num_out_contours, total_npts_in, total_npts_out);
-
-	return (mpoly_t){ num_out_contours, out_contours };
+	return reduction_to_mpoly(in_mpoly, reduced_contours);
 }
 
 // Implementation of Douglas-Peucker polyline reduction algorithm
@@ -318,6 +292,9 @@ contour_t make_contour_from_segs(contour_t *c_in, reduced_contour_t *r_in) {
 		}
 		if(keep_pts[i]) num_to_keep++;
 	}
+	// number of points == number of line segments
+	if(num_to_keep != r_in->num_segs) fatal_error("num_to_keep != r_in->num_segs");
+
 //fprintf(stderr, "keeping %d of %d\n", num_to_keep, num_in);
 
 	contour_t new_string = *c_in; // copy parent_id, is_hole, etc.
@@ -339,6 +316,85 @@ contour_t make_contour_from_segs(contour_t *c_in, reduced_contour_t *r_in) {
 	return new_string;
 }
 
+mpoly_t reduction_to_mpoly(mpoly_t *in_mpoly, reduced_contour_t *reduced_contours) {
+	// This function takes only rings with more than two points.
+	// (a polygon with two or less points has no area)
+	// Care is taken to make sure that the containment info
+	// (specifically the parent_id pointer) is still proper.
+	// It is difficult to come up with a test case so I just
+	// have to hope that is works.
+
+	// First, find which contours have at least three points.
+	char *keep_contours = (char *)malloc_or_die(in_mpoly->num_contours);
+	int total_npts_in=0, total_npts_out=0;
+	int c_idx;
+	for(c_idx=0; c_idx<in_mpoly->num_contours; c_idx++) {
+		contour_t *c_in = &in_mpoly->contours[c_idx];
+		reduced_contour_t *r_in = &reduced_contours[c_idx];
+
+		if(VERBOSE) fprintf(stderr, "contour %d: %d => %d pts\n", c_idx, c_in->npts, r_in->num_segs);
+		total_npts_in += c_in->npts;
+
+		if(r_in->num_segs > 2) {
+			total_npts_out += r_in->num_segs;
+			keep_contours[c_idx] = 1;
+		} else {
+			keep_contours[c_idx] = 0;
+		}
+	}
+
+	// If an outer ring has been removed, remove its holes
+	// also.  Extremely unlikely but just in case...
+	for(c_idx=0; c_idx<in_mpoly->num_contours; c_idx++) {
+		contour_t *c_in = &in_mpoly->contours[c_idx];
+		if(c_in->parent_id >= 0) {
+			if(!keep_contours[c_in->parent_id]) {
+				keep_contours[c_idx] = 0;
+			}
+		}
+	}
+
+	// Map index of old contours to index of new contours.
+	int *new_idx_map = (int *)malloc_or_die(sizeof(int) * in_mpoly->num_contours);
+	int out_idx = 0;
+	for(c_idx=0; c_idx<in_mpoly->num_contours; c_idx++) {
+		if(keep_contours[c_idx]) {
+			//fprintf(stderr, "map contour %d => %d\n", c_idx, out_idx);
+			new_idx_map[c_idx] = out_idx++;
+		} else {
+			new_idx_map[c_idx] = -1;
+		}
+	}
+	int num_out_contours = out_idx;
+
+	// Now create the new contours and update parent_id using the
+	// remapped index values.
+	contour_t *out_contours = (contour_t *)malloc_or_die(sizeof(contour_t)*num_out_contours);
+	for(c_idx=0; c_idx<in_mpoly->num_contours; c_idx++) {
+		contour_t *c_in = &in_mpoly->contours[c_idx];
+		reduced_contour_t *r_in = &reduced_contours[c_idx];
+
+		out_idx = new_idx_map[c_idx];
+		if(out_idx < 0) continue;
+
+		contour_t new_string = make_contour_from_segs(c_in, r_in);
+
+		int old_parent_id = in_mpoly->contours[c_idx].parent_id;
+		if(old_parent_id >= 0) {
+			int new_parent_id = new_idx_map[old_parent_id];
+			//fprintf(stderr, "map parent_id %d => %d\n", old_parent_id, new_parent_id);
+			new_string.parent_id = new_parent_id;
+		}
+
+		out_contours[out_idx] = new_string;
+	}
+
+	if(VERBOSE) fprintf(stderr, "reduced %d => %d contours, %d => %d pts\n",
+		in_mpoly->num_contours, num_out_contours, total_npts_in, total_npts_out);
+
+	return (mpoly_t){ num_out_contours, out_contours };
+}
+
 void fix_topology(mpoly_t *mpoly, reduced_contour_t *reduced_contours) {
 	int c1_idx, c2_idx;
 	int seg1_idx, seg2_idx;
@@ -352,7 +408,7 @@ void fix_topology(mpoly_t *mpoly, reduced_contour_t *reduced_contours) {
 	}
 
 	// flag segments that cross
-	char have_problems = 0;
+	int have_problems = 0;
 	for(c1_idx=0; c1_idx < mpoly->num_contours; c1_idx++) {
 		contour_t *c1 = &mpoly->contours[c1_idx];
 		reduced_contour_t *r1 = &reduced_contours[c1_idx];
@@ -368,19 +424,24 @@ void fix_topology(mpoly_t *mpoly, reduced_contour_t *reduced_contours) {
 
 					char crosses = segs_cross(c1, &r1->segs[seg1_idx], c2, &r2->segs[seg2_idx]);
 					if(crosses) {
-						fprintf(stderr, "found a crossing: %d,%d,%d,%d\n",
-							c1_idx, seg1_idx, c2_idx, seg2_idx);
+						//fprintf(stderr, "found a crossing: %d,%d,%d,%d\n",
+						//	c1_idx, seg1_idx, c2_idx, seg2_idx);
 						r1->segs[seg1_idx].is_problem = 1;
 						r2->segs[seg2_idx].is_problem = 1;
-						have_problems = 1;
+						have_problems += 2;
 					}
 				} // seg loop
 			} // seg loop
 		} // contour loop
 	} // contour loop
 
+	if(have_problems) {
+		if(VERBOSE) fprintf(stderr, "fixing %d crossed segments from reduction\n", have_problems/2);
+	}
+
 	int did_something = 1;
 	while(have_problems && did_something) {
+		//fprintf(stderr, "%d crossings to fix\n", have_problems/2);
 		did_something = 0;
 		// subdivide problem segments
 		for(c1_idx=0; c1_idx < mpoly->num_contours; c1_idx++) {
@@ -418,11 +479,11 @@ void fix_topology(mpoly_t *mpoly, reduced_contour_t *reduced_contours) {
 					for(seg2_idx=0; seg2_idx < r2->num_segs; seg2_idx++) {
 						char crosses = segs_cross(c1, &r1->segs[seg1_idx], c2, &r2->segs[seg2_idx]);
 						if(crosses) {
-							fprintf(stderr, "found a crossing (still): %d,%d,%d,%d\n",
-								c1_idx, seg1_idx, c2_idx, seg2_idx);
+							//fprintf(stderr, "found a crossing (still): %d,%d,%d,%d\n",
+							//	c1_idx, seg1_idx, c2_idx, seg2_idx);
 							r1->segs[seg1_idx].is_problem = 1;
 							r2->segs[seg2_idx].is_problem = 1;
-							have_problems = 1;
+							have_problems++;
 						}
 					} // seg loop
 				} // contour loop
@@ -447,28 +508,25 @@ char segs_cross(contour_t *c1, segment_t *s1, contour_t *c2, segment_t *s2) {
 	}
 	
 	return line_intersects_line(
-		c1->pts[s1->begin].x, c1->pts[s1->begin].y,
-		c1->pts[s1->end  ].x, c1->pts[s1->end  ].y,
-		c2->pts[s2->begin].x, c2->pts[s2->begin].y,
-		c2->pts[s2->end  ].x, c2->pts[s2->end  ].y,
-		1
-	);
+		c1->pts[s1->begin], c1->pts[s1->end  ],
+		c2->pts[s2->begin], c2->pts[s2->end  ],
+		1);
 }
 
 int line_intersects_line(
-	double x1, double y1, double x2, double y2,
-	double x3, double y3, double x4, double y4,
+	vertex_t p1, vertex_t p2,
+	vertex_t p3, vertex_t p4,
 	int fail_on_coincident
 ) {
 	if(
-		MAX(x1, x2) < MIN(x3, x4) ||
-		MIN(x1, x2) > MAX(x3, x4) ||
-		MAX(y1, y2) < MIN(y3, y4) ||
-		MIN(y1, y2) > MAX(y3, y4)
+		MAX(p1.x, p2.x) < MIN(p3.x, p4.x) ||
+		MIN(p1.x, p2.x) > MAX(p3.x, p4.x) ||
+		MAX(p1.y, p2.y) < MIN(p3.y, p4.y) ||
+		MIN(p1.y, p2.y) > MAX(p3.y, p4.y)
 	) return 0;
-	double numer_a = (x4-x3)*(y1-y3) - (y4-y3)*(x1-x3);
-	double numer_b = (x2-x1)*(y1-y3) - (y2-y1)*(x1-x3);
-	double denom   = (y4-y3)*(x2-x1) - (x4-x3)*(y2-y1);
+	double numer_a = (p4.x-p3.x)*(p1.y-p3.y) - (p4.y-p3.y)*(p1.x-p3.x);
+	double numer_b = (p2.x-p1.x)*(p1.y-p3.y) - (p2.y-p1.y)*(p1.x-p3.x);
+	double denom   = (p4.y-p3.y)*(p2.x-p1.x) - (p4.x-p3.x)*(p2.y-p1.y);
 	if(denom == 0) {
 		if(numer_a==0 && numer_b==0) { // coincident
 			if(fail_on_coincident) {
@@ -484,6 +542,21 @@ int line_intersects_line(
 	double ua = (double)numer_a / (double)denom;
 	double ub = (double)numer_b / (double)denom;
 	return ua>=0 && ua<=1 && ub>=0 && ub<=1;
+}
+
+void line_line_intersection(
+	vertex_t p1, vertex_t p2,
+	vertex_t p3, vertex_t p4,
+	vertex_t *p_out
+) {
+	double numer_a = (p4.x-p3.x)*(p1.y-p3.y) - (p4.y-p3.y)*(p1.x-p3.x);
+	//double numer_b = (p2.x-p1.x)*(p1.y-p3.y) - (p2.y-p1.y)*(p1.x-p3.x);
+	double denom   = (p4.y-p3.y)*(p2.x-p1.x) - (p4.x-p3.x)*(p2.y-p1.y);
+	if(!denom) fatal_error("lines are parallel");
+	double ua = numer_a / denom;
+	//double ub = numer_b / denom;
+	(*p_out).x = p1.x + ua*(p2.x-p1.x);
+	(*p_out).y = p1.y + ua*(p2.y-p1.y);
 }
 
 int polygon_contains(contour_t *c1, contour_t *c2) {
@@ -540,6 +613,57 @@ double polygon_area(contour_t *c) {
 		accum += x0*y1 - x1*y0;
 	}
 	return fabs(accum) / 2.0;
+}
+
+void compute_containments(contour_t *contours, int num_contours) {
+	int i, j;
+
+	unsigned char **containments = (unsigned char **)malloc_or_die(
+		sizeof(unsigned char *) * num_contours);
+	for(i=0; i<num_contours; i++) {
+		containments[i] = (unsigned char *)malloc_or_die(num_contours);
+		for(j=0; j<num_contours; j++) {
+			if(i == j) {
+				containments[i][j] = 0;
+			} else {
+				containments[i][j] = polygon_contains(&contours[i], &contours[j]);
+				//fprintf(stderr, "containtments[%d][%d] = %d\n", i, j, containments[i][j]);
+			}
+		}
+	}
+	int *containment_levels = (int *)malloc_or_die(
+		sizeof(int) * num_contours);
+	int max_level = 0;
+	for(i=0; i<num_contours; i++) {
+		containment_levels[i] = 0;
+		for(j=0; j<num_contours; j++) {
+			if(containments[i][j] && containments[j][i]) {
+				fprintf(stderr, "topology error: %d and %d contain each other\n", i, j);
+				fatal_error("topology error");
+			}
+			if(containments[j][i]) containment_levels[i]++;
+		}
+		if(VERBOSE) fprintf(stderr, "containment_levels[%d] = %d\n", i, containment_levels[i]);
+		if(containment_levels[i] > max_level) max_level = containment_levels[i];
+	}
+
+	for(i=0; i<num_contours; i++) {
+		// only odd levels are holes
+		contours[i].is_hole = containment_levels[i] % 2;
+	}
+
+	for(i=0; i<num_contours; i++) {
+		contours[i].parent_id = -1;
+
+		for(j=0; j<num_contours; j++) {
+			if(
+				containments[j][i] &&
+				containment_levels[i] == containment_levels[j] + 1
+			) {
+				contours[i].parent_id = j;
+			}
+		}
+	}
 }
 
 void mask_from_mpoly(mpoly_t *mpoly, int w, int h, char *fn) {

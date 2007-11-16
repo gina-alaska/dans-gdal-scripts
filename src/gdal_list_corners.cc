@@ -650,8 +650,7 @@ vertex_t calc_centroid_from_mask(unsigned char *mask, int w, int h) {
 }
 
 typedef struct {
-	int x0, y0;
-	int x1, y1;
+	vertex_t p0, p1;
 	double angle;
 	double seg_len;
 	int group;
@@ -665,23 +664,6 @@ typedef struct {
 	edge_t best_edge;
 	double sort_key;
 } edge_group_t;
-
-void line_line_intersection(
-	double x1, double y1,
-	double x2, double y2,
-	double x3, double y3,
-	double x4, double y4,
-	double *x_out, double *y_out
-) {
-	double numer_a = (x4-x3)*(y1-y3) - (y4-y3)*(x1-x3);
-	//double numer_b = (x2-x1)*(y1-y3) - (y2-y1)*(x1-x3);
-	double denom   = (y4-y3)*(x2-x1) - (x4-x3)*(y2-y1);
-	if(!denom) fatal_error("lines are parallel");
-	double ua = numer_a / denom;
-	//double ub = numer_b / denom;
-	*x_out = x1 + ua*(x2-x1);
-	*y_out = y1 + ua*(y2-y1);
-}
 
 double ang_diff(double a1, double a2) {
 	double d = fabs(a1 - a2);
@@ -764,10 +746,10 @@ contour_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t
 		//if(VERBOSE) fprintf(stderr, "  a=[% 3.1f]\n", angle);
 
 		all_edges = (edge_t *)realloc_or_die(all_edges, (num_edges+1)*sizeof(edge_t));
-		all_edges[num_edges].x0 = fulcrum_x;
-		all_edges[num_edges].y0 = fulcrum_y;
-		all_edges[num_edges].x1 = best_x;
-		all_edges[num_edges].y1 = best_y;
+		all_edges[num_edges].p0.x = fulcrum_x;
+		all_edges[num_edges].p0.y = fulcrum_y;
+		all_edges[num_edges].p1.x = best_x;
+		all_edges[num_edges].p1.y = best_y;
 		num_edges++;
 
 		if(best_x<0) fatal_error("could not find new fulcrum");
@@ -778,8 +760,8 @@ contour_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t
 
 	for(i=0; i<num_edges; i++) {
 		edge_t e = all_edges[i];
-		double dx = e.x1 - e.x0;
-		double dy = e.y1 - e.y0;
+		double dx = e.p1.x - e.p0.x;
+		double dy = e.p1.y - e.p0.y;
 		e.angle = atan2(dy, dx)*180.0/PI;
 		e.seg_len = sqrt(dx*dx + dy*dy);
 		e.group = -1;
@@ -886,7 +868,7 @@ contour_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t
 	for(i=0; i<num_groups; i++) {
 		// FIXME - instead of choosing an existing edge close to avg_ang, it would
 		// be better to create a new edge with the desired angle and with proper
-		// x0,y0 value
+		// p0.x,p0.y value
 		groups[i].best_edge = all_edges[0];
 		for(j=0; j<num_edges; j++) {
 			double d1 = ang_diff(groups[i].avg_ang, all_edges[j].angle);
@@ -924,26 +906,19 @@ contour_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t
 		j = i ? i-1 : num_groups-1;
 		edge_t e1 = groups[i].best_edge;
 		edge_t e2 = groups[j].best_edge;
-		double x, y;
 		line_line_intersection(
-			e1.x0, e1.y0, e1.x1, e1.y1,
-			e2.x0, e2.y0, e2.x1, e2.y1,
-			&x, &y);
-		verts[i].x = x;
-		verts[i].y = y;
-		if(VERBOSE) fprintf(stderr, "vert[%d] = %.15f, %.15f\n", i, x, y);
+			e1.p0, e1.p1,
+			e2.p0, e2.p1,
+			&verts[i]);
+		if(VERBOSE) fprintf(stderr, "vert[%d] = %.15f, %.15f\n", i, verts[i].x, verts[i].y);
 	}
 
 	if(dbuf && dbuf->mode == PLOT_RECT4) {
 		for(i=0; i<num_groups; i++) {
 			j = i<num_groups-1 ? i+1 : 0;
-			double x0 = verts[i].x;
-			double y0 = verts[i].y;
-			double x1 = verts[j].x;
-			double y1 = verts[j].y;
-			plot_line(dbuf, x0, y0, x1, y1, 255, 0, 0);
-			plot_point_big(dbuf, x0, y0, 255, 255, 0);
-			plot_point_big(dbuf, x1, y1, 255, 255, 0);
+			plot_line(dbuf, verts[i], verts[j], 255, 0, 0);
+			plot_point_big(dbuf, verts[i].x, verts[i].y, 255, 255, 0);
+			plot_point_big(dbuf, verts[j].x, verts[j].y, 255, 255, 0);
 		}
 	}
 
@@ -990,57 +965,6 @@ int create_descender_pair(int *num_descenders, descender_t **descenders, int y, 
 	(*num_descenders) += 2;
 	if(VERBOSE) fprintf(stderr, "num_descenders = %d (y=%d)\n", *num_descenders, y);
 	return n;
-}
-
-void compute_containments(contour_t *contours, int num_contours) {
-	int i, j;
-
-	unsigned char **containments = (unsigned char **)malloc_or_die(
-		sizeof(unsigned char *) * num_contours);
-	for(i=0; i<num_contours; i++) {
-		containments[i] = (unsigned char *)malloc_or_die(num_contours);
-		for(j=0; j<num_contours; j++) {
-			if(i == j) {
-				containments[i][j] = 0;
-			} else {
-				containments[i][j] = polygon_contains(&contours[i], &contours[j]);
-				//fprintf(stderr, "containtments[%d][%d] = %d\n", i, j, containments[i][j]);
-			}
-		}
-	}
-	int *containment_levels = (int *)malloc_or_die(
-		sizeof(int) * num_contours);
-	int max_level = 0;
-	for(i=0; i<num_contours; i++) {
-		containment_levels[i] = 0;
-		for(j=0; j<num_contours; j++) {
-			if(containments[i][j] && containments[j][i]) {
-				fprintf(stderr, "topology error: %d and %d contain each other\n", i, j);
-				fatal_error("topology error");
-			}
-			if(containments[j][i]) containment_levels[i]++;
-		}
-		if(VERBOSE) fprintf(stderr, "containment_levels[%d] = %d\n", i, containment_levels[i]);
-		if(containment_levels[i] > max_level) max_level = containment_levels[i];
-	}
-
-	for(i=0; i<num_contours; i++) {
-		// only odd levels are holes
-		contours[i].is_hole = containment_levels[i] % 2;
-	}
-
-	for(i=0; i<num_contours; i++) {
-		contours[i].parent_id = -1;
-
-		for(j=0; j<num_contours; j++) {
-			if(
-				containments[j][i] &&
-				containment_levels[i] == containment_levels[j] + 1
-			) {
-				contours[i].parent_id = j;
-			}
-		}
-	}
 }
 
 mpoly_t calc_contour_from_mask(unsigned char *mask, int w, int h,

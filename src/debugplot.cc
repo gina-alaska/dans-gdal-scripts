@@ -86,15 +86,15 @@ void plot_point(report_image_t *dbuf, double x, double y, unsigned char r, unsig
 	}
 }
 
-void plot_line(report_image_t *dbuf, double x0, double y0, double x1, double y1, 
+void plot_line(report_image_t *dbuf, vertex_t p0, vertex_t p1, 
 unsigned char r, unsigned char g, unsigned char b) {
-	double dx = (x1-x0) / dbuf->canvas_w * (double)dbuf->img_w;
-	double dy = (y1-y0) / dbuf->canvas_h * (double)dbuf->img_h;
+	double dx = (p1.x-p0.x) / dbuf->canvas_w * (double)dbuf->img_w;
+	double dy = (p1.y-p0.y) / dbuf->canvas_h * (double)dbuf->img_h;
 	double len = sqrt(dx*dx + dy*dy) + 2.0;
 	double alpha;
 	for(alpha=0; alpha<=1; alpha+=1.0/len) {
-		double x = x0+(x1-x0)*alpha;
-		double y = y0+(y1-y0)*alpha;
+		double x = p0.x+(p1.x-p0.x)*alpha;
+		double y = p0.y+(p1.y-p0.y)*alpha;
 		plot_point(dbuf, x, y, r, g, b);
 	}
 }
@@ -113,13 +113,11 @@ void debug_plot_contours(mpoly_t *mpoly, report_image_t *dbuf) {
 		else { r=255; g=255; b=0; }
 		if(VERBOSE) fprintf(stderr, "contour %d: %d pts color=%02x%02x%02x\n", i, c.npts, r, g, b);
 		for(j=0; j<c.npts; j++) {
-			double x0 = c.pts[j].x;
-			double y0 = c.pts[j].y;
-			double x1 = c.pts[(j+1)%c.npts].x;
-			double y1 = c.pts[(j+1)%c.npts].y;
-			plot_line(dbuf, x0, y0, x1, y1, r, g, b);
-			plot_point(dbuf, x0, y0, 255, 255, 255);
-			plot_point(dbuf, x1, y1, 255, 255, 255);
+			vertex_t p0 = c.pts[j];
+			vertex_t p1 = c.pts[(j+1)%c.npts];
+			plot_line(dbuf, p0, p1, r, g, b);
+			plot_point(dbuf, p0.x, p0.y, 255, 255, 255);
+			plot_point(dbuf, p1.x, p1.y, 255, 255, 255);
 		}
 	}
 }

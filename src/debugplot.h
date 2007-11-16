@@ -45,7 +45,7 @@ report_image_t *create_plot(double w, double h);
 void write_plot(report_image_t *dbuf, char *fn);
 void plot_point_big(report_image_t *dbuf, double x, double y, unsigned char r, unsigned char g, unsigned char b);
 void plot_point(report_image_t *dbuf, double x, double y, unsigned char r, unsigned char g, unsigned char b);
-void plot_line(report_image_t *dbuf, double x0, double y0, double x1, double y1, 
+void plot_line(report_image_t *dbuf, vertex_t p0, vertex_t p1, 
 	unsigned char r, unsigned char g, unsigned char b);
 void debug_plot_contours(mpoly_t *mpoly, report_image_t *dbuf);
 
