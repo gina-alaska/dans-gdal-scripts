@@ -251,7 +251,7 @@ reduced_ring_t reduce_linestring_detail(ring_t *orig_string, double res) {
 	return ret;
 }
 
-double get_dist_to_seg(double seg_vec_x, double seg_vec_y, 
+inline double get_dist_to_seg(double seg_vec_x, double seg_vec_y, 
 vertex_t *seg_vert1, vertex_t *seg_vert2, vertex_t *test_vert) {
 	double vert_vec_x = test_vert->x - seg_vert1->x;
 	double vert_vec_y = test_vert->y - seg_vert1->y;
@@ -507,7 +507,7 @@ void fix_topology(mpoly_t *mpoly, reduced_ring_t *reduced_rings) {
 	}
 }
 
-char segs_cross(ring_t *c1, segment_t *s1, ring_t *c2, segment_t *s2) {
+inline char segs_cross(ring_t *c1, segment_t *s1, ring_t *c2, segment_t *s2) {
 	if(c1 == c2) {
 		// don't test crossing if segments are identical or neighbors
 		if(
@@ -524,7 +524,7 @@ char segs_cross(ring_t *c1, segment_t *s1, ring_t *c2, segment_t *s2) {
 		1);
 }
 
-int line_intersects_line(
+inline int line_intersects_line(
 	vertex_t p1, vertex_t p2,
 	vertex_t p3, vertex_t p4,
 	int fail_on_coincident
@@ -780,8 +780,35 @@ void pinch_self_intersections(mpoly_t *mp) {
 }
 */
 
-int mpoly_border_touches_point(mpoly_t *mp, int r1_idx, int v1_idx) {
+#define BORDER_TOUCH_HASH_SIZE 1000000
+#define BORDER_TOUCH_HASH_SQRTSIZE 100
+
+char *mpoly_border_touch_create_hashtable(mpoly_t *mp) {
+	char *table = (char *)malloc_or_die(BORDER_TOUCH_HASH_SIZE);
+	memset(table, 0, BORDER_TOUCH_HASH_SIZE);
+	int r_idx;
+	for(r_idx=0; r_idx<mp->num_rings; r_idx++) {
+		ring_t *ring = &mp->rings[r_idx];
+		int v_idx;
+		for(v_idx=0; v_idx<ring->npts; v_idx++) {
+			vertex_t *v = &ring->pts[v_idx];
+			int key = (int)(v->x + v->y * (double)BORDER_TOUCH_HASH_SQRTSIZE);
+			key = ((key % BORDER_TOUCH_HASH_SIZE) + BORDER_TOUCH_HASH_SIZE) % BORDER_TOUCH_HASH_SIZE;
+			if(key<0 || key>=BORDER_TOUCH_HASH_SIZE) fatal_error("hash key out of range");
+			if(table[key] < 2) table[key]++;
+		}
+	}
+	return table;
+}
+
+inline int mpoly_border_touches_point(char *table, mpoly_t *mp, int r1_idx, int v1_idx) {
 	vertex_t *v1 = &mp->rings[r1_idx].pts[v1_idx];
+
+	int key = (int)(v1->x + v1->y * (double)BORDER_TOUCH_HASH_SQRTSIZE);
+	key = ((key % BORDER_TOUCH_HASH_SIZE) + BORDER_TOUCH_HASH_SIZE) % BORDER_TOUCH_HASH_SIZE;
+	if(key<0 || key>=BORDER_TOUCH_HASH_SIZE) fatal_error("hash key out of range");
+	if(table[key] < 2) return 0;
+
 	int r2_idx;
 	for(r2_idx=0; r2_idx<mp->num_rings; r2_idx++) {
 		ring_t *ring = &mp->rings[r2_idx];
@@ -799,6 +826,8 @@ int mpoly_border_touches_point(mpoly_t *mp, int r1_idx, int v1_idx) {
 void bevel_self_intersections(mpoly_t *mp) {
 	double amount = .1;
 
+	char *table = mpoly_border_touch_create_hashtable(mp);
+
 	int r_idx;
 	for(r_idx=0; r_idx<mp->num_rings; r_idx++) {
 		ring_t *ring = &mp->rings[r_idx];
@@ -806,7 +835,7 @@ void bevel_self_intersections(mpoly_t *mp) {
 		char *touch_mask = NULL;
 		int v_idx;
 		for(v_idx=0; v_idx<ring->npts; v_idx++) {
-			int touches = mpoly_border_touches_point(mp, r_idx, v_idx);
+			int touches = mpoly_border_touches_point(table, mp, r_idx, v_idx);
 			if(touches) {
 				if(!touch_mask) {
 					touch_mask = (char *)malloc_or_die(ring->npts);
@@ -842,4 +871,6 @@ void bevel_self_intersections(mpoly_t *mp) {
 		}
 		if(touch_mask) free(touch_mask);
 	}
+
+	free(table);
 }
