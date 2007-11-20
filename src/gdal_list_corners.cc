@@ -47,7 +47,7 @@ Geocoding: \n\
 \n\
 Inspection: \n\
   -inspect-rect4                  Attempt to find 4-sided bounding polygon  \n\
-  -inspect-contour                Trace contour \n\
+  -inspect-ring                Trace ring \n\
   -nodataval 'val [val ...]'      Specify value of no-data pixels \n\
   -ndv-toler val                  Tolerance for deciding if a pixel matches nodataval \n\
   -b band_id -b band_id ...       Bands to inspect (default is all bands) \n\
@@ -61,6 +61,7 @@ Inspection: \n\
   -wkt-xy fn.wkt                  Output bounds in WKT format (x/y coords) \n\
   -wkt-en fn.wkt                  Output bounds in WKT format (east/north coords) \n\
   -wkt-ll fn.wkt                  Output bounds in WKT format (lat/lon coords) \n\
+  -wkt-split-polys                Output several polygons rather than one multipolygon\n\
   -mask-out fn.pbm                Output mask of bounding polygon in PBM format \n\
 \n\
 Misc: \n\
@@ -77,8 +78,8 @@ void setup_ndv_list(GDALDatasetH ds, int bandlist_size, int *bandlist, int *num_
 unsigned char *get_mask_for_dataset(GDALDatasetH ds, int bandlist_size, int *bandlist, 
 	int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf);
 vertex_t calc_centroid_from_mask(unsigned char *mask, int w, int h);
-contour_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *dbuf);
-mpoly_t calc_contour_from_mask(unsigned char *mask, int w, int h,
+ring_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *dbuf);
+mpoly_t calc_ring_from_mask(unsigned char *mask, int w, int h,
 	report_image_t *dbuf, int major_ring_only, int no_donuts, double min_ring_area);
 unsigned char *erode_mask(unsigned char *in_mask, int w, int h);
 
@@ -92,13 +93,14 @@ int main(int argc, char **argv) {
 	double given_left_e=0, given_lower_n=0, given_upper_n=0;
 	double res=0;
 	int inspect_rect4 = 0;
-	int inspect_contour = 0;
+	int inspect_ring = 0;
 	int num_ndv = 0;
 	double *ndv_list = NULL;
 	double ndv_tolerance = 0;
 	char *debug_report = NULL;
 	int inspect_numbands = 0;
 	int *inspect_bandids = NULL;
+	int split_polys = 0;
 	char *wkt_xy_fn = NULL;
 	char *wkt_en_fn = NULL;
 	char *wkt_ll_fn = NULL;
@@ -151,8 +153,8 @@ int main(int argc, char **argv) {
 				if(*endptr) usage(argv[0]);
 			} else if(!strcmp(arg, "-inspect-rect4")) {
 				inspect_rect4++;
-			} else if(!strcmp(arg, "-inspect-contour")) {
-				inspect_contour++;
+			} else if(!strcmp(arg, "-inspect-ring")) {
+				inspect_ring++;
 			} else if(!strcmp(arg, "-nodataval")) {
 				if(argp == argc) usage(argv[0]);
 				int result = parse_list_of_doubles(argv[argp++], &num_ndv, &ndv_list);
@@ -170,6 +172,8 @@ int main(int argc, char **argv) {
 				inspect_bandids[inspect_numbands++] = bandid;
 			} else if(!strcmp(arg, "-skip-erosion")) {
 				skip_erosion++;
+			} else if(!strcmp(arg, "-wkt-split-polys")) {
+				split_polys++;
 			} else if(!strcmp(arg, "-wkt-xy")) {
 				if(argp == argc) usage(argv[0]);
 				wkt_xy_fn = argv[argp++];
@@ -212,10 +216,10 @@ int main(int argc, char **argv) {
 	if(got_ll_en && got_ul_en) usage(argv[0]);
 
 	int do_wkt_output = wkt_xy_fn || wkt_en_fn || wkt_ll_fn;
-	int do_inspect = inspect_rect4 || inspect_contour;
+	int do_inspect = inspect_rect4 || inspect_ring;
 	if(do_inspect && !input_raster_fn) fatal_error("must specify filename of image");
 	if((do_wkt_output || mask_out_fn) && !do_inspect) fatal_error(
-		"must specify -inspect-rect4 or -inspect-contour");
+		"must specify -inspect-rect4 or -inspect-ring");
 
 	if(major_ring_only && min_ring_area) fatal_error(
 		"-major-ring and -min-ring-area options cannot both be used at the same time");
@@ -417,12 +421,12 @@ int main(int argc, char **argv) {
 	mpoly_t *bpoly = NULL;
 
 	if(inspect_rect4) {
-		contour_t rect4 = calc_rect4_from_mask(mask, w, h, dbuf);
+		ring_t rect4 = calc_rect4_from_mask(mask, w, h, dbuf);
 
 		bpoly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
-		bpoly->num_contours = 1;
-		bpoly->contours = (contour_t *)malloc_or_die(sizeof(contour_t));
-		bpoly->contours[0] = rect4;
+		bpoly->num_rings = 1;
+		bpoly->rings = (ring_t *)malloc_or_die(sizeof(ring_t));
+		bpoly->rings[0] = rect4;
 
 		if(rect4.npts == 4) {
 			char *labels[] = { "upper_left", "upper_right", "lower_right", "lower_left" };
@@ -479,10 +483,10 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	if(inspect_contour) {
+	if(inspect_ring) {
 		bpoly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
-		*bpoly = calc_contour_from_mask(mask, w, h, dbuf, major_ring_only, no_donuts, min_ring_area);
-		if(bpoly->num_contours == 0) bpoly = 0;
+		*bpoly = calc_ring_from_mask(mask, w, h, dbuf, major_ring_only, no_donuts, min_ring_area);
+		if(bpoly->num_rings == 0) bpoly = 0;
 	}
 
 	if(mask_out_fn) {
@@ -496,27 +500,27 @@ int main(int argc, char **argv) {
 
 	if(dbuf && dbuf->mode == PLOT_CONTOURS) {
 		if(!bpoly) fatal_error("missing bound polygon");
-		debug_plot_contours(bpoly, dbuf);
+		debug_plot_rings(bpoly, dbuf);
 	}
 
 	if(do_wkt_output) {
 		if(!bpoly) fatal_error("missing bound polygon");
 
 		int num_outer=0, num_inner=0, total_pts=0;
-		for(i=0; i<bpoly->num_contours; i++) {
-			if(bpoly->contours[i].is_hole) num_inner++;
+		for(i=0; i<bpoly->num_rings; i++) {
+			if(bpoly->rings[i].is_hole) num_inner++;
 			else num_outer++;
-			total_pts += bpoly->contours[i].npts;
+			total_pts += bpoly->rings[i].npts;
 		}
 		fprintf(stderr, "Found %d outer rings and %d holes with a total of %d vertices.\n", num_outer, num_inner, total_pts);
 
-		if(wkt_xy_fn) output_wkt_mpoly(wkt_xy_fn, *bpoly);
+		if(wkt_xy_fn) output_wkt_mpoly(wkt_xy_fn, *bpoly, split_polys);
 
 		if(wkt_en_fn || wkt_ll_fn) {
 			if(!affine) fatal_error("missing affine transform");
 
-			for(i=0; i<bpoly->num_contours; i++) {
-				contour_t *c = bpoly->contours + i;
+			for(i=0; i<bpoly->num_rings; i++) {
+				ring_t *c = bpoly->rings + i;
 				for(j=0; j<c->npts; j++) {
 					double x = c->pts[j].x;
 					double y = c->pts[j].y;
@@ -526,15 +530,15 @@ int main(int argc, char **argv) {
 				}
 			}
 
-			if(wkt_en_fn) output_wkt_mpoly(wkt_en_fn, *bpoly);
+			if(wkt_en_fn) output_wkt_mpoly(wkt_en_fn, *bpoly, split_polys);
 		}
 
 		if(wkt_ll_fn) {
 			if(!affine) fatal_error("missing affine transform");
 			if(!xform) fatal_error("missing coordinate transform");
 			
-			for(i=0; i<bpoly->num_contours; i++) {
-				contour_t *c = bpoly->contours + i;
+			for(i=0; i<bpoly->num_rings; i++) {
+				ring_t *c = bpoly->rings + i;
 				for(j=0; j<c->npts; j++) {
 					double x = c->pts[j].x;
 					double y = c->pts[j].y;
@@ -544,7 +548,7 @@ int main(int argc, char **argv) {
 				}
 			}
 
-			output_wkt_mpoly(wkt_ll_fn, *bpoly);
+			output_wkt_mpoly(wkt_ll_fn, *bpoly, split_polys);
 		}
 	}
 
@@ -670,7 +674,7 @@ double ang_diff(double a1, double a2) {
 	return d<=180.0 ? d : 360.0-d;
 }
 
-contour_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *dbuf) {
+ring_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *dbuf) {
 	int i, j;
 
 	int mask_rowlen = (w+7)/8;
@@ -922,7 +926,7 @@ contour_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t
 		}
 	}
 
-	contour_t rect4;
+	ring_t rect4;
 	if(num_groups == 4) {
 		rect4.npts = 4;
 		rect4.pts = verts;
@@ -967,11 +971,11 @@ int create_descender_pair(int *num_descenders, descender_t **descenders, int y, 
 	return n;
 }
 
-mpoly_t calc_contour_from_mask(unsigned char *mask, int w, int h,
+mpoly_t calc_ring_from_mask(unsigned char *mask, int w, int h,
 report_image_t *dbuf, int major_ring_only, int no_donuts, double min_ring_area) {
 	int x, y;
 
-	fprintf(stderr, "finding contours: begin\n");
+	fprintf(stderr, "finding rings: begin\n");
 
 	rowstat_t up_row, down_row;
 	up_row.openings        = (int *)malloc_or_die(sizeof(int) * (w+1)/2);
@@ -1137,16 +1141,16 @@ report_image_t *dbuf, int major_ring_only, int no_donuts, double min_ring_area) 
 	if(!num_descenders) {
 		fprintf(stderr, "image was completely blank - therefore there is no bounding polygon\n");
 		mpoly_t empty;
-		empty.num_contours = 0;
-		empty.contours = NULL;
+		empty.num_rings = 0;
+		empty.rings = NULL;
 		return empty;
 	}
 
 	unsigned char *used_desc = (unsigned char *)malloc_or_die(num_descenders);
 	for(i=0; i<num_descenders; i++) used_desc[i] = 0;
 
-	int num_contours = 0;
-	contour_t *contours = NULL;
+	int num_rings = 0;
+	ring_t *rings = NULL;
 
 	for(;;) {
 		int start_d = -1;
@@ -1157,9 +1161,9 @@ report_image_t *dbuf, int major_ring_only, int no_donuts, double min_ring_area) 
 			}
 		}
 		if(start_d < 0) break;
-		contour_t contour;
-		contour.npts = 0;
-		contour.pts = NULL;
+		ring_t ring;
+		ring.npts = 0;
+		ring.pts = NULL;
 		int cur_d = start_d;
 		do {
 			if(VERBOSE) fprintf(stderr, "d:%d ", cur_d);
@@ -1167,19 +1171,19 @@ report_image_t *dbuf, int major_ring_only, int no_donuts, double min_ring_area) 
 			if(used_desc[cur_d]) fatal_error("descender used twice");
 			used_desc[cur_d]++;
 			int n = d->bottom_y - d->top_y + 1;
-			if(n <= 0) fatal_error("npts <= 0 in contour segment");
-			contour.pts = (vertex_t *)realloc_or_die(contour.pts, 
-				sizeof(vertex_t)*(contour.npts+n*2));
-			contour.pts[contour.npts++] = (vertex_t){ d->pts[0], d->top_y };
+			if(n <= 0) fatal_error("npts <= 0 in ring segment");
+			ring.pts = (vertex_t *)realloc_or_die(ring.pts, 
+				sizeof(vertex_t)*(ring.npts+n*2));
+			ring.pts[ring.npts++] = (vertex_t){ d->pts[0], d->top_y };
 			for(i=1; i<n; i++) {
 				if(d->pts[i] != d->pts[i-1]) {
-					contour.pts[contour.npts++] = 
+					ring.pts[ring.npts++] = 
 						(vertex_t){ d->pts[i-1], d->top_y + i };
-					contour.pts[contour.npts++] =
+					ring.pts[ring.npts++] =
 						(vertex_t){ d->pts[i  ], d->top_y + i };
 				}
 			}
-			contour.pts[contour.npts++] = (vertex_t){ d->pts[n-1], d->bottom_y+1 };
+			ring.pts[ring.npts++] = (vertex_t){ d->pts[n-1], d->bottom_y+1 };
 			cur_d = d->bottom_linkage;
 			if(cur_d < 0) fatal_error("uninitialized val in descender linkage");
 
@@ -1188,82 +1192,84 @@ report_image_t *dbuf, int major_ring_only, int no_donuts, double min_ring_area) 
 			if(used_desc[cur_d]) fatal_error("descender used twice");
 			used_desc[cur_d]++;
 			n = d->bottom_y - d->top_y + 1;
-			if(n <= 0) fatal_error("npts <= 0 in contour segment");
-			contour.pts = (vertex_t *)realloc_or_die(contour.pts, 
-				sizeof(vertex_t)*(contour.npts+n*2));
-			contour.pts[contour.npts++] = (vertex_t){ d->pts[n-1], d->bottom_y + 1 };
+			if(n <= 0) fatal_error("npts <= 0 in ring segment");
+			ring.pts = (vertex_t *)realloc_or_die(ring.pts, 
+				sizeof(vertex_t)*(ring.npts+n*2));
+			ring.pts[ring.npts++] = (vertex_t){ d->pts[n-1], d->bottom_y + 1 };
 			for(i=n-2; i>=0; i--) {
 				if(d->pts[i] != d->pts[i+1]) {
-					contour.pts[contour.npts++] = 
+					ring.pts[ring.npts++] = 
 						(vertex_t){ d->pts[i+1], d->top_y + i+1 };
-					contour.pts[contour.npts++] = 
+					ring.pts[ring.npts++] = 
 						(vertex_t){ d->pts[i  ], d->top_y + i+1 };
 				}
 			}
-			contour.pts[contour.npts++] = (vertex_t){ d->pts[0], d->top_y };
+			ring.pts[ring.npts++] = (vertex_t){ d->pts[0], d->top_y };
 			cur_d = d->top_linkage;
 			if(cur_d < 0) fatal_error("uninitialized val in descender linkage");
 		} while(cur_d != start_d);
 		if(VERBOSE) fprintf(stderr, "\n");
 
-		if(VERBOSE) fprintf(stderr, "contour %d: %d pts\n", num_contours, contour.npts);
+		if(VERBOSE) fprintf(stderr, "ring %d: %d pts\n", num_rings, ring.npts);
 
-		contours = (contour_t *)realloc_or_die(contours, sizeof(contour_t)*(num_contours+1));
-		contours[num_contours++] = contour;
+		rings = (ring_t *)realloc_or_die(rings, sizeof(ring_t)*(num_rings+1));
+		rings[num_rings++] = ring;
 	}
-	fprintf(stderr, "finding contours: end\n");
+	fprintf(stderr, "finding rings: end\n");
+
+	//pinch_self_intersections(&num_rings, &rings);
 
 	if(min_ring_area > 0) {
 		if(VERBOSE) fprintf(stderr, "removing small rings...\n");
 
-		contour_t *filtered_contours = (contour_t *)malloc_or_die(sizeof(contour_t)*num_contours);
-		int num_filtered_contours = 0;
-		for(i=0; i<num_contours; i++) {
-			double area = polygon_area(contours+i);
-			if(VERBOSE) if(area > 10) fprintf(stderr, "contour %d has area %.15f\n", i, area);
+		ring_t *filtered_rings = (ring_t *)malloc_or_die(sizeof(ring_t)*num_rings);
+		int num_filtered_rings = 0;
+		for(i=0; i<num_rings; i++) {
+			double area = polygon_area(rings+i);
+			if(VERBOSE) if(area > 10) fprintf(stderr, "ring %d has area %.15f\n", i, area);
 			if(area >= min_ring_area) {
-				filtered_contours[num_filtered_contours++] = contours[i];
+				filtered_rings[num_filtered_rings++] = rings[i];
 			}
 		}
-		fprintf(stderr, "filtered by area %d => %d contours\n",
-			num_contours, num_filtered_contours);
+		fprintf(stderr, "filtered by area %d => %d rings\n",
+			num_rings, num_filtered_rings);
 
-		contours = filtered_contours;
-		num_contours = num_filtered_contours;
+		rings = filtered_rings;
+		num_rings = num_filtered_rings;
 	}
 
 	if(major_ring_only) {
 		double biggest_area = 0;
 		int best_idx = 0;
-		for(i=0; i<num_contours; i++) {
-			double area = polygon_area(contours+i);
+		for(i=0; i<num_rings; i++) {
+			double area = polygon_area(rings+i);
 			if(area > biggest_area) {
 				biggest_area = area;
 				best_idx = i;
 			}
 		}
-		if(VERBOSE) fprintf(stderr, "major contour was %d with %d pts, %.1f area\n",
-			best_idx, contours[best_idx].npts, biggest_area);
-		contours = contours+best_idx;
-		num_contours = 1;
+		if(VERBOSE) fprintf(stderr, "major ring was %d with %d pts, %.1f area\n",
+			best_idx, rings[best_idx].npts, biggest_area);
+		rings = rings+best_idx;
+		num_rings = 1;
 	}
 
 	fprintf(stderr, "computing containments: begin\n");
-	compute_containments(contours, num_contours);
+	compute_containments(rings, num_rings);
 	fprintf(stderr, "computing containments: end\n");
 
 	if(no_donuts) {
 		int out_idx = 0;
-		for(i=0; i<num_contours; i++) {
-			if(contours[i].parent_id < 0) {
-				contours[out_idx++] = contours[i];
+		for(i=0; i<num_rings; i++) {
+			if(rings[i].parent_id < 0) {
+				rings[out_idx++] = rings[i];
 			}
 		}
-		num_contours = out_idx;
-		if(VERBOSE) fprintf(stderr, "number of non-donut contours is %d", num_contours);
+		num_rings = out_idx;
+		if(VERBOSE) fprintf(stderr, "number of non-donut rings is %d", num_rings);
 	}
 
-	return (mpoly_t){ num_contours, contours };
+	return (mpoly_t){ num_rings, rings };
 }
 
 void setup_ndv_list(GDALDatasetH ds, int bandlist_size, int *bandlist, int *num_ndv, double **ndv_list) {

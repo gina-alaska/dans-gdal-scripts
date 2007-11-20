@@ -99,19 +99,19 @@ unsigned char r, unsigned char g, unsigned char b) {
 	}
 }
 
-void debug_plot_contours(mpoly_t *mpoly, report_image_t *dbuf) {
+void debug_plot_rings(mpoly_t *mpoly, report_image_t *dbuf) {
 	if(VERBOSE) fprintf(stderr, "plotting...\n");
 
 	int i, j;
-	for(i=0; i<mpoly->num_contours; i++) {
+	for(i=0; i<mpoly->num_rings; i++) {
 		int v = (i%62)+1;
 		int r = ((v&1) ? 150 : 0) + ((v&8) ? 100 : 0);
 		int g = ((v&2) ? 150 : 0) + ((v&16) ? 100 : 0);
 		int b = ((v&4) ? 150 : 0) + ((v&32) ? 100 : 0);
-		contour_t c = mpoly->contours[i];
+		ring_t c = mpoly->rings[i];
 		if(c.is_hole) { r=255; g=0; b=0; }
 		else { r=255; g=255; b=0; }
-		if(VERBOSE) fprintf(stderr, "contour %d: %d pts color=%02x%02x%02x\n", i, c.npts, r, g, b);
+		if(VERBOSE) fprintf(stderr, "ring %d: %d pts color=%02x%02x%02x\n", i, c.npts, r, g, b);
 		for(j=0; j<c.npts; j++) {
 			vertex_t p0 = c.pts[j];
 			vertex_t p1 = c.pts[(j+1)%c.npts];
