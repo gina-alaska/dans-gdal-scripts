@@ -703,9 +703,9 @@ void mask_from_mpoly(mpoly_t *mpoly, int w, int h, char *fn) {
 				tmp=y0; y0=y1; y1=tmp; 
 			}
 			double alpha = (x1-x0) / (y1-y0);
-			for(y=(int)y0; y<(int)y1; y++) {
+			for(y=(int)floor(y0+.5); y<(int)floor(y1+.5); y++) {
 				if(y<0 || y>h-1) continue;
-				int x = (int)(x0 + ((double)y - y0)*alpha);
+				int x = (int)((x0+.5) + ((double)y - (y0+.5))*alpha);
 				row_crossings_t *r = rows+y;
 				if(r->num_crossings == r->array_size) {
 					r->array_size += 16;
