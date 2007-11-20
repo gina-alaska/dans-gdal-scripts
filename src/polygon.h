@@ -62,5 +62,6 @@ void line_line_intersection(
 	vertex_t p3, vertex_t p4,
 	vertex_t *p_out
 );
+void pinch_self_intersections(mpoly_t *mp);
 
 #endif // ifndef POLYGON_H

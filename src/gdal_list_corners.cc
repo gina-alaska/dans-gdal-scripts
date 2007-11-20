@@ -1213,7 +1213,7 @@ report_image_t *dbuf, int major_ring_only, int no_donuts, double min_ring_area) 
 	}
 	fprintf(stderr, "finding rings: end\n");
 
-	//pinch_self_intersections(&num_rings, &rings);
+	pinch_self_intersections(&mp);
 
 	if(min_ring_area > 0) {
 		if(VERBOSE) fprintf(stderr, "removing small rings...\n");

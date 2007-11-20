@@ -740,3 +740,33 @@ void mask_from_mpoly(mpoly_t *mpoly, int w, int h, char *fn) {
 
 	fprintf(stderr, "mask draw: done\n");
 }
+
+void pinch_self_intersections(mpoly_t *mp) {
+	int r_idx;
+	for(r_idx=0; r_idx<mp->num_rings; r_idx++) {
+		ring_t *ring = &mp->rings[r_idx];
+		int v1in_idx, v1out_idx, v2_idx;
+		for(v1in_idx=0, v1out_idx=0; v1in_idx<ring->npts; v1in_idx++) {
+			vertex_t *v1 = &ring->pts[v1in_idx];
+			for(v2_idx=0; v2_idx<v1out_idx; v2_idx++) {
+				vertex_t *v2 = &ring->pts[v2_idx];
+				int touches = (v1->x == v2->x) && (v1->y == v2->y);
+				if(touches) {
+					printf("touch at ring %d vert %d vs %d : xy=(%f,%f)\n", r_idx, v1out_idx, v2_idx, v1->x, v1->y);
+					mp->rings = (ring_t *)realloc_or_die(mp->rings, sizeof(ring_t)*(mp->num_rings+1));
+					ring = &mp->rings[r_idx]; // must recompute this since location of mp->rings changed
+					ring_t *newring = &mp->rings[mp->num_rings++];
+					newring->npts = v1out_idx - v2_idx;
+					newring->pts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * newring->npts);
+					memcpy(newring->pts, ring->pts+v2_idx, sizeof(vertex_t) * newring->npts);
+					v1out_idx = v2_idx;
+				}
+			}
+			if(v1out_idx != v1in_idx) {
+				ring->pts[v1out_idx] = *v1;
+			}
+			v1out_idx++;
+		}
+		ring->npts = v1out_idx;
+	}
+}
