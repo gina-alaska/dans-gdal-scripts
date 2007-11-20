@@ -619,28 +619,28 @@ double polygon_area(ring_t *c) {
 	return fabs(accum) / 2.0;
 }
 
-void compute_containments(ring_t *rings, int num_rings) {
+void compute_containments(mpoly_t *mp) {
 	int i, j;
 
 	unsigned char **containments = (unsigned char **)malloc_or_die(
-		sizeof(unsigned char *) * num_rings);
-	for(i=0; i<num_rings; i++) {
-		containments[i] = (unsigned char *)malloc_or_die(num_rings);
-		for(j=0; j<num_rings; j++) {
+		sizeof(unsigned char *) * mp->num_rings);
+	for(i=0; i<mp->num_rings; i++) {
+		containments[i] = (unsigned char *)malloc_or_die(mp->num_rings);
+		for(j=0; j<mp->num_rings; j++) {
 			if(i == j) {
 				containments[i][j] = 0;
 			} else {
-				containments[i][j] = polygon_contains(&rings[i], &rings[j]);
+				containments[i][j] = polygon_contains(&mp->rings[i], &mp->rings[j]);
 				//fprintf(stderr, "containtments[%d][%d] = %d\n", i, j, containments[i][j]);
 			}
 		}
 	}
 	int *containment_levels = (int *)malloc_or_die(
-		sizeof(int) * num_rings);
+		sizeof(int) * mp->num_rings);
 	int max_level = 0;
-	for(i=0; i<num_rings; i++) {
+	for(i=0; i<mp->num_rings; i++) {
 		containment_levels[i] = 0;
-		for(j=0; j<num_rings; j++) {
+		for(j=0; j<mp->num_rings; j++) {
 			if(containments[i][j] && containments[j][i]) {
 				fprintf(stderr, "topology error: %d and %d contain each other\n", i, j);
 				fatal_error("topology error");
@@ -651,20 +651,20 @@ void compute_containments(ring_t *rings, int num_rings) {
 		if(containment_levels[i] > max_level) max_level = containment_levels[i];
 	}
 
-	for(i=0; i<num_rings; i++) {
+	for(i=0; i<mp->num_rings; i++) {
 		// only odd levels are holes
-		rings[i].is_hole = containment_levels[i] % 2;
+		mp->rings[i].is_hole = containment_levels[i] % 2;
 	}
 
-	for(i=0; i<num_rings; i++) {
-		rings[i].parent_id = -1;
+	for(i=0; i<mp->num_rings; i++) {
+		mp->rings[i].parent_id = -1;
 
-		for(j=0; j<num_rings; j++) {
+		for(j=0; j<mp->num_rings; j++) {
 			if(
 				containments[j][i] &&
 				containment_levels[i] == containment_levels[j] + 1
 			) {
-				rings[i].parent_id = j;
+				mp->rings[i].parent_id = j;
 			}
 		}
 	}

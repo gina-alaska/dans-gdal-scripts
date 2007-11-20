@@ -50,7 +50,7 @@ void output_wkt_mpoly(char *wkt_fn, mpoly_t mpoly, int split_polys);
 mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance);
 int polygon_contains(ring_t *c1, ring_t *c2);
 double polygon_area(ring_t *c);
-void compute_containments(ring_t *rings, int num_rings);
+void compute_containments(mpoly_t *mp);
 void mask_from_mpoly(mpoly_t *mpoly, int w, int h, char *fn);
 int line_intersects_line(
 	vertex_t p1, vertex_t p2,

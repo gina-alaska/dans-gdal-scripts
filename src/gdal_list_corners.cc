@@ -47,7 +47,7 @@ Geocoding: \n\
 \n\
 Inspection: \n\
   -inspect-rect4                  Attempt to find 4-sided bounding polygon  \n\
-  -inspect-ring                Trace ring \n\
+  -inspect-contour                Trace out entire polygon of image \n\
   -nodataval 'val [val ...]'      Specify value of no-data pixels \n\
   -ndv-toler val                  Tolerance for deciding if a pixel matches nodataval \n\
   -b band_id -b band_id ...       Bands to inspect (default is all bands) \n\
@@ -93,7 +93,7 @@ int main(int argc, char **argv) {
 	double given_left_e=0, given_lower_n=0, given_upper_n=0;
 	double res=0;
 	int inspect_rect4 = 0;
-	int inspect_ring = 0;
+	int instpect_contour = 0;
 	int num_ndv = 0;
 	double *ndv_list = NULL;
 	double ndv_tolerance = 0;
@@ -153,8 +153,8 @@ int main(int argc, char **argv) {
 				if(*endptr) usage(argv[0]);
 			} else if(!strcmp(arg, "-inspect-rect4")) {
 				inspect_rect4++;
-			} else if(!strcmp(arg, "-inspect-ring")) {
-				inspect_ring++;
+			} else if(!strcmp(arg, "-inspect-contour")) {
+				instpect_contour++;
 			} else if(!strcmp(arg, "-nodataval")) {
 				if(argp == argc) usage(argv[0]);
 				int result = parse_list_of_doubles(argv[argp++], &num_ndv, &ndv_list);
@@ -216,10 +216,10 @@ int main(int argc, char **argv) {
 	if(got_ll_en && got_ul_en) usage(argv[0]);
 
 	int do_wkt_output = wkt_xy_fn || wkt_en_fn || wkt_ll_fn;
-	int do_inspect = inspect_rect4 || inspect_ring;
+	int do_inspect = inspect_rect4 || instpect_contour;
 	if(do_inspect && !input_raster_fn) fatal_error("must specify filename of image");
 	if((do_wkt_output || mask_out_fn) && !do_inspect) fatal_error(
-		"must specify -inspect-rect4 or -inspect-ring");
+		"must specify -inspect-rect4 or -inspect-contour");
 
 	if(major_ring_only && min_ring_area) fatal_error(
 		"-major-ring and -min-ring-area options cannot both be used at the same time");
@@ -483,7 +483,7 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	if(inspect_ring) {
+	if(instpect_contour) {
 		bpoly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
 		*bpoly = calc_ring_from_mask(mask, w, h, dbuf, major_ring_only, no_donuts, min_ring_area);
 		if(bpoly->num_rings == 0) bpoly = 0;
@@ -1140,17 +1140,13 @@ report_image_t *dbuf, int major_ring_only, int no_donuts, double min_ring_area) 
 
 	if(!num_descenders) {
 		fprintf(stderr, "image was completely blank - therefore there is no bounding polygon\n");
-		mpoly_t empty;
-		empty.num_rings = 0;
-		empty.rings = NULL;
-		return empty;
+		return (mpoly_t){ 0, NULL };
 	}
 
 	unsigned char *used_desc = (unsigned char *)malloc_or_die(num_descenders);
 	for(i=0; i<num_descenders; i++) used_desc[i] = 0;
 
-	int num_rings = 0;
-	ring_t *rings = NULL;
+	mpoly_t mp = (mpoly_t){ 0, NULL };
 
 	for(;;) {
 		int start_d = -1;
@@ -1210,10 +1206,10 @@ report_image_t *dbuf, int major_ring_only, int no_donuts, double min_ring_area) 
 		} while(cur_d != start_d);
 		if(VERBOSE) fprintf(stderr, "\n");
 
-		if(VERBOSE) fprintf(stderr, "ring %d: %d pts\n", num_rings, ring.npts);
+		if(VERBOSE) fprintf(stderr, "ring %d: %d pts\n", mp.num_rings, ring.npts);
 
-		rings = (ring_t *)realloc_or_die(rings, sizeof(ring_t)*(num_rings+1));
-		rings[num_rings++] = ring;
+		mp.rings = (ring_t *)realloc_or_die(mp.rings, sizeof(ring_t)*(mp.num_rings+1));
+		mp.rings[mp.num_rings++] = ring;
 	}
 	fprintf(stderr, "finding rings: end\n");
 
@@ -1222,54 +1218,54 @@ report_image_t *dbuf, int major_ring_only, int no_donuts, double min_ring_area) 
 	if(min_ring_area > 0) {
 		if(VERBOSE) fprintf(stderr, "removing small rings...\n");
 
-		ring_t *filtered_rings = (ring_t *)malloc_or_die(sizeof(ring_t)*num_rings);
+		ring_t *filtered_rings = (ring_t *)malloc_or_die(sizeof(ring_t)*mp.num_rings);
 		int num_filtered_rings = 0;
-		for(i=0; i<num_rings; i++) {
-			double area = polygon_area(rings+i);
+		for(i=0; i<mp.num_rings; i++) {
+			double area = polygon_area(mp.rings+i);
 			if(VERBOSE) if(area > 10) fprintf(stderr, "ring %d has area %.15f\n", i, area);
 			if(area >= min_ring_area) {
-				filtered_rings[num_filtered_rings++] = rings[i];
+				filtered_rings[num_filtered_rings++] = mp.rings[i];
 			}
 		}
 		fprintf(stderr, "filtered by area %d => %d rings\n",
-			num_rings, num_filtered_rings);
+			mp.num_rings, num_filtered_rings);
 
-		rings = filtered_rings;
-		num_rings = num_filtered_rings;
+		mp.rings = filtered_rings;
+		mp.num_rings = num_filtered_rings;
 	}
 
 	if(major_ring_only) {
 		double biggest_area = 0;
 		int best_idx = 0;
-		for(i=0; i<num_rings; i++) {
-			double area = polygon_area(rings+i);
+		for(i=0; i<mp.num_rings; i++) {
+			double area = polygon_area(mp.rings+i);
 			if(area > biggest_area) {
 				biggest_area = area;
 				best_idx = i;
 			}
 		}
 		if(VERBOSE) fprintf(stderr, "major ring was %d with %d pts, %.1f area\n",
-			best_idx, rings[best_idx].npts, biggest_area);
-		rings = rings+best_idx;
-		num_rings = 1;
+			best_idx, mp.rings[best_idx].npts, biggest_area);
+		mp.rings = mp.rings+best_idx;
+		mp.num_rings = 1;
 	}
 
 	fprintf(stderr, "computing containments: begin\n");
-	compute_containments(rings, num_rings);
+	compute_containments(&mp);
 	fprintf(stderr, "computing containments: end\n");
 
 	if(no_donuts) {
 		int out_idx = 0;
-		for(i=0; i<num_rings; i++) {
-			if(rings[i].parent_id < 0) {
-				rings[out_idx++] = rings[i];
+		for(i=0; i<mp.num_rings; i++) {
+			if(mp.rings[i].parent_id < 0) {
+				mp.rings[out_idx++] = mp.rings[i];
 			}
 		}
-		num_rings = out_idx;
-		if(VERBOSE) fprintf(stderr, "number of non-donut rings is %d", num_rings);
+		mp.num_rings = out_idx;
+		if(VERBOSE) fprintf(stderr, "number of non-donut rings is %d", mp.num_rings);
 	}
 
-	return (mpoly_t){ num_rings, rings };
+	return mp;
 }
 
 void setup_ndv_list(GDALDatasetH ds, int bandlist_size, int *bandlist, int *num_ndv, double **ndv_list) {
