@@ -1213,7 +1213,9 @@ report_image_t *dbuf, int major_ring_only, int no_donuts, double min_ring_area) 
 	}
 	fprintf(stderr, "finding rings: end\n");
 
-	pinch_self_intersections(&mp);
+	// the topology cannot be resolved by us or by geos/jump/postgis if
+	// there are self-intersections
+	bevel_self_intersections(&mp);
 
 	if(min_ring_area > 0) {
 		if(VERBOSE) fprintf(stderr, "removing small rings...\n");
@@ -1250,9 +1252,9 @@ report_image_t *dbuf, int major_ring_only, int no_donuts, double min_ring_area) 
 		mp.num_rings = 1;
 	}
 
-	fprintf(stderr, "computing containments: begin\n");
+	//fprintf(stderr, "computing containments: begin\n");
 	compute_containments(&mp);
-	fprintf(stderr, "computing containments: end\n");
+	//fprintf(stderr, "computing containments: end\n");
 
 	if(no_donuts) {
 		int out_idx = 0;

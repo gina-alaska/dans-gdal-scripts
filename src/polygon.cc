@@ -27,13 +27,20 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "common.h"
 #include "polygon.h"
 
-#ifndef MIN
+#ifdef MIN
+#undef MIN
+#endif
 #define MIN(a,b) ((a)<(b)?(a):(b))
-#endif
 
-#ifndef MAX
-#define MAX(a,b) ((a)>(b)?(a):(b))
+#ifdef MAX
+#undef MAX
 #endif
+#define MAX(a,b) ((a)>(b)?(a):(b))
+
+#ifdef SGN
+#undef SGN
+#endif
+#define SGN(a) ((a)<0?-1:(a)>0?1:0)
 
 #define EPSILON 10E-10
 
@@ -741,6 +748,7 @@ void mask_from_mpoly(mpoly_t *mpoly, int w, int h, char *fn) {
 	fprintf(stderr, "mask draw: done\n");
 }
 
+/*
 void pinch_self_intersections(mpoly_t *mp) {
 	int r_idx;
 	for(r_idx=0; r_idx<mp->num_rings; r_idx++) {
@@ -752,7 +760,7 @@ void pinch_self_intersections(mpoly_t *mp) {
 				vertex_t *v2 = &ring->pts[v2_idx];
 				int touches = (v1->x == v2->x) && (v1->y == v2->y);
 				if(touches) {
-					printf("touch at ring %d vert %d vs %d : xy=(%f,%f)\n", r_idx, v1out_idx, v2_idx, v1->x, v1->y);
+					fprintf("touch at ring %d vert %d vs %d : xy=(%f,%f)\n", r_idx, v1out_idx, v2_idx, v1->x, v1->y);
 					mp->rings = (ring_t *)realloc_or_die(mp->rings, sizeof(ring_t)*(mp->num_rings+1));
 					ring = &mp->rings[r_idx]; // must recompute this since location of mp->rings changed
 					ring_t *newring = &mp->rings[mp->num_rings++];
@@ -768,5 +776,70 @@ void pinch_self_intersections(mpoly_t *mp) {
 			v1out_idx++;
 		}
 		ring->npts = v1out_idx;
+	}
+}
+*/
+
+int mpoly_border_touches_point(mpoly_t *mp, int r1_idx, int v1_idx) {
+	vertex_t *v1 = &mp->rings[r1_idx].pts[v1_idx];
+	int r2_idx;
+	for(r2_idx=0; r2_idx<mp->num_rings; r2_idx++) {
+		ring_t *ring = &mp->rings[r2_idx];
+		int v2_idx;
+		for(v2_idx=0; v2_idx<ring->npts; v2_idx++) {
+			vertex_t *v2 = &ring->pts[v2_idx];
+			int same = (r1_idx == r2_idx) && (v1_idx == v2_idx);
+			int touches = !same && (v1->x == v2->x) && (v1->y == v2->y);
+			if(touches) return 1;
+		}
+	}
+	return 0;
+}
+
+void bevel_self_intersections(mpoly_t *mp) {
+	double amount = .1;
+
+	int r_idx;
+	for(r_idx=0; r_idx<mp->num_rings; r_idx++) {
+		ring_t *ring = &mp->rings[r_idx];
+		int num_touch = 0;
+		char *touch_mask = NULL;
+		int v_idx;
+		for(v_idx=0; v_idx<ring->npts; v_idx++) {
+			int touches = mpoly_border_touches_point(mp, r_idx, v_idx);
+			if(touches) {
+				if(!touch_mask) {
+					touch_mask = (char *)malloc_or_die(ring->npts);
+					memset(touch_mask, 0, ring->npts);
+				}
+				touch_mask[v_idx] = 1;
+				num_touch++;
+			}
+		}
+		if(num_touch) {
+			//fprintf(stderr, "ring %d: num_touch=%d\n", r_idx, num_touch);
+			int new_numpts = ring->npts + num_touch;
+			vertex_t *new_pts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * new_numpts);
+			int vout_idx = 0;
+			for(v_idx=0; v_idx<ring->npts; v_idx++) {
+				if(touch_mask[v_idx]) {
+					vertex_t this_v = ring->pts[v_idx];
+					vertex_t prev_v = ring->pts[(v_idx+ring->npts-1) % ring->npts];
+					vertex_t next_v = ring->pts[(v_idx+1) % ring->npts];
+					double sx_prev = SGN(prev_v.x - this_v.x);
+					double sy_prev = SGN(prev_v.y - this_v.y);
+					double sx_next = SGN(next_v.x - this_v.x);
+					double sy_next = SGN(next_v.y - this_v.y);
+					new_pts[vout_idx++] = (vertex_t){ this_v.x + sx_prev*amount, this_v.y + sy_prev*amount };
+					new_pts[vout_idx++] = (vertex_t){ this_v.x + sx_next*amount, this_v.y + sy_next*amount };
+				} else {
+					new_pts[vout_idx++] = ring->pts[v_idx];
+				}
+			}
+			if(vout_idx != new_numpts) fatal_error("wrong number of points in beveled ring");
+			ring->npts = new_numpts;
+			ring->pts = new_pts;
+		}
+		if(touch_mask) free(touch_mask);
 	}
 }
