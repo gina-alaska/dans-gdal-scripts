@@ -43,7 +43,7 @@ Geocoding: \n\
   -ll_en left_east lower_north    Set or override lower-left coordinate \n\
   -ul_en left_east lower_north    Set or override upper-left coordinate (don't use both ll_en and ul_en)\n\
   -wh width height                Set or override image size \n\
-  -res res                        Set or override resolution \n\
+  -res res_x res_y                Set or override resolution \n\
 \n\
 Inspection: \n\
   -inspect-rect4                  Attempt to find 4-sided bounding polygon  \n\
@@ -91,7 +91,7 @@ int main(int argc, char **argv) {
 	int got_ll_en = 0;
 	int got_ul_en = 0;
 	double given_left_e=0, given_lower_n=0, given_upper_n=0;
-	double res=0;
+	double res_x=0, res_y=0;
 	int inspect_rect4 = 0;
 	int instpect_contour = 0;
 	int num_ndv = 0;
@@ -147,9 +147,13 @@ int main(int argc, char **argv) {
 				h = strtol(argv[argp++], &endptr, 10);
 				if(*endptr) usage(argv[0]);
 			} else if(!strcmp(arg, "-res")) {
-				if(argp == argc) usage(argv[0]);
 				char *endptr;
-				res = strtod(argv[argp++], &endptr);
+				if(argp == argc) usage(argv[0]);
+				res_x = strtod(argv[argp++], &endptr);
+				if(*endptr) usage(argv[0]);
+
+				if(argp == argc) usage(argv[0]);
+				res_y = strtod(argv[argp++], &endptr);
 				if(*endptr) usage(argv[0]);
 			} else if(!strcmp(arg, "-inspect-rect4")) {
 				inspect_rect4++;
@@ -212,7 +216,7 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	if(!input_raster_fn && !(s_srs && (got_ll_en || got_ul_en) && w && h && res)) usage(argv[0]);
+	if(!input_raster_fn && !(s_srs && (got_ll_en || got_ul_en) && w && h && res_x && res_y)) usage(argv[0]);
 	if(got_ll_en && got_ul_en) usage(argv[0]);
 
 	int do_wkt_output = wkt_xy_fn || wkt_en_fn || wkt_ll_fn;
@@ -273,49 +277,51 @@ int main(int argc, char **argv) {
 	if(!w || !h) fatal_error("missing width/height");
 
 	double *affine = NULL;
-	int has_rotation = 0;
 
-	if((got_ul_en || got_ll_en) && res) {
+	if((got_ul_en || got_ll_en) && res_x && res_y) {
 		if(got_ll_en) {
-			given_upper_n = given_lower_n + (double)h*res;
+			given_upper_n = given_lower_n + (double)h*res_y;
 			got_ul_en = 1;
 		}
 
 		if(!got_ul_en) fatal_error("impossibility");
 		affine = (double *)malloc_or_die(sizeof(double) * 6);
-		affine[0] = given_left_e;  affine[1] = res; affine[2] =    0;
-		affine[3] = given_upper_n; affine[4] =   0; affine[5] = -res;
-		has_rotation = 0;
+		affine[0] = given_left_e;  affine[1] = res_x; affine[2] =      0;
+		affine[3] = given_upper_n; affine[4] =     0; affine[5] = -res_y;
 	} else if(ds) {
+		int has_rotation = 0;
 		affine = (double *)malloc_or_die(sizeof(double) * 6);
 		if(GDALGetGeoTransform(ds, affine) == CE_None) {
-			has_rotation = (fabs(affine[1] + affine[5]) > 1e-6) || affine[2] || affine[4];
+			has_rotation = affine[2] || affine[4];
 		} else {
 			affine = NULL;
 		}
 
-		if(res) {
+		if(res_x && res_y) {
+			// if corner coordinate were specified, the first branch of the outer if
+			// statement would have been taken
 			if(!affine) fatal_error("missing ll_en/ul_en parameter");
-			if(has_rotation) fatal_error(
-				"cannot override resolution if source\nimage has rotation or non-square pixels");
-			affine[1] = res;
-			affine[5] = -res;
+
+			if(has_rotation) fatal_error("cannot override resolution if source image has rotation");
+
+			affine[1] = res_x;
+			affine[5] = -res_y;
 		} else {
 			if(has_rotation || !affine) {
-				res = 0;
+				res_x = res_y = 0;
 			} else {
-				res = affine[1];
+				res_x =  affine[1];
+				res_y = -affine[5];
 			}
 		}
 
 		if(got_ul_en || got_ll_en) {
-			if(!affine || !res) fatal_error("missing -res parameter");
+			if(has_rotation) fatal_error("cannot override ll_en/ul_en if source image has rotation");
 
-			if(has_rotation) fatal_error(
-				"cannot override ll_en/ul_en if source\nimage has rotation or non-square pixels");
+			if(!affine || !res_x || !res_y) fatal_error("missing -res parameter");
 
 			if(got_ll_en) {
-				given_upper_n = given_lower_n + (double)h*res;
+				given_upper_n = given_lower_n + (double)h*res_y;
 				got_ul_en = 1;
 			}
 
@@ -372,10 +378,10 @@ int main(int argc, char **argv) {
 		printf("datatype: %s\n", datatypes);
 	}
 
-	if(res) printf("source_res: %.15f\n", res);
 	if(s_srs && strlen(s_srs)) {
 		printf("s_srs: '%s'\n", s_srs);
 	}
+	if(res_x && res_y) printf("res: %.15f %.15f\n", res_x, res_y);
 	if(affine) {
 		printf("affine:\n");
 		for(i=0; i<6; i++) printf("  - %.15f\n", affine[i]);
