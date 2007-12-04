@@ -23,3 +23,4 @@ gdal_merge_simple_SOURCES = gdal_merge_simple.cc common.cc
 gdal_merge_simple_CXXFLAGS = $(AM_CXXFLAGS)
 
 noinst_HEADERS = common.h polygon.h debugplot.h
+EXTRA_DIST = dem.pal
