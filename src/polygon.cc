@@ -146,7 +146,7 @@ mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance) {
 
 // Implementation of Douglas-Peucker polyline reduction algorithm
 // rewrite of code from http://www.3dsoftware.com/Cartography/Programming/PolyLineReduction
-// (and adapted from src/linework/dp.c in the sv_server module)
+// (and adapted from src/linework/dp.c in SwathViewer)
 
 #define VECLEN(x,y) sqrt((x)*(x)+(y)*(y))
 
