@@ -66,6 +66,17 @@ Inspection: \n\
 \n\
 Misc: \n\
   -v                              Verbose\n\
+\n\
+Examples:\n\
+  Output basic geocoding info:\n\
+    gdal_list_corners raster.tif > geocode.yaml \n\
+  Inspect image to find corners of actual data (arbitrary four-sided region):\n\
+    gdal_list_corners raster.tif -inspect-rect4 -nodataval 0 > geocode.yaml\n\
+  Inspect image and output contour of data region:\n\
+    gdal_list_corners raster.tif -inspect-contour -nodataval 0 -wkt-ll outline.wkt > geocode.yaml \n\
+  Same as above but polygon actually follows border pixel-by-pixel:\n\
+    gdal_list_corners raster.tif -inspect-contour -nodataval 0 -dp-toler 0 -wkt-ll outline.wkt > geocode.yaml \n\
+\n\
 ");
 	exit(1);
 }
