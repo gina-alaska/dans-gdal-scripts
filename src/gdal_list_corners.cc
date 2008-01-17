@@ -287,6 +287,9 @@ int main(int argc, char **argv) {
 	}
 	if(!w || !h) fatal_error("missing width/height");
 
+	res_x = fabs(res_x);
+	res_y = fabs(res_y);
+
 	double *affine = NULL;
 
 	if((got_ul_en || got_ll_en) && res_x && res_y) {
@@ -315,14 +318,14 @@ int main(int argc, char **argv) {
 
 			if(has_rotation) fatal_error("cannot override resolution if source image has rotation");
 
-			affine[1] = res_x;
-			affine[5] = -res_y;
+			affine[1] = fabs(res_x);
+			affine[5] = fabs(res_y);
 		} else {
 			if(has_rotation || !affine) {
 				res_x = res_y = 0;
 			} else {
-				res_x =  affine[1];
-				res_y = -affine[5];
+				res_x = fabs(affine[1]);
+				res_y = fabs(affine[5]);
 			}
 		}
 
