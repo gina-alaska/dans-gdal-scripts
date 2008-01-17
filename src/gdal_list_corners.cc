@@ -318,8 +318,8 @@ int main(int argc, char **argv) {
 
 			if(has_rotation) fatal_error("cannot override resolution if source image has rotation");
 
-			affine[1] = fabs(res_x);
-			affine[5] = fabs(res_y);
+			affine[1] =  res_x;
+			affine[5] = -res_y;
 		} else {
 			if(has_rotation || !affine) {
 				res_x = res_y = 0;
