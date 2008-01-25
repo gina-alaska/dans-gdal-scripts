@@ -998,6 +998,8 @@ report_image_t *dbuf, int major_ring_only, int no_donuts, double min_ring_area) 
 	fprintf(stderr, "finding rings: begin\n");
 
 	rowstat_t up_row, down_row;
+	down_row.num_transitions = 0; // prevent compiler warning;
+
 	up_row.openings        = (int *)malloc_or_die(sizeof(int) * (w+1)/2);
 	up_row.closings        = (int *)malloc_or_die(sizeof(int) * (w+1)/2);
 	up_row.descender_ids   = (int *)malloc_or_die(sizeof(int) * (w+1));
@@ -1180,6 +1182,9 @@ report_image_t *dbuf, int major_ring_only, int no_donuts, double min_ring_area) 
 		ring_t ring;
 		ring.npts = 0;
 		ring.pts = NULL;
+		// prevent compiler warning - these fields are filled in by compute_containments
+		ring.parent_id = ring.is_hole = 0;
+
 		int cur_d = start_d;
 		do {
 			if(VERBOSE) fprintf(stderr, "d:%d ", cur_d);

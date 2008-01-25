@@ -337,7 +337,7 @@ void get_scale_from_stddev(
 	}
 	double src_stddev = sqrt(error_total / (double)num_pixels);
 
-	fprintf(stderr, "source: count=%ld, avg=%f, std_dev=%f\n", num_pixels, src_avg, src_stddev);
+	fprintf(stderr, "source: count=%d, avg=%f, std_dev=%f\n", num_pixels, src_avg, src_stddev);
 
 	*scale_out = src_stddev ? dst_stddev / src_stddev : 0;
 	*offset_out = dst_avg - src_avg * (*scale_out);

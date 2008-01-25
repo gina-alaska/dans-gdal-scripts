@@ -56,7 +56,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <config.h>
 #include <math.h>
 
-void fatal_error(char *s);
+/* see http://www.unixwiz.net/techtips/gnu-c-attributes.html */
+#ifndef __GNUC__
+#  define  __attribute__(x)  /*NOTHING*/
+#endif
+
+void fatal_error(char *s) __attribute__((noreturn));
 void *malloc_or_die(size_t size);
 void *realloc_or_die(void *p, size_t size);
 
