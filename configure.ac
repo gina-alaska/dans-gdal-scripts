@@ -13,6 +13,7 @@ AM_INIT_AUTOMAKE
 # Checks for programs.
 AC_PROG_CXX
 AC_PROG_CC
+AM_PROG_CC_C_O
 
 # beginning of GDAL stuff #####################
 
