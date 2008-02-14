@@ -34,13 +34,9 @@ void usage(char *cmdname) {
 }
 
 int main(int argc, char *argv[]) {
-	int i;
-
 	char *dst_fn = NULL;
 
 	int src_ds_count = 0;
-	int band_count = 0;
-	GDALDatasetH *src_ds = NULL;
 	char **src_fn = NULL;
 
 	GDALAllRegister();
@@ -54,14 +50,9 @@ int main(int argc, char *argv[]) {
 			else if(!strcmp(arg, "-in")) {
 				if(argp == argc) usage(argv[0]);
 				char *fn = argv[argp++];
-				src_ds = (GDALDatasetH *)realloc_or_die(src_ds, sizeof(GDALDatasetH) * (src_ds_count+1));
-				GDALDatasetH ds = GDALOpen(fn, GA_ReadOnly);
-				if(!ds) fatal_error("open failed");
-				src_ds[src_ds_count] = ds; 
 				src_fn = (char**)realloc_or_die(src_fn, sizeof(char *) * (src_ds_count+1));
 				src_fn[src_ds_count] = fn; 
 				src_ds_count++;
-				band_count += GDALGetRasterCount(ds);
 			}
 			else usage(argv[0]);
 		} else {
@@ -69,16 +60,22 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	if(!band_count) usage(argv[0]);
+	if(src_ds_count < 1) usage(argv[0]);
 	if(!dst_fn) usage(argv[0]);
+
+	GDALDatasetH *src_ds = (GDALDatasetH *)malloc_or_die(sizeof(GDALDatasetH) * src_ds_count);
 
 	int w=0, h=0;
 	int ds_idx;
 	for(ds_idx=0; ds_idx<src_ds_count; ds_idx++) {
+		src_ds[ds_idx] = GDALOpen(src_fn[ds_idx], GA_ReadOnly);
+		if(!src_ds[ds_idx]) fatal_error("open failed");
+
 		int ds_w = GDALGetRasterXSize(src_ds[ds_idx]);
 		int ds_h = GDALGetRasterYSize(src_ds[ds_idx]);
 		if(!ds_w || !ds_h) fatal_error("missing width/height");
-		if(w) {
+
+		if(ds_idx) {
 			if(ds_w != w || ds_h != h) fatal_error("size mismatch for inputs");
 		} else {
 			w = ds_w;
@@ -95,8 +92,12 @@ int main(int argc, char *argv[]) {
 	for(ds_idx=1; ds_idx<src_ds_count; ds_idx++) {
 		int nb = GDALGetRasterCount(src_ds[ds_idx]);
 		int i;
+
+		GDALDatasetH src_vrt_ds = GDALCreateCopy(dst_driver, "", src_ds[ds_idx], 0, NULL, NULL, NULL);
+		if(!src_vrt_ds) fatal_error("could not create VRT copy");
+
 		for(i=0; i<nb; i++) {
-			GDALRasterBandH src_band = GDALGetRasterBand(src_ds[ds_idx], i+1);
+			GDALRasterBandH src_band = GDALGetRasterBand(src_vrt_ds, i+1);
 			if(!src_band) fatal_error("could not get src_band");
 
 			GDALAddBand(dst_ds, GDALGetRasterDataType(src_band), NULL);
@@ -104,6 +105,10 @@ int main(int argc, char *argv[]) {
 			GDALRasterBandH dst_band = GDALGetRasterBand(dst_ds, band_idx+1);
 			if(!dst_band) fatal_error("could not get dst_band");
 
+			char **metadata = GDALGetMetadata(src_band, "vrt_sources");
+			GDALSetMetadata(dst_band, metadata, "new_vrt_sources");
+
+			/*
 			char xml[10000]; // FIXME - resize buffer
 			sprintf(xml,
     			"<SimpleSource>"
@@ -112,8 +117,11 @@ int main(int argc, char *argv[]) {
     			"</SimpleSource>",
 				src_fn[ds_idx], i+1);
 			GDALSetMetadataItem(dst_band, "source_0", xml, "new_vrt_sources");
+			*/
 			band_idx++;
 		}
+
+		GDALClose(src_vrt_ds);
 	}
 
 	for(ds_idx=0; ds_idx<src_ds_count; ds_idx++) {
