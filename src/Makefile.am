@@ -2,7 +2,7 @@ AM_CFLAGS = -Wall -O6 @GDAL_CFLAGS@
 AM_CXXFLAGS = -Wall -O6 @GDAL_CFLAGS@
 LIBS = @GDAL_LIBS@
 
-bin_PROGRAMS = gdal_raw2geotiff gdal_dem2rgb gdal_list_corners gdal_contrast_stretch gdal_landsat_pansharp gdal_merge_simple
+bin_PROGRAMS = gdal_raw2geotiff gdal_dem2rgb gdal_list_corners gdal_contrast_stretch gdal_landsat_pansharp gdal_merge_simple gdal_merge_vrt
 
 gdal_raw2geotiff_SOURCES = gdal_raw2geotiff.cc common.cc
 gdal_raw2geotiff_CXXFLAGS = $(AM_CXXFLAGS)
@@ -21,6 +21,9 @@ gdal_landsat_pansharp_CXXFLAGS = $(AM_CXXFLAGS)
 
 gdal_merge_simple_SOURCES = gdal_merge_simple.cc common.cc
 gdal_merge_simple_CXXFLAGS = $(AM_CXXFLAGS)
+
+gdal_merge_vrt_SOURCES = gdal_merge_vrt.cc common.cc
+gdal_merge_vrt_CXXFLAGS = $(AM_CXXFLAGS)
 
 noinst_HEADERS = common.h polygon.h debugplot.h
 EXTRA_DIST = dem.pal test2.sh testcase.tif testcase2.tif
