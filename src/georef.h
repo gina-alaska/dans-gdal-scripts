@@ -33,8 +33,8 @@ typedef struct {
 	double *fwd_affine;
 } georef_t;
 
-void xy2en(double *affine, double xpos, double ypos, double *e_out, double *n_out);
-void en2ll(OGRCoordinateTransformationH xform, double east, double north, double *lon_out, double *lat_out);
+void xy2en(georef_t *georef, double xpos, double ypos, double *e_out, double *n_out);
+void en2ll(georef_t *georef, double east, double north, double *lon_out, double *lat_out);
 void xy2ll(georef_t *georef, double x, double y, double *lon_out, double *lat_out);
 
 #endif // ifndef GEOCODE_H

@@ -930,7 +930,7 @@ mpoly_t *mpoly_en2ll_with_interp(
 			double x = en_ring.pts[v_idx].x;
 			double y = en_ring.pts[v_idx].y;
 			double lon, lat;
-			en2ll(georef->fwd_xform, x, y, &lon, &lat);
+			en2ll(georef, x, y, &lon, &lat);
 			ll_ring.pts[v_idx].x = lon;
 			ll_ring.pts[v_idx].y = lat;
 		}
@@ -952,7 +952,7 @@ mpoly_t *mpoly_en2ll_with_interp(
 
 			// FIXME - use ll2xy here
 			vertex_t ll_m_proj;
-			en2ll(georef->fwd_xform, 
+			en2ll(georef, 
 				en_m.x, en_m.y,
 				&ll_m_proj.x, &ll_m_proj.y);
 

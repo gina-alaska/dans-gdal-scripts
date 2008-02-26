@@ -413,7 +413,7 @@ int main(int argc, char **argv) {
 		printf("  lat: %.15f\n", lat);
 	}
 	if(georef.fwd_affine) {
-		xy2en(georef.fwd_affine, center.x, center.y, &east, &north);
+		xy2en(&georef, center.x, center.y, &east, &north);
 		printf("  east: %.15f\n", east);
 		printf("  north: %.15f\n", north);
 	}
@@ -430,7 +430,7 @@ int main(int argc, char **argv) {
 			printf("  lat: %.15f\n", lat);
 		}
 		if(georef.fwd_affine) {
-			xy2en(georef.fwd_affine, centroid.x, centroid.y, &east, &north);
+			xy2en(&georef, centroid.x, centroid.y, &east, &north);
 			printf("  east: %.15f\n", east);
 			printf("  north: %.15f\n", north);
 		}
@@ -461,7 +461,7 @@ int main(int argc, char **argv) {
 			if(georef.fwd_affine) {
 				printf("geometry_en:\n  type: rectangle4\n");
 				for(i=0; i<4; i++) {
-					xy2en(georef.fwd_affine, rect4.pts[i].x, rect4.pts[i].y, &east, &north);
+					xy2en(&georef, rect4.pts[i].x, rect4.pts[i].y, &east, &north);
 					printf("  %s_east: %.15f\n", labels[i], east);
 					printf("  %s_north: %.15f\n", labels[i], north);
 				}
@@ -490,7 +490,7 @@ int main(int argc, char **argv) {
 			printf("geometry_en:\n  type: rectangle8\n");
 			for(i=0; i<3; i++) for(j=0; j<3; j++) {
 				if(!strcmp(e_labels[i], "mid") && !strcmp(n_labels[j], "mid")) continue;
-				xy2en(georef.fwd_affine, e_pos[i], n_pos[j], &east, &north);
+				xy2en(&georef, e_pos[i], n_pos[j], &east, &north);
 				printf("  %s_%s_east: %.15f\n", n_labels[j], e_labels[i], east);
 				printf("  %s_%s_north: %.15f\n", n_labels[j], e_labels[i], north);
 			}
@@ -544,7 +544,7 @@ int main(int argc, char **argv) {
 				for(j=0; j<c->npts; j++) {
 					double x = c->pts[j].x;
 					double y = c->pts[j].y;
-					xy2en(georef.fwd_affine, x, y, &east, &north);
+					xy2en(&georef, x, y, &east, &north);
 					c->pts[j].x = east;
 					c->pts[j].y = north;
 				}

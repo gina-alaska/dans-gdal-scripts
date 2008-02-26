@@ -28,23 +28,25 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "georef.h"
 
 void xy2en(
-	double *affine,
+	georef_t *georef,
 	double xpos, double ypos,
 	double *e_out, double *n_out
 ) {
+	double *affine = georef->fwd_affine;
+	if(!affine) fatal_error("missing affine");
 	*e_out = affine[0] + affine[1] * xpos + affine[2] * ypos;
 	*n_out = affine[3] + affine[4] * xpos + affine[5] * ypos;
 }
 
 void en2ll(
-	OGRCoordinateTransformationH xform,
+	georef_t *georef,
 	double east, double north,
 	double *lon_out, double *lat_out
 ) {
-	if(xform) {
-		if(!OCTTransform(xform, 1, &east, &north, NULL)) {
-			fatal_error("OCTTransform failed");
-		}
+	if(!georef->fwd_xform) fatal_error("missing xform");
+
+	if(!OCTTransform(georef->fwd_xform, 1, &east, &north, NULL)) {
+		fatal_error("OCTTransform failed");
 	}
 
 	if(north < -90.0 || north > 90.0) fatal_error("latitude out of range");
@@ -64,6 +66,6 @@ void xy2ll(
 	double *lon_out, double *lat_out
 ) {
 	double east, north;
-	xy2en(georef->fwd_affine, x, y, &east, &north);
-	en2ll(georef->fwd_xform, east, north, lon_out, lat_out);
+	xy2en(georef, x, y, &east, &north);
+	en2ll(georef, east, north, lon_out, lat_out);
 }
