@@ -44,3 +44,28 @@ void *realloc_or_die(void *p, size_t size) {
 	if(!p) fatal_error("out of memory");
 	return p;
 }
+
+int parse_list_of_doubles(char *input, int *num_out, double **list_out) {
+	input = strdup(input);
+	if(!input) fatal_error("out of memory");
+
+	int num = 0;
+	double *list = NULL;
+
+	char *s1 = input;
+	char *s2 = " \t\n\r";
+	char *tok;
+	while((tok = strtok(s1, s2))) {
+		s1 = NULL;
+		char *endptr;
+		double val = strtod(tok, &endptr);
+		if(*endptr) return 1;
+		list = (double *)realloc_or_die(list, sizeof(double) * (num+1));
+		list[num++] = val;
+	}
+
+	*num_out = num;
+	*list_out = list;
+
+	return 0;
+}

@@ -82,7 +82,6 @@ Examples:\n\
 	exit(1);
 }
 
-int parse_list_of_doubles(char *input, int *num_out, double **list_out);
 void setup_ndv_list(GDALDatasetH ds, int bandlist_size, int *bandlist, int *num_ndv, double **ndv_list);
 unsigned char *get_mask_for_dataset(GDALDatasetH ds, int bandlist_size, int *bandlist, 
 	int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf);
@@ -94,13 +93,7 @@ unsigned char *erode_mask(unsigned char *in_mask, int w, int h);
 
 int main(int argc, char **argv) {
 	char *input_raster_fn = NULL;
-	char *s_srs = NULL;
 
-	int w=0, h=0;
-	int got_ll_en = 0;
-	int got_ul_en = 0;
-	double given_left_e=0, given_lower_n=0, given_upper_n=0;
-	double res_x=0, res_y=0;
 	int inspect_rect4 = 0;
 	int instpect_contour = 0;
 	int num_ndv = 0;
@@ -122,6 +115,8 @@ int main(int argc, char **argv) {
 
 	int i, j;
 
+	geo_opts_t geo_opts = init_geo_options(&argc, &argv);
+
 	int argp = 1;
 	while(argp < argc) {
 		char *arg = argv[argp++];
@@ -129,41 +124,6 @@ int main(int argc, char **argv) {
 		if(arg[0] == '-') {
 			if(!strcmp(arg, "-v")) {
 				VERBOSE++;
-			} else if(!strcmp(arg, "-s_srs")) {
-				if(argp == argc) usage(argv[0]);
-				s_srs = argv[argp++];
-			} else if(!strcmp(arg, "-ll_en")) {
-				if(argp+2 > argc) usage(argv[0]);
-				char *endptr;
-				given_left_e = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
-				given_lower_n = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
-				got_ll_en++;
-			} else if(!strcmp(arg, "-ul_en")) {
-				if(argp+2 > argc) usage(argv[0]);
-				char *endptr;
-				given_left_e = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
-				given_upper_n = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
-				got_ul_en++;
-			} else if(!strcmp(arg, "-wh")) {
-				if(argp+2 > argc) usage(argv[0]);
-				char *endptr;
-				w = strtol(argv[argp++], &endptr, 10);
-				if(*endptr) usage(argv[0]);
-				h = strtol(argv[argp++], &endptr, 10);
-				if(*endptr) usage(argv[0]);
-			} else if(!strcmp(arg, "-res")) {
-				char *endptr;
-				if(argp == argc) usage(argv[0]);
-				res_x = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
-
-				if(argp == argc) usage(argv[0]);
-				res_y = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
 			} else if(!strcmp(arg, "-inspect-rect4")) {
 				inspect_rect4++;
 			} else if(!strcmp(arg, "-inspect-contour")) {
@@ -225,9 +185,6 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	if(!input_raster_fn && !(s_srs && (got_ll_en || got_ul_en) && w && h && res_x && res_y)) usage(argv[0]);
-	if(got_ll_en && got_ul_en) usage(argv[0]);
-
 	int do_wkt_output = wkt_xy_fn || wkt_en_fn || wkt_ll_fn;
 	int do_inspect = inspect_rect4 || instpect_contour;
 	if(do_inspect && !input_raster_fn) fatal_error("must specify filename of image");
@@ -255,103 +212,7 @@ int main(int argc, char **argv) {
 
 	CPLPushErrorHandler(CPLQuietErrorHandler);
 
-	georef_t georef;
-	georef.fwd_xform = NULL;
-	georef.fwd_affine = NULL;
-
-	OGRSpatialReferenceH p1 = NULL;
-	if(s_srs) {
-		p1 = OSRNewSpatialReference(NULL);
-		if(OSRImportFromProj4(p1, s_srs) != OGRERR_NONE) fatal_error("cannot parse proj4 definition");
-	} else if(ds) {
-		const char *wkt = GDALGetProjectionRef(ds);
-		if(wkt && strlen(wkt)) {
-			//if(VERBOSE) fprintf(stderr, "%s\n", wkt);
-			p1 = OSRNewSpatialReference(wkt);
-		}
-	}
-
-	if(p1) {
-		s_srs = NULL;
-		OSRExportToProj4(p1, &s_srs);
-
-		OGRSpatialReferenceH p2 = OSRNewSpatialReference(NULL);
-		OSRImportFromProj4(p2, "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs");
-
-		georef.fwd_xform = OCTNewCoordinateTransformation(p1, p2);
-		georef.inv_xform = OCTNewCoordinateTransformation(p2, p1);
-	}
-
-	if(ds) {
-		if(!w) w = GDALGetRasterXSize(ds);
-		if(!h) h = GDALGetRasterYSize(ds);
-	}
-	if(!w || !h) fatal_error("missing width/height");
-
-	res_x = fabs(res_x);
-	res_y = fabs(res_y);
-
-	if((got_ul_en || got_ll_en) && res_x && res_y) {
-		if(got_ll_en) {
-			given_upper_n = given_lower_n + (double)h*res_y;
-			got_ul_en = 1;
-		}
-
-		if(!got_ul_en) fatal_error("impossibility");
-		georef.fwd_affine = (double *)malloc_or_die(sizeof(double) * 6);
-		georef.fwd_affine[0] = given_left_e;  
-		georef.fwd_affine[3] = given_upper_n; 
-		georef.fwd_affine[1] = res_x; georef.fwd_affine[2] =      0;
-		georef.fwd_affine[4] =     0; georef.fwd_affine[5] = -res_y;
-	} else if(ds) {
-		int has_rotation = 0;
-		georef.fwd_affine = (double *)malloc_or_die(sizeof(double) * 6);
-		if(GDALGetGeoTransform(ds, georef.fwd_affine) == CE_None) {
-			has_rotation = georef.fwd_affine[2] || georef.fwd_affine[4];
-		} else {
-			georef.fwd_affine = NULL;
-		}
-
-		if(res_x && res_y) {
-			// if corner coordinate were specified, the first branch of the outer if
-			// statement would have been taken
-			if(!georef.fwd_affine) fatal_error("missing ll_en/ul_en parameter");
-
-			if(has_rotation) fatal_error("cannot override resolution if source image has rotation");
-
-			georef.fwd_affine[1] =  res_x;
-			georef.fwd_affine[5] = -res_y;
-		} else {
-			if(has_rotation || !georef.fwd_affine) {
-				res_x = res_y = 0;
-			} else {
-				res_x = fabs(georef.fwd_affine[1]);
-				res_y = fabs(georef.fwd_affine[5]);
-			}
-		}
-
-		if(got_ul_en || got_ll_en) {
-			if(has_rotation) fatal_error("cannot override ll_en/ul_en if source image has rotation");
-
-			if(!georef.fwd_affine || !res_x || !res_y) fatal_error("missing -res parameter");
-
-			if(got_ll_en) {
-				given_upper_n = given_lower_n + (double)h*res_y;
-				got_ul_en = 1;
-			}
-
-			if(!got_ul_en) fatal_error("impossibility");
-			georef.fwd_affine[0] = given_left_e;
-			georef.fwd_affine[3] = given_upper_n;
-		}
-	}
-
-	if(georef.fwd_affine) {
-		georef.inv_affine = (double *)malloc_or_die(sizeof(double) * 6);
-		if(!GDALInvGeoTransform(georef.fwd_affine, georef.inv_affine)) {
-			fatal_error("affine is not invertible");
-		}
-	}
+	georef_t georef = init_georef(&geo_opts, ds);
 
 	if((wkt_en_fn || wkt_ll_fn) && !georef.fwd_affine) fatal_error("missing affine transform");
 	if(wkt_ll_fn && !georef.fwd_xform) fatal_error("missing coordinate transform");
@@ -362,7 +223,7 @@ int main(int argc, char **argv) {
 		setup_ndv_list(ds, inspect_numbands, inspect_bandids, &num_ndv, &ndv_list);
 
 		if(debug_report) {
-			dbuf = create_plot(w, h);
+			dbuf = create_plot(georef.w, georef.h);
 			if(inspect_rect4) dbuf->mode = PLOT_RECT4;
 			else dbuf->mode = PLOT_CONTOURS;
 		}
@@ -370,7 +231,7 @@ int main(int argc, char **argv) {
 		mask = get_mask_for_dataset(ds, inspect_numbands, inspect_bandids,
 			num_ndv, ndv_list, ndv_tolerance, dbuf);
 		if(!skip_erosion) {
-			unsigned char *eroded_mask = erode_mask(mask, w, h);
+			unsigned char *eroded_mask = erode_mask(mask, georef.w, georef.h);
 			free(mask);
 			mask = eroded_mask;
 		}
@@ -378,7 +239,7 @@ int main(int argc, char **argv) {
 
 	// output phase
 
-	printf("width: %d\nheight: %d\n", w, h);
+	printf("width: %d\nheight: %d\n", georef.w, georef.h);
 
 	if(ds) {
 		int band_count = GDALGetRasterCount(ds);
@@ -400,10 +261,10 @@ int main(int argc, char **argv) {
 		printf("datatype: %s\n", datatypes);
 	}
 
-	if(s_srs && strlen(s_srs)) {
-		printf("s_srs: '%s'\n", s_srs);
+	if(georef.s_srs && strlen(georef.s_srs)) {
+		printf("georef.s_srs: '%s'\n", georef.s_srs);
 	}
-	if(res_x && res_y) printf("res: %.15f %.15f\n", res_x, res_y);
+	if(georef.res_x && georef.res_y) printf("res: %.15f %.15f\n", georef.res_x, georef.res_y);
 	if(georef.fwd_affine) {
 		printf("affine:\n");
 		for(i=0; i<6; i++) printf("  - %.15f\n", georef.fwd_affine[i]);
@@ -414,7 +275,7 @@ int main(int argc, char **argv) {
 
 	vertex_t center;
 	printf("center:\n");
-	center = (vertex_t){ (double)w/2.0, (double)h/2.0 };
+	center = (vertex_t){ (double)georef.w/2.0, (double)georef.h/2.0 };
 	if(georef.fwd_xform && georef.fwd_affine) {
 		xy2ll(&georef, center.x, center.y, &lon, &lat);
 		printf("  lon: %.15f\n", lon);
@@ -431,7 +292,7 @@ int main(int argc, char **argv) {
 	if(do_inspect) {
 		vertex_t centroid;
 		printf("centroid:\n");
-		centroid = calc_centroid_from_mask(mask, w, h);
+		centroid = calc_centroid_from_mask(mask, georef.w, georef.h);
 		if(georef.fwd_xform && georef.fwd_affine) {
 			xy2ll(&georef, centroid.x, centroid.y, &lon, &lat);
 			printf("  lon: %.15f\n", lon);
@@ -449,7 +310,7 @@ int main(int argc, char **argv) {
 	mpoly_t *bpoly = NULL;
 
 	if(inspect_rect4) {
-		ring_t rect4 = calc_rect4_from_mask(mask, w, h, dbuf);
+		ring_t rect4 = calc_rect4_from_mask(mask, georef.w, georef.h, dbuf);
 
 		bpoly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
 		bpoly->num_rings = 1;
@@ -482,9 +343,9 @@ int main(int argc, char **argv) {
 		}
 	} else {
 		char *e_labels[] = { "left", "mid", "right" };
-		double e_pos[] = { 0, (double)w/2.0, w };
+		double e_pos[] = { 0, (double)georef.w/2.0, georef.w };
 		char *n_labels[] = { "upper", "mid", "lower" };
-		double n_pos[] = { 0, (double)h/2.0, h };
+		double n_pos[] = { 0, (double)georef.h/2.0, georef.h };
 		if(georef.fwd_xform && georef.fwd_affine) {
 			printf("geometry_ll:\n  type: rectangle8\n");
 			for(i=0; i<3; i++) for(j=0; j<3; j++) {
@@ -513,13 +374,13 @@ int main(int argc, char **argv) {
 
 	if(instpect_contour) {
 		bpoly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
-		*bpoly = calc_ring_from_mask(mask, w, h, dbuf, major_ring_only, no_donuts, min_ring_area);
+		*bpoly = calc_ring_from_mask(mask, georef.w, georef.h, dbuf, major_ring_only, no_donuts, min_ring_area);
 		if(bpoly->num_rings == 0) bpoly = 0;
 	}
 
 	if(mask_out_fn) {
 		if(!bpoly) fatal_error("missing bound polygon");
-		mask_from_mpoly(bpoly, w, h, mask_out_fn);
+		mask_from_mpoly(bpoly, georef.w, georef.h, mask_out_fn);
 	}
 
 	if(bpoly && reduction_tolerance > 0) {
@@ -561,31 +422,6 @@ int main(int argc, char **argv) {
 	if(dbuf) write_plot(dbuf, debug_report);
 
 	CPLPopErrorHandler();
-
-	return 0;
-}
-
-int parse_list_of_doubles(char *input, int *num_out, double **list_out) {
-	input = strdup(input);
-	if(!input) fatal_error("out of memory");
-
-	int num = 0;
-	double *list = NULL;
-
-	char *s1 = input;
-	char *s2 = " \t\n\r";
-	char *tok;
-	while((tok = strtok(s1, s2))) {
-		s1 = NULL;
-		char *endptr;
-		double val = strtod(tok, &endptr);
-		if(*endptr) return 1;
-		list = (double *)realloc_or_die(list, sizeof(double) * (num+1));
-		list[num++] = val;
-	}
-
-	*num_out = num;
-	*list_out = list;
 
 	return 0;
 }

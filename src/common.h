@@ -64,5 +64,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 void fatal_error(char *s) __attribute__((noreturn));
 void *malloc_or_die(size_t size);
 void *realloc_or_die(void *p, size_t size);
+int parse_list_of_doubles(char *input, int *num_out, double **list_out);
 
 #endif // ifndef COMMON_H

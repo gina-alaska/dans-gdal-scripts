@@ -29,11 +29,26 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define GEOCODE_H
 
 typedef struct {
+	char *s_srs;
+	int w, h;
+	int got_ll_en;
+	int got_ul_en;
+	double given_left_e, given_lower_n, given_upper_n;
+	double res_x, res_y;
+} geo_opts_t;
+
+typedef struct {
+	char *s_srs;
+	double res_x, res_y; // zero if there is rotation
+	int w, h;
 	OGRCoordinateTransformationH fwd_xform;
 	OGRCoordinateTransformationH inv_xform;
 	double *fwd_affine;
 	double *inv_affine;
 } georef_t;
+
+geo_opts_t init_geo_options(int *argc_ptr, char ***argv_ptr);
+georef_t init_georef(geo_opts_t *opt, GDALDatasetH ds);
 
 void xy2en(georef_t *georef, double xpos, double ypos, double *e_out, double *n_out);
 void en2xy(georef_t *georef, double east, double north, double *x_out, double *y_out);
