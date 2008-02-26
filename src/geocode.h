@@ -24,51 +24,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 
-#ifndef POLYGON_H
-#define POLYGON_H
 
-#include "common.h"
+#ifndef GEOCODE_H
+#define GEOCODE_H
 
-typedef struct {
-	double x, y;
-} vertex_t;
+void xy2en(double *affine, double xpos, double ypos, double *e_out, double *n_out);
+void en2ll(OGRCoordinateTransformationH xform, double east, double north, double *lon_out, double *lat_out);
+void xy2ll(double *affine, OGRCoordinateTransformationH xform, double x, double y, double *lon_out, double *lat_out);
 
-typedef struct {
-	int npts;
-	vertex_t *pts;
-	int is_hole;
-	int parent_id;
-} ring_t;
-
-typedef struct {
-	int num_rings;
-	ring_t *rings;
-} mpoly_t;
-
-
-ring_t duplicate_ring(ring_t *in_ring);
-void free_ring(ring_t *ring);
-void insert_point_into_ring(ring_t *ring, int idx);
-void output_wkt_mpoly(char *wkt_fn, mpoly_t mpoly, int split_polys);
-mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance);
-int polygon_contains(ring_t *c1, ring_t *c2);
-double polygon_area(ring_t *c);
-void compute_containments(mpoly_t *mp);
-void mask_from_mpoly(mpoly_t *mpoly, int w, int h, char *fn);
-int line_intersects_line(
-	vertex_t p1, vertex_t p2,
-	vertex_t p3, vertex_t p4,
-	int fail_on_coincident
-);
-void line_line_intersection(
-	vertex_t p1, vertex_t p2,
-	vertex_t p3, vertex_t p4,
-	vertex_t *p_out
-);
-void bevel_self_intersections(mpoly_t *mp);
-mpoly_t *mpoly_en2ll_with_interp(
-	OGRCoordinateTransformationH xform, mpoly_t *en_poly,
-	double toler, double res_x
-);
-
-#endif // ifndef POLYGON_H
+#endif // ifndef GEOCODE_H

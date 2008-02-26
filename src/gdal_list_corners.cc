@@ -27,6 +27,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "common.h"
 #include "polygon.h"
 #include "debugplot.h"
+#include "geocode.h"
 
 #ifndef PI
 #define PI 3.141592653
@@ -82,9 +83,6 @@ Examples:\n\
 }
 
 int parse_list_of_doubles(char *input, int *num_out, double **list_out);
-void xy2en(double *affine, double xpos, double ypos, double *e_out, double *n_out);
-void en2ll(OGRCoordinateTransformationH xform, double east, double north, double *lon_out, double *lat_out);
-void xy2ll(double *affine, OGRCoordinateTransformationH xform, double x, double y, double *lon_out, double *lat_out);
 void setup_ndv_list(GDALDatasetH ds, int bandlist_size, int *bandlist, int *num_ndv, double **ndv_list);
 unsigned char *get_mask_for_dataset(GDALDatasetH ds, int bandlist_size, int *bandlist, 
 	int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf);
@@ -556,19 +554,10 @@ int main(int argc, char **argv) {
 		if(wkt_ll_fn) {
 			if(!affine) fatal_error("missing affine transform");
 			if(!xform) fatal_error("missing coordinate transform");
-			
-			for(i=0; i<bpoly->num_rings; i++) {
-				ring_t *c = bpoly->rings + i;
-				for(j=0; j<c->npts; j++) {
-					double x = c->pts[j].x;
-					double y = c->pts[j].y;
-					en2ll(xform, x, y, &lon, &lat);
-					c->pts[j].x = lon;
-					c->pts[j].y = lat;
-				}
-			}
 
-			output_wkt_mpoly(wkt_ll_fn, *bpoly, split_polys);
+			mpoly_t *llpoly = mpoly_en2ll_with_interp(xform, bpoly, .2, res_x);
+
+			output_wkt_mpoly(wkt_ll_fn, *llpoly, split_polys);
 		}
 	}
 
@@ -602,47 +591,6 @@ int parse_list_of_doubles(char *input, int *num_out, double **list_out) {
 	*list_out = list;
 
 	return 0;
-}
-
-void xy2en(
-	double *affine,
-	double xpos, double ypos,
-	double *e_out, double *n_out
-) {
-	*e_out = affine[0] + affine[1] * xpos + affine[2] * ypos;
-	*n_out = affine[3] + affine[4] * xpos + affine[5] * ypos;
-}
-
-void en2ll(
-	OGRCoordinateTransformationH xform,
-	double east, double north,
-	double *lon_out, double *lat_out
-) {
-	if(xform) {
-		if(!OCTTransform(xform, 1, &east, &north, NULL)) {
-			fatal_error("OCTTransform failed");
-		}
-	}
-
-	if(north < -90.0 || north > 90.0) fatal_error("latitude out of range");
-	// images in latlong projection that cross the dateline can
-	// have numbers outside of this range...
-	//if(east < -180.0 || east > 180.0) fatal_error("longitude out of range");
-	// but it shouldn't be outside of *this* range no matter what!
-	if(east < -360.0 || east > 540.0) fatal_error("longitude out of range");
-
-	*lon_out = east;
-	*lat_out = north;
-}
-
-void xy2ll(
-	double *affine, OGRCoordinateTransformationH xform,
-	double x, double y,
-	double *lon_out, double *lat_out
-) {
-	double east, north;
-	xy2en(affine, x, y, &east, &north);
-	en2ll(xform, east, north, lon_out, lat_out);
 }
 
 vertex_t calc_centroid_from_mask(unsigned char *mask, int w, int h) {

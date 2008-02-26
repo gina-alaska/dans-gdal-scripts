@@ -26,6 +26,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "common.h"
 #include "polygon.h"
+#include "geocode.h"
 
 #ifdef MIN
 #undef MIN
@@ -43,6 +44,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define SGN(a) ((a)<0?-1:(a)>0?1:0)
 
 #define EPSILON 10E-10
+#define D2R (3.141592653 / 180.0)
 
 typedef struct {
 	int begin;
@@ -888,4 +890,105 @@ void bevel_self_intersections(mpoly_t *mp) {
 	}
 
 	free(table);
+}
+
+ring_t duplicate_ring(ring_t *in_ring) {
+	ring_t out_ring = *in_ring; // copy metadata
+	out_ring.pts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * out_ring.npts);
+	memcpy(out_ring.pts, in_ring->pts, sizeof(vertex_t) * out_ring.npts);
+	return out_ring;
+}
+
+void free_ring(ring_t *ring) {
+	free(ring->pts);
+}
+
+void insert_point_into_ring(ring_t *ring, int idx) {
+	if(idx<0 || idx>ring->npts) fatal_error("idx out of range in insert_point_into_ring");
+	ring->pts = (vertex_t *)realloc_or_die(ring->pts, sizeof(vertex_t) * (ring->npts+1));
+	memmove(ring->pts + idx + 1, ring->pts + idx, sizeof(vertex_t) * (ring->npts - idx));
+	ring->npts++;
+}
+
+mpoly_t *mpoly_en2ll_with_interp(
+	OGRCoordinateTransformationH xform, mpoly_t *en_poly,
+	double toler, double res_x // FIXME - both res_x and res_y
+) {
+	mpoly_t *ll_poly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
+	ll_poly->num_rings = en_poly->num_rings;
+	ll_poly->rings = (ring_t *)malloc_or_die(sizeof(ring_t) * ll_poly->num_rings);
+
+	int r_idx;
+	for(r_idx=0; r_idx<en_poly->num_rings; r_idx++) {
+		// make a copy of input - we will modify this
+		ring_t en_ring = duplicate_ring(en_poly->rings + r_idx);
+		// this will be the output
+		ring_t ll_ring = duplicate_ring(en_poly->rings + r_idx);
+
+		int v_idx;
+		for(v_idx=0; v_idx<ll_ring.npts; v_idx++) {
+			double x = en_ring.pts[v_idx].x;
+			double y = en_ring.pts[v_idx].y;
+			double lon, lat;
+			en2ll(xform, x, y, &lon, &lat);
+			ll_ring.pts[v_idx].x = lon;
+			ll_ring.pts[v_idx].y = lat;
+		}
+
+		for(v_idx=0; v_idx<ll_ring.npts; ) {
+			if(en_ring.npts != ll_ring.npts) fatal_error("en_ring.npts != ll_ring.npts");
+
+			if(v_idx > 1000) break; // FIXME
+
+			vertex_t *en1 = en_ring.pts + v_idx;
+			vertex_t *en2 = en_ring.pts + (v_idx + 1) % en_ring.npts;
+			vertex_t en_m = (vertex_t) { 
+				(en1->x + en2->x)/2.0,
+				(en1->y + en2->y)/2.0 };
+
+			vertex_t *ll1 = ll_ring.pts + v_idx;
+			vertex_t *ll2 = ll_ring.pts + (v_idx + 1) % ll_ring.npts;
+			vertex_t ll_m_interp = (vertex_t) {
+				(ll1->x + ll2->x)/2.0,
+				(ll1->y + ll2->y)/2.0 };
+
+			// FIXME - use ll2xy here
+			vertex_t ll_m_proj;
+			en2ll(xform, 
+				en_m.x, en_m.y,
+				&ll_m_proj.x, &ll_m_proj.y);
+
+			double dx = ll_m_interp.x - ll_m_proj.x;
+			double dy = ll_m_interp.y - ll_m_proj.y;
+			dx *= D2R * 6300000 * cos(ll_m_proj.y * D2R);
+			dy *= D2R * 6300000;
+
+			if(VERBOSE) {
+				fprintf(stderr, "%d,%d (delta=%lf,%lf)\n", r_idx, v_idx, dx, dy);
+				fprintf(stderr, "  en=[%lf,%lf]:[%lf,%lf]\n", en1->x, en1->y, en2->x, en2->y);
+				fprintf(stderr, "  ll=[%lf,%lf]:[%lf,%lf]\n", ll1->x, ll1->y, ll2->x, ll2->y);
+			}
+
+			int need_midpt = fabs(dx) > toler*res_x || fabs(dy) > toler*res_x;
+			if(need_midpt) {
+				if(VERBOSE) {
+					fprintf(stderr, "  inserting midpoint at %d,%d (delta=%lf,%lf > %lf)\n",
+						r_idx, v_idx, dx, dy, toler*res_x);
+					fprintf(stderr, "  en=[%lf,%lf] ll=[%lf,%lf]\n", 
+						en_m.x, en_m.y, ll_m_proj.x, ll_m_proj.y);
+				}
+				insert_point_into_ring(&en_ring, v_idx+1);
+				insert_point_into_ring(&ll_ring, v_idx+1);
+				en_ring.pts[v_idx+1] = en_m;
+				ll_ring.pts[v_idx+1] = ll_m_proj;
+			} else {
+				v_idx++;
+			}
+		}
+
+		free_ring(&en_ring);
+		ll_poly->rings[r_idx] = ll_ring;
+	}
+
+	return ll_poly;
 }
