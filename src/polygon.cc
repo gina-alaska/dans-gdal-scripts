@@ -911,7 +911,7 @@ void insert_point_into_ring(ring_t *ring, int idx) {
 }
 
 mpoly_t *mpoly_en2ll_with_interp(
-	OGRCoordinateTransformationH xform, mpoly_t *en_poly,
+	georef_t *georef, mpoly_t *en_poly,
 	double toler, double res_x // FIXME - both res_x and res_y
 ) {
 	mpoly_t *ll_poly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
@@ -930,15 +930,13 @@ mpoly_t *mpoly_en2ll_with_interp(
 			double x = en_ring.pts[v_idx].x;
 			double y = en_ring.pts[v_idx].y;
 			double lon, lat;
-			en2ll(xform, x, y, &lon, &lat);
+			en2ll(georef->fwd_xform, x, y, &lon, &lat);
 			ll_ring.pts[v_idx].x = lon;
 			ll_ring.pts[v_idx].y = lat;
 		}
 
 		for(v_idx=0; v_idx<ll_ring.npts; ) {
 			if(en_ring.npts != ll_ring.npts) fatal_error("en_ring.npts != ll_ring.npts");
-
-			if(v_idx > 1000) break; // FIXME
 
 			vertex_t *en1 = en_ring.pts + v_idx;
 			vertex_t *en2 = en_ring.pts + (v_idx + 1) % en_ring.npts;
@@ -954,7 +952,7 @@ mpoly_t *mpoly_en2ll_with_interp(
 
 			// FIXME - use ll2xy here
 			vertex_t ll_m_proj;
-			en2ll(xform, 
+			en2ll(georef->fwd_xform, 
 				en_m.x, en_m.y,
 				&ll_m_proj.x, &ll_m_proj.y);
 

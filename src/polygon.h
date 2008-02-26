@@ -28,6 +28,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define POLYGON_H
 
 #include "common.h"
+#include "geocode.h"
 
 typedef struct {
 	double x, y;
@@ -67,7 +68,7 @@ void line_line_intersection(
 );
 void bevel_self_intersections(mpoly_t *mp);
 mpoly_t *mpoly_en2ll_with_interp(
-	OGRCoordinateTransformationH xform, mpoly_t *en_poly,
+	georef_t *georef, mpoly_t *en_poly,
 	double toler, double res_x
 );
 

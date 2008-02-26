@@ -59,11 +59,11 @@ void en2ll(
 }
 
 void xy2ll(
-	double *affine, OGRCoordinateTransformationH xform,
+	georef_t *georef,
 	double x, double y,
 	double *lon_out, double *lat_out
 ) {
 	double east, north;
-	xy2en(affine, x, y, &east, &north);
-	en2ll(xform, east, north, lon_out, lat_out);
+	xy2en(georef->fwd_affine, x, y, &east, &north);
+	en2ll(georef->fwd_xform, east, north, lon_out, lat_out);
 }

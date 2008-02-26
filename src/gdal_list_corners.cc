@@ -255,7 +255,9 @@ int main(int argc, char **argv) {
 
 	CPLPushErrorHandler(CPLQuietErrorHandler);
 
-	OGRCoordinateTransformationH xform = NULL;
+	georef_t georef;
+	georef.fwd_xform = NULL;
+	georef.fwd_affine = NULL;
 
 	OGRSpatialReferenceH p1 = NULL;
 	if(s_srs) {
@@ -276,7 +278,7 @@ int main(int argc, char **argv) {
 		OGRSpatialReferenceH p2 = OSRNewSpatialReference(NULL);
 		OSRImportFromProj4(p2, "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs");
 
-		xform = OCTNewCoordinateTransformation(p1, p2);
+		georef.fwd_xform = OCTNewCoordinateTransformation(p1, p2);
 	}
 
 	if(ds) {
@@ -288,8 +290,6 @@ int main(int argc, char **argv) {
 	res_x = fabs(res_x);
 	res_y = fabs(res_y);
 
-	double *affine = NULL;
-
 	if((got_ul_en || got_ll_en) && res_x && res_y) {
 		if(got_ll_en) {
 			given_upper_n = given_lower_n + (double)h*res_y;
@@ -297,40 +297,42 @@ int main(int argc, char **argv) {
 		}
 
 		if(!got_ul_en) fatal_error("impossibility");
-		affine = (double *)malloc_or_die(sizeof(double) * 6);
-		affine[0] = given_left_e;  affine[1] = res_x; affine[2] =      0;
-		affine[3] = given_upper_n; affine[4] =     0; affine[5] = -res_y;
+		georef.fwd_affine = (double *)malloc_or_die(sizeof(double) * 6);
+		georef.fwd_affine[0] = given_left_e;  
+		georef.fwd_affine[3] = given_upper_n; 
+		georef.fwd_affine[1] = res_x; georef.fwd_affine[2] =      0;
+		georef.fwd_affine[4] =     0; georef.fwd_affine[5] = -res_y;
 	} else if(ds) {
 		int has_rotation = 0;
-		affine = (double *)malloc_or_die(sizeof(double) * 6);
-		if(GDALGetGeoTransform(ds, affine) == CE_None) {
-			has_rotation = affine[2] || affine[4];
+		georef.fwd_affine = (double *)malloc_or_die(sizeof(double) * 6);
+		if(GDALGetGeoTransform(ds, georef.fwd_affine) == CE_None) {
+			has_rotation = georef.fwd_affine[2] || georef.fwd_affine[4];
 		} else {
-			affine = NULL;
+			georef.fwd_affine = NULL;
 		}
 
 		if(res_x && res_y) {
 			// if corner coordinate were specified, the first branch of the outer if
 			// statement would have been taken
-			if(!affine) fatal_error("missing ll_en/ul_en parameter");
+			if(!georef.fwd_affine) fatal_error("missing ll_en/ul_en parameter");
 
 			if(has_rotation) fatal_error("cannot override resolution if source image has rotation");
 
-			affine[1] =  res_x;
-			affine[5] = -res_y;
+			georef.fwd_affine[1] =  res_x;
+			georef.fwd_affine[5] = -res_y;
 		} else {
-			if(has_rotation || !affine) {
+			if(has_rotation || !georef.fwd_affine) {
 				res_x = res_y = 0;
 			} else {
-				res_x = fabs(affine[1]);
-				res_y = fabs(affine[5]);
+				res_x = fabs(georef.fwd_affine[1]);
+				res_y = fabs(georef.fwd_affine[5]);
 			}
 		}
 
 		if(got_ul_en || got_ll_en) {
 			if(has_rotation) fatal_error("cannot override ll_en/ul_en if source image has rotation");
 
-			if(!affine || !res_x || !res_y) fatal_error("missing -res parameter");
+			if(!georef.fwd_affine || !res_x || !res_y) fatal_error("missing -res parameter");
 
 			if(got_ll_en) {
 				given_upper_n = given_lower_n + (double)h*res_y;
@@ -338,13 +340,13 @@ int main(int argc, char **argv) {
 			}
 
 			if(!got_ul_en) fatal_error("impossibility");
-			affine[0] = given_left_e;
-			affine[3] = given_upper_n;
+			georef.fwd_affine[0] = given_left_e;
+			georef.fwd_affine[3] = given_upper_n;
 		}
 	}
 
-	if((wkt_en_fn || wkt_ll_fn) && !affine) fatal_error("missing affine transform");
-	if(wkt_ll_fn && !xform) fatal_error("missing coordinate transform");
+	if((wkt_en_fn || wkt_ll_fn) && !georef.fwd_affine) fatal_error("missing affine transform");
+	if(wkt_ll_fn && !georef.fwd_xform) fatal_error("missing coordinate transform");
 
 	report_image_t *dbuf = NULL;
 	unsigned char *mask = NULL;
@@ -394,9 +396,9 @@ int main(int argc, char **argv) {
 		printf("s_srs: '%s'\n", s_srs);
 	}
 	if(res_x && res_y) printf("res: %.15f %.15f\n", res_x, res_y);
-	if(affine) {
+	if(georef.fwd_affine) {
 		printf("affine:\n");
-		for(i=0; i<6; i++) printf("  - %.15f\n", affine[i]);
+		for(i=0; i<6; i++) printf("  - %.15f\n", georef.fwd_affine[i]);
 	}
 
 	double lon, lat;
@@ -405,13 +407,13 @@ int main(int argc, char **argv) {
 	vertex_t center;
 	printf("center:\n");
 	center = (vertex_t){ (double)w/2.0, (double)h/2.0 };
-	if(xform && affine) {
-		xy2ll(affine, xform, center.x, center.y, &lon, &lat);
+	if(georef.fwd_xform && georef.fwd_affine) {
+		xy2ll(&georef, center.x, center.y, &lon, &lat);
 		printf("  lon: %.15f\n", lon);
 		printf("  lat: %.15f\n", lat);
 	}
-	if(affine) {
-		xy2en(affine, center.x, center.y, &east, &north);
+	if(georef.fwd_affine) {
+		xy2en(georef.fwd_affine, center.x, center.y, &east, &north);
 		printf("  east: %.15f\n", east);
 		printf("  north: %.15f\n", north);
 	}
@@ -422,13 +424,13 @@ int main(int argc, char **argv) {
 		vertex_t centroid;
 		printf("centroid:\n");
 		centroid = calc_centroid_from_mask(mask, w, h);
-		if(xform && affine) {
-			xy2ll(affine, xform, centroid.x, centroid.y, &lon, &lat);
+		if(georef.fwd_xform && georef.fwd_affine) {
+			xy2ll(&georef, centroid.x, centroid.y, &lon, &lat);
 			printf("  lon: %.15f\n", lon);
 			printf("  lat: %.15f\n", lat);
 		}
-		if(affine) {
-			xy2en(affine, centroid.x, centroid.y, &east, &north);
+		if(georef.fwd_affine) {
+			xy2en(georef.fwd_affine, centroid.x, centroid.y, &east, &north);
 			printf("  east: %.15f\n", east);
 			printf("  north: %.15f\n", north);
 		}
@@ -448,18 +450,18 @@ int main(int argc, char **argv) {
 
 		if(rect4.npts == 4) {
 			char *labels[] = { "upper_left", "upper_right", "lower_right", "lower_left" };
-			if(xform && affine) {
+			if(georef.fwd_xform && georef.fwd_affine) {
 				printf("geometry_ll:\n  type: rectangle4\n");
 				for(i=0; i<4; i++) {
-					xy2ll(affine, xform, rect4.pts[i].x, rect4.pts[i].y, &lon, &lat);
+					xy2ll(&georef, rect4.pts[i].x, rect4.pts[i].y, &lon, &lat);
 					printf("  %s_lon: %.15f\n", labels[i], lon);
 					printf("  %s_lat: %.15f\n", labels[i], lat);
 				}
 			}
-			if(affine) {
+			if(georef.fwd_affine) {
 				printf("geometry_en:\n  type: rectangle4\n");
 				for(i=0; i<4; i++) {
-					xy2en(affine, rect4.pts[i].x, rect4.pts[i].y, &east, &north);
+					xy2en(georef.fwd_affine, rect4.pts[i].x, rect4.pts[i].y, &east, &north);
 					printf("  %s_east: %.15f\n", labels[i], east);
 					printf("  %s_north: %.15f\n", labels[i], north);
 				}
@@ -475,20 +477,20 @@ int main(int argc, char **argv) {
 		double e_pos[] = { 0, (double)w/2.0, w };
 		char *n_labels[] = { "upper", "mid", "lower" };
 		double n_pos[] = { 0, (double)h/2.0, h };
-		if(xform && affine) {
+		if(georef.fwd_xform && georef.fwd_affine) {
 			printf("geometry_ll:\n  type: rectangle8\n");
 			for(i=0; i<3; i++) for(j=0; j<3; j++) {
 				if(!strcmp(e_labels[i], "mid") && !strcmp(n_labels[j], "mid")) continue;
-				xy2ll(affine, xform, e_pos[i], n_pos[j], &lon, &lat);
+				xy2ll(&georef, e_pos[i], n_pos[j], &lon, &lat);
 				printf("  %s_%s_lon: %.15f\n", n_labels[j], e_labels[i], lon);
 				printf("  %s_%s_lat: %.15f\n", n_labels[j], e_labels[i], lat);
 			}
 		}
-		if(affine) {
+		if(georef.fwd_affine) {
 			printf("geometry_en:\n  type: rectangle8\n");
 			for(i=0; i<3; i++) for(j=0; j<3; j++) {
 				if(!strcmp(e_labels[i], "mid") && !strcmp(n_labels[j], "mid")) continue;
-				xy2en(affine, e_pos[i], n_pos[j], &east, &north);
+				xy2en(georef.fwd_affine, e_pos[i], n_pos[j], &east, &north);
 				printf("  %s_%s_east: %.15f\n", n_labels[j], e_labels[i], east);
 				printf("  %s_%s_north: %.15f\n", n_labels[j], e_labels[i], north);
 			}
@@ -535,14 +537,14 @@ int main(int argc, char **argv) {
 		if(wkt_xy_fn) output_wkt_mpoly(wkt_xy_fn, *bpoly, split_polys);
 
 		if(wkt_en_fn || wkt_ll_fn) {
-			if(!affine) fatal_error("missing affine transform");
+			if(!georef.fwd_affine) fatal_error("missing affine transform");
 
 			for(i=0; i<bpoly->num_rings; i++) {
 				ring_t *c = bpoly->rings + i;
 				for(j=0; j<c->npts; j++) {
 					double x = c->pts[j].x;
 					double y = c->pts[j].y;
-					xy2en(affine, x, y, &east, &north);
+					xy2en(georef.fwd_affine, x, y, &east, &north);
 					c->pts[j].x = east;
 					c->pts[j].y = north;
 				}
@@ -552,10 +554,10 @@ int main(int argc, char **argv) {
 		}
 
 		if(wkt_ll_fn) {
-			if(!affine) fatal_error("missing affine transform");
-			if(!xform) fatal_error("missing coordinate transform");
+			if(!georef.fwd_affine) fatal_error("missing affine transform");
+			if(!georef.fwd_xform) fatal_error("missing coordinate transform");
 
-			mpoly_t *llpoly = mpoly_en2ll_with_interp(xform, bpoly, .2, res_x);
+			mpoly_t *llpoly = mpoly_en2ll_with_interp(&georef, bpoly, .2, res_x);
 
 			output_wkt_mpoly(wkt_ll_fn, *llpoly, split_polys);
 		}
