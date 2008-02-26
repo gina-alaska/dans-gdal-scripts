@@ -69,3 +69,31 @@ int parse_list_of_doubles(char *input, int *num_out, double **list_out) {
 
 	return 0;
 }
+
+void setup_ndv_list(GDALDatasetH ds, int bandlist_size, int *bandlist, int *num_ndv, double **ndv_list) {
+	if(*num_ndv == 0) {
+		*num_ndv = bandlist_size;
+		*ndv_list = (double *)malloc_or_die(sizeof(double) * bandlist_size);
+
+		int band_count = GDALGetRasterCount(ds);
+		int bandlist_idx;
+		for(bandlist_idx=0; bandlist_idx<bandlist_size; bandlist_idx++) {
+			int band_idx = bandlist[bandlist_idx];
+			if(band_idx < 1 || band_idx > band_count) fatal_error("bandid out of range");
+
+			GDALRasterBandH band = GDALGetRasterBand(ds, band_idx);
+
+			int success;
+			(*ndv_list)[bandlist_idx] = GDALGetRasterNoDataValue(band, &success);
+			if(!success) fatal_error("could not determine nodataval");
+		}
+	} else if(*num_ndv == 1) {
+		double ndv = (*ndv_list)[0];
+		*num_ndv = bandlist_size;
+		*ndv_list = (double *)malloc_or_die(sizeof(double) * bandlist_size);
+		int i;
+		for(i=0; i<bandlist_size; i++) (*ndv_list)[i] = ndv;
+	} else if(*num_ndv != bandlist_size) {
+		fatal_error("number of vals passed to -nodataval must be one or equal to number of bands used");
+	}
+}

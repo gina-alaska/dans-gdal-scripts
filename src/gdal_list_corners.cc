@@ -28,10 +28,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "polygon.h"
 #include "debugplot.h"
 #include "georef.h"
-
-#ifndef PI
-#define PI 3.141592653
-#endif
+#include "mask.h"
 
 int VERBOSE = 0;
 
@@ -82,14 +79,9 @@ Examples:\n\
 	exit(1);
 }
 
-void setup_ndv_list(GDALDatasetH ds, int bandlist_size, int *bandlist, int *num_ndv, double **ndv_list);
-unsigned char *get_mask_for_dataset(GDALDatasetH ds, int bandlist_size, int *bandlist, 
-	int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf);
-vertex_t calc_centroid_from_mask(unsigned char *mask, int w, int h);
 ring_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *dbuf);
 mpoly_t calc_ring_from_mask(unsigned char *mask, int w, int h,
 	report_image_t *dbuf, int major_ring_only, int no_donuts, double min_ring_area);
-unsigned char *erode_mask(unsigned char *in_mask, int w, int h);
 
 int main(int argc, char **argv) {
 	char *input_raster_fn = NULL;
@@ -424,34 +416,6 @@ int main(int argc, char **argv) {
 	CPLPopErrorHandler();
 
 	return 0;
-}
-
-vertex_t calc_centroid_from_mask(unsigned char *mask, int w, int h) {
-	int mask_rowlen = (w+7)/8;
-
-	long weight_x=0, weight_y=0, num_datavals=0;
-	int i, j;
-	for(j=0; j<h; j++) {
-		unsigned char mask_bitp = 1;
-		unsigned char *mask_bytep = mask + mask_rowlen*j;
-		for(i=0; i<w; i++) {
-			if(*mask_bytep & mask_bitp) {
-				weight_x += i;
-				weight_y += j;
-				num_datavals++;
-			}
-			mask_bitp <<= 1;
-			if(!mask_bitp) {
-				mask_bitp = 1;
-				mask_bytep++;
-			}
-		}
-	}
-
-	return (vertex_t){
-		(double)weight_x / (double)num_datavals,
-		(double)weight_y / (double)num_datavals
-	};
 }
 
 typedef struct {
@@ -1074,187 +1038,4 @@ report_image_t *dbuf, int major_ring_only, int no_donuts, double min_ring_area) 
 	}
 
 	return mp;
-}
-
-void setup_ndv_list(GDALDatasetH ds, int bandlist_size, int *bandlist, int *num_ndv, double **ndv_list) {
-	if(*num_ndv == 0) {
-		*num_ndv = bandlist_size;
-		*ndv_list = (double *)malloc_or_die(sizeof(double) * bandlist_size);
-
-		int band_count = GDALGetRasterCount(ds);
-		int bandlist_idx;
-		for(bandlist_idx=0; bandlist_idx<bandlist_size; bandlist_idx++) {
-			int band_idx = bandlist[bandlist_idx];
-			if(band_idx < 1 || band_idx > band_count) fatal_error("bandid out of range");
-
-			GDALRasterBandH band = GDALGetRasterBand(ds, band_idx);
-
-			int success;
-			(*ndv_list)[bandlist_idx] = GDALGetRasterNoDataValue(band, &success);
-			if(!success) fatal_error("could not determine nodataval");
-		}
-	} else if(*num_ndv == 1) {
-		double ndv = (*ndv_list)[0];
-		*num_ndv = bandlist_size;
-		*ndv_list = (double *)malloc_or_die(sizeof(double) * bandlist_size);
-		int i;
-		for(i=0; i<bandlist_size; i++) (*ndv_list)[i] = ndv;
-	} else if(*num_ndv != bandlist_size) {
-		fatal_error("number of vals passed to -nodataval must be one or equal to number of bands used");
-	}
-}
-
-unsigned char *get_mask_for_dataset(GDALDatasetH ds, int bandlist_size, int *bandlist, 
-int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
-	int i, j;
-
-	int w = GDALGetRasterXSize(ds);
-	int h = GDALGetRasterYSize(ds);
-	int band_count = GDALGetRasterCount(ds);
-	if(VERBOSE) fprintf(stderr, "input is %d x %d x %d\n", w, h, band_count);
-
-	int mask_rowlen = (w+7)/8;
-	if(VERBOSE) fprintf(stderr, "mask array is %.1f megabytes\n", (double)mask_rowlen*h/1024.0/1024.0);
-	unsigned char *mask = (unsigned char *)malloc_or_die(mask_rowlen*h);
-	for(i=0; i<mask_rowlen*h; i++) mask[i] = 0;
-
-	int bandlist_idx;
-	int last_progress = 0;
-	for(bandlist_idx=0; bandlist_idx<bandlist_size; bandlist_idx++) {
-		int band_idx = bandlist[bandlist_idx];
-		if(band_idx < 1 || band_idx > band_count) fatal_error("bandid out of range");
-
-		GDALRasterBandH band = GDALGetRasterBand(ds, band_idx);
-
-		int blocksize_x, blocksize_y;
-		GDALGetBlockSize(band, &blocksize_x, &blocksize_y);
-
-		double nodataval = ndv_list[bandlist_idx];
-
-		if(VERBOSE) fprintf(stderr, "band %d: block size = %d,%d  nodataval = %.15f\n",
-			band_idx, blocksize_x, blocksize_y, nodataval);
-
-		double *buf = (double *)malloc_or_die(blocksize_x*blocksize_y*sizeof(double));
-		int boff_x, boff_y;
-		for(boff_y=0; boff_y<h; boff_y+=blocksize_y) {
-			int bsize_y = blocksize_y;
-			if(bsize_y + boff_y > h) bsize_y = h - boff_y;
-			for(boff_x=0; boff_x<w; boff_x+=blocksize_x) {
-				int bsize_x = blocksize_x;
-				if(bsize_x + boff_x > w) bsize_x = w - boff_x;
-
-				GDALRasterIO(band, GF_Read, boff_x, boff_y, bsize_x, bsize_y, 
-					buf, bsize_x, bsize_y, GDT_Float64, 0, 0);
-
-				/*
-				if(!boff_x && !boff_y) {
-					if(VERBOSE) fprintf(stderr, "band %d: pixel[0] = %.15f\n", band_idx, buf[0]);
-					nodataval = buf[0];
-				}
-				*/
-
-				double *p = buf;
-				for(j=0; j<bsize_y; j++) {
-					int y = j + boff_y;
-					int is_dbuf_stride_y = dbuf && ((y % dbuf->stride_y) == 0);
-					unsigned char mask_bitp = 1 << (boff_x % 8);
-					unsigned char *mask_bytep = mask + mask_rowlen*y + boff_x/8;
-					for(i=0; i<bsize_x; i++) {
-						int is_dbuf_stride = is_dbuf_stride_y && ((i % dbuf->stride_x) == 0);
-						double val = *(p++);
-						if(fabs(val - nodataval) > ndv_tolerance) {
-							*mask_bytep |= mask_bitp;
-
-							if(is_dbuf_stride) {
-								int x = i + boff_x;
-								unsigned char db_v = 100 + (unsigned char)(val/2);
-								if(db_v < 100) db_v = 100;
-								if(db_v > 254) db_v = 254;
-								unsigned char r = (unsigned char)(db_v*.75);
-								plot_point(dbuf, x, y, r, db_v, db_v);
-							}
-						}
-						mask_bitp <<= 1;
-						if(!mask_bitp) {
-							mask_bitp = 1;
-							mask_bytep++;
-						}
-					}
-				}
-
-				int progress = (int)(100L * (
-					(long)(bandlist_idx) * (long)w * (long)h +
-					(long)boff_y * (long)w +
-					(long)(boff_x+bsize_x) * (long)bsize_y) /
-					((long)bandlist_size * (long)w * (long)h));
-				if(progress != last_progress) {
-					fprintf(stderr, "reading: %d%%\r", progress);
-					fflush(stderr);
-					last_progress = progress;
-				}
-			}
-		}
-
-		free(buf);
-	}
-	fprintf(stderr, "\n");
-
-	return mask;
-}
-
-unsigned char *erode_mask(unsigned char *in_mask, int w, int h) {
-	int i, j;
-	int mask_rowlen = (w+7)/8;
-
-	unsigned char *out_mask = (unsigned char *)malloc_or_die(mask_rowlen*h);
-	for(i=0; i<mask_rowlen*h; i++) out_mask[i] = 0;
-
-	for(j=0; j<h; j++) {
-		unsigned char *in_bytep = in_mask + mask_rowlen*j;
-		unsigned char *out_bytep = out_mask + mask_rowlen*j;
-		unsigned char ul = 0, um = j ? *(in_bytep-mask_rowlen) & 1 : 0;
-		unsigned char ml = 0, mm = *in_bytep & 1;
-		unsigned char ll = 0, lm = (j<h-1) ? *(in_bytep+mask_rowlen) & 1 : 0;
-		unsigned char in_bitp = 2;
-		unsigned char out_bitp = 1;
-		for(i=0; i<w; i++) {
-			unsigned char ur = (j && i<w-1) ? *(in_bytep-mask_rowlen) & in_bitp : 0;
-			unsigned char mr = (i<w-1) ? *in_bytep & in_bitp : 0;
-			unsigned char lr = (j<h-1 && i<w-1) ? *(in_bytep+mask_rowlen) & in_bitp : 0;
-
-			// remove pixels that don't have two consecutive filled neighbors
-			if(mm && (
-				ul&&um || um&&ur || ur&&mr || mr&&lr ||
-				lr&&lm || lm&&ll || ll&&ml || ml&&ul
-			)) {
-				*out_bytep |= out_bitp;
-			}
-			// fill pixels that don't have two consecutive empty neighbors
-			/*
-			if(!mm && (
-				(ul||um) && (um||ur) && (ur||mr) && (mr||lr) &&
-				(lr||lm) && (lm||ll) && (ll||ml) && (ml||ul)
-			)) {
-				*out_bytep |= out_bitp;
-			}
-			*/
-			
-			ul=um; ml=mm; ll=lm;
-			um=ur; mm=mr; lm=lr;
-
-			in_bitp <<= 1;
-			if(!in_bitp) {
-				in_bitp = 1;
-				in_bytep++;
-			}
-
-			out_bitp <<= 1;
-			if(!out_bitp) {
-				out_bitp = 1;
-				out_bytep++;
-			}
-		}
-	}
-
-	return out_mask;
 }

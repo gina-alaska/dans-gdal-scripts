@@ -33,7 +33,6 @@ float default_shade_params[] = { 0, 1, .5, 10 };
 
 #define SHADE_TABLE_SIZE 500
 #define SHADE_TABLE_SCALE 100.0
-#define D2R (3.141592653 / 180.0)
 #define EARTH_RADIUS 6370997.0
 
 typedef struct {

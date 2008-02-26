@@ -44,7 +44,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define SGN(a) ((a)<0?-1:(a)>0?1:0)
 
 #define EPSILON 10E-10
-#define D2R (3.141592653 / 180.0)
 
 typedef struct {
 	int begin;

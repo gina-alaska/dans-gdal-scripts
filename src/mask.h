@@ -25,52 +25,16 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 
-#ifndef COMMON_H
-#define COMMON_H
+#ifndef MASK_H
+#define MASK_H
 
-#include <ogr_spatialref.h>
-#include <cpl_string.h>
-#include <gdal.h>
+#include "common.h"
+#include "polygon.h"
+#include "debugplot.h"
 
-// these constants from GDAL interfere with config.h
-#undef PACKAGE_VERSION
-#undef PACKAGE_TARNAME
-#undef PACKAGE_STRING
-#undef PACKAGE_NAME
-#undef PACKAGE_BUGREPORT
+unsigned char *get_mask_for_dataset(GDALDatasetH ds, int bandlist_size, int *bandlist, 
+	int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf);
+unsigned char *erode_mask(unsigned char *in_mask, int w, int h);
+vertex_t calc_centroid_from_mask(unsigned char *mask, int w, int h);
 
-#if HAVE_INTTYPES_H
-#  include <inttypes.h>
-#endif
-
-#if HAVE_STDLIB_H
-#  include <stdlib.h>
-#endif
-
-#if HAVE_STRING_H
-#  include <string.h>
-#endif
-
-#include <stdio.h>
-
-#include <config.h>
-#include <math.h>
-
-/* see http://www.unixwiz.net/techtips/gnu-c-attributes.html */
-#ifndef __GNUC__
-#  define  __attribute__(x)  /*NOTHING*/
-#endif
-
-#ifndef PI
-#define PI 3.141592653
-#endif
-
-#define D2R (3.141592653 / 180.0)
-
-void fatal_error(char *s) __attribute__((noreturn));
-void *malloc_or_die(size_t size);
-void *realloc_or_die(void *p, size_t size);
-int parse_list_of_doubles(char *input, int *num_out, double **list_out);
-void setup_ndv_list(GDALDatasetH ds, int bandlist_size, int *bandlist, int *num_ndv, double **ndv_list);
-
-#endif // ifndef COMMON_H
+#endif // ifndef MASK_H
