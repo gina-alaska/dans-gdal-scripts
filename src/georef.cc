@@ -38,6 +38,17 @@ void xy2en(
 	*n_out = affine[3] + affine[4] * xpos + affine[5] * ypos;
 }
 
+void en2xy(
+	georef_t *georef,
+	double east, double north,
+	double *x_out, double *y_out
+) {
+	double *affine = georef->inv_affine;
+	if(!affine) fatal_error("missing affine");
+	*x_out = affine[0] + affine[1] * east + affine[2] * north;
+	*y_out = affine[3] + affine[4] * east + affine[5] * north;
+}
+
 void en2ll(
 	georef_t *georef,
 	double east, double north,
@@ -60,6 +71,28 @@ void en2ll(
 	*lat_out = north;
 }
 
+void ll2en(
+	georef_t *georef,
+	double lon, double lat,
+	double *e_out, double *n_out
+) {
+	if(!georef->inv_xform) fatal_error("missing xform");
+
+	if(lat < -90.0 || lat > 90.0) fatal_error("latitude out of range");
+	// images in latlong projection that cross the dateline can
+	// have numbers outside of this range...
+	//if(lon < -180.0 || lon > 180.0) fatal_error("longitude out of range");
+	// but it shouldn't be outside of *this* range no matter what!
+	if(lon < -360.0 || lon > 540.0) fatal_error("longitude out of range");
+
+	if(!OCTTransform(georef->inv_xform, 1, &lon, &lat, NULL)) {
+		fatal_error("OCTTransform failed");
+	}
+
+	*e_out = lon;
+	*n_out = lat;
+}
+
 void xy2ll(
 	georef_t *georef,
 	double x, double y,
@@ -68,4 +101,14 @@ void xy2ll(
 	double east, north;
 	xy2en(georef, x, y, &east, &north);
 	en2ll(georef, east, north, lon_out, lat_out);
+}
+
+void ll2xy(
+	georef_t *georef,
+	double lon, double lat,
+	double *x_out, double *y_out
+) {
+	double east, north;
+	ll2en(georef, lon, lat, &east, &north);
+	en2xy(georef, east, north, x_out, y_out);
 }

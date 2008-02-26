@@ -67,9 +67,7 @@ void line_line_intersection(
 	vertex_t *p_out
 );
 void bevel_self_intersections(mpoly_t *mp);
-mpoly_t *mpoly_en2ll_with_interp(
-	georef_t *georef, mpoly_t *en_poly,
-	double toler, double res_x
-);
+mpoly_t *mpoly_xy2en(georef_t *georef, mpoly_t *xy_poly);
+mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double toler);
 
 #endif // ifndef POLYGON_H

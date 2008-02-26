@@ -910,39 +910,62 @@ void insert_point_into_ring(ring_t *ring, int idx) {
 	ring->npts++;
 }
 
-mpoly_t *mpoly_en2ll_with_interp(
-	georef_t *georef, mpoly_t *en_poly,
-	double toler, double res_x // FIXME - both res_x and res_y
-) {
+mpoly_t *mpoly_xy2en(georef_t *georef, mpoly_t *xy_poly) {
+	mpoly_t *en_poly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
+	en_poly->num_rings = xy_poly->num_rings;
+	en_poly->rings = (ring_t *)malloc_or_die(sizeof(ring_t) * en_poly->num_rings);
+
+	int r_idx;
+	for(r_idx=0; r_idx<xy_poly->num_rings; r_idx++) {
+		ring_t *xy_ring = xy_poly->rings + r_idx;
+		ring_t *en_ring = en_poly->rings + r_idx;
+
+		*en_ring = duplicate_ring(xy_ring);
+
+		int v_idx;
+		for(v_idx=0; v_idx<en_ring->npts; v_idx++) {
+			double x = xy_ring->pts[v_idx].x;
+			double y = xy_ring->pts[v_idx].y;
+			double lon, lat;
+			en2ll(georef, x, y, &lon, &lat);
+			en_ring->pts[v_idx].x = lon;
+			en_ring->pts[v_idx].y = lat;
+		}
+	}
+
+	return en_poly;
+}
+
+mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double toler) {
 	mpoly_t *ll_poly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
-	ll_poly->num_rings = en_poly->num_rings;
+	ll_poly->num_rings = xy_poly->num_rings;
 	ll_poly->rings = (ring_t *)malloc_or_die(sizeof(ring_t) * ll_poly->num_rings);
 
 	int r_idx;
-	for(r_idx=0; r_idx<en_poly->num_rings; r_idx++) {
+	for(r_idx=0; r_idx<xy_poly->num_rings; r_idx++) {
 		// make a copy of input - we will modify this
-		ring_t en_ring = duplicate_ring(en_poly->rings + r_idx);
+		ring_t xy_ring = duplicate_ring(xy_poly->rings + r_idx);
 		// this will be the output
-		ring_t ll_ring = duplicate_ring(en_poly->rings + r_idx);
+		ring_t ll_ring = duplicate_ring(xy_poly->rings + r_idx);
 
 		int v_idx;
 		for(v_idx=0; v_idx<ll_ring.npts; v_idx++) {
-			double x = en_ring.pts[v_idx].x;
-			double y = en_ring.pts[v_idx].y;
+			double x = xy_ring.pts[v_idx].x;
+			double y = xy_ring.pts[v_idx].y;
 			double lon, lat;
-			en2ll(georef, x, y, &lon, &lat);
+			xy2ll(georef, x, y, &lon, &lat);
 			ll_ring.pts[v_idx].x = lon;
 			ll_ring.pts[v_idx].y = lat;
 		}
 
 		for(v_idx=0; v_idx<ll_ring.npts; ) {
-			if(en_ring.npts != ll_ring.npts) fatal_error("en_ring.npts != ll_ring.npts");
+			if(xy_ring.npts != ll_ring.npts) fatal_error("xy_ring.npts != ll_ring.npts");
 
-			vertex_t *en1 = en_ring.pts + v_idx;
-			vertex_t *en2 = en_ring.pts + (v_idx + 1) % en_ring.npts;
-			vertex_t en_m = (vertex_t) { 
-				(en1->x + en2->x)/2.0,
-				(en1->y + en2->y)/2.0 };
+			vertex_t *xy1 = xy_ring.pts + v_idx;
+			vertex_t *xy2 = xy_ring.pts + (v_idx + 1) % xy_ring.npts;
+			vertex_t xy_m = (vertex_t) { 
+				(xy1->x + xy2->x)/2.0,
+				(xy1->y + xy2->y)/2.0 };
 
 			vertex_t *ll1 = ll_ring.pts + v_idx;
 			vertex_t *ll2 = ll_ring.pts + (v_idx + 1) % ll_ring.npts;
@@ -951,40 +974,44 @@ mpoly_t *mpoly_en2ll_with_interp(
 				(ll1->y + ll2->y)/2.0 };
 
 			// FIXME - use ll2xy here
-			vertex_t ll_m_proj;
-			en2ll(georef, 
-				en_m.x, en_m.y,
-				&ll_m_proj.x, &ll_m_proj.y);
+			vertex_t xy_m_test;
+			ll2xy(georef, 
+				ll_m_interp.x, ll_m_interp.y,
+				&xy_m_test.x, &xy_m_test.y);
 
-			double dx = ll_m_interp.x - ll_m_proj.x;
-			double dy = ll_m_interp.y - ll_m_proj.y;
-			dx *= D2R * 6300000 * cos(ll_m_proj.y * D2R);
-			dy *= D2R * 6300000;
+			double dx = xy_m.x - xy_m_test.x;
+			double dy = xy_m.y - xy_m_test.y;
+			double sqr_error = dx*dx + dy*dy;
 
-			if(VERBOSE) {
-				fprintf(stderr, "%d,%d (delta=%lf,%lf)\n", r_idx, v_idx, dx, dy);
-				fprintf(stderr, "  en=[%lf,%lf]:[%lf,%lf]\n", en1->x, en1->y, en2->x, en2->y);
-				fprintf(stderr, "  ll=[%lf,%lf]:[%lf,%lf]\n", ll1->x, ll1->y, ll2->x, ll2->y);
-			}
+			//if(VERBOSE) {
+			//	fprintf(stderr, "%d,%d (delta=%lf,%lf)\n", r_idx, v_idx, dx, dy);
+			//	fprintf(stderr, "  xy=[%lf,%lf]:[%lf,%lf]\n", xy1->x, xy1->y, xy2->x, xy2->y);
+			//	fprintf(stderr, "  ll=[%lf,%lf]:[%lf,%lf]\n", ll1->x, ll1->y, ll2->x, ll2->y);
+			//}
 
-			int need_midpt = fabs(dx) > toler*res_x || fabs(dy) > toler*res_x;
+			int need_midpt = sqr_error > toler*toler;
 			if(need_midpt) {
+				vertex_t ll_m_proj;
+				xy2ll(georef, 
+					xy_m.x, xy_m.y,
+					&ll_m_proj.x, &ll_m_proj.y);
+
 				if(VERBOSE) {
 					fprintf(stderr, "  inserting midpoint at %d,%d (delta=%lf,%lf > %lf)\n",
-						r_idx, v_idx, dx, dy, toler*res_x);
-					fprintf(stderr, "  en=[%lf,%lf] ll=[%lf,%lf]\n", 
-						en_m.x, en_m.y, ll_m_proj.x, ll_m_proj.y);
+						r_idx, v_idx, dx, dy, toler);
+					//fprintf(stderr, "  xy=[%lf,%lf] ll=[%lf,%lf]\n", 
+					//	xy_m.x, xy_m.y, ll_m_proj.x, ll_m_proj.y);
 				}
-				insert_point_into_ring(&en_ring, v_idx+1);
+				insert_point_into_ring(&xy_ring, v_idx+1);
 				insert_point_into_ring(&ll_ring, v_idx+1);
-				en_ring.pts[v_idx+1] = en_m;
+				xy_ring.pts[v_idx+1] = xy_m;
 				ll_ring.pts[v_idx+1] = ll_m_proj;
 			} else {
 				v_idx++;
 			}
 		}
 
-		free_ring(&en_ring);
+		free_ring(&xy_ring);
 		ll_poly->rings[r_idx] = ll_ring;
 	}
 

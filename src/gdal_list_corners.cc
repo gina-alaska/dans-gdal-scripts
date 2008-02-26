@@ -279,6 +279,7 @@ int main(int argc, char **argv) {
 		OSRImportFromProj4(p2, "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs");
 
 		georef.fwd_xform = OCTNewCoordinateTransformation(p1, p2);
+		georef.inv_xform = OCTNewCoordinateTransformation(p2, p1);
 	}
 
 	if(ds) {
@@ -342,6 +343,13 @@ int main(int argc, char **argv) {
 			if(!got_ul_en) fatal_error("impossibility");
 			georef.fwd_affine[0] = given_left_e;
 			georef.fwd_affine[3] = given_upper_n;
+		}
+	}
+
+	if(georef.fwd_affine) {
+		georef.inv_affine = (double *)malloc_or_die(sizeof(double) * 6);
+		if(!GDALInvGeoTransform(georef.fwd_affine, georef.inv_affine)) {
+			fatal_error("affine is not invertible");
 		}
 	}
 
@@ -536,30 +544,17 @@ int main(int argc, char **argv) {
 
 		if(wkt_xy_fn) output_wkt_mpoly(wkt_xy_fn, *bpoly, split_polys);
 
-		if(wkt_en_fn || wkt_ll_fn) {
+		if(wkt_en_fn) {
 			if(!georef.fwd_affine) fatal_error("missing affine transform");
-
-			for(i=0; i<bpoly->num_rings; i++) {
-				ring_t *c = bpoly->rings + i;
-				for(j=0; j<c->npts; j++) {
-					double x = c->pts[j].x;
-					double y = c->pts[j].y;
-					xy2en(&georef, x, y, &east, &north);
-					c->pts[j].x = east;
-					c->pts[j].y = north;
-				}
-			}
-
-			if(wkt_en_fn) output_wkt_mpoly(wkt_en_fn, *bpoly, split_polys);
+			mpoly_t *en_poly = mpoly_xy2en(&georef, bpoly);
+			output_wkt_mpoly(wkt_en_fn, *en_poly, split_polys);
 		}
 
 		if(wkt_ll_fn) {
 			if(!georef.fwd_affine) fatal_error("missing affine transform");
 			if(!georef.fwd_xform) fatal_error("missing coordinate transform");
-
-			mpoly_t *llpoly = mpoly_en2ll_with_interp(&georef, bpoly, .2, res_x);
-
-			output_wkt_mpoly(wkt_ll_fn, *llpoly, split_polys);
+			mpoly_t *ll_poly = mpoly_xy2ll_with_interp(&georef, bpoly, .2);
+			output_wkt_mpoly(wkt_ll_fn, *ll_poly, split_polys);
 		}
 	}
 
