@@ -780,8 +780,15 @@ void pinch_self_intersections(mpoly_t *mp) {
 }
 */
 
-#define BORDER_TOUCH_HASH_SIZE 1000000
-#define BORDER_TOUCH_HASH_SQRTSIZE 100
+#define BORDER_TOUCH_HASH_SQRTSIZE 1000
+#define BORDER_TOUCH_HASH_SIZE (BORDER_TOUCH_HASH_SQRTSIZE*BORDER_TOUCH_HASH_SQRTSIZE)
+
+inline int get_touch_hash_key(vertex_t *v) {
+	int key = (int)(v->x + v->y * (double)BORDER_TOUCH_HASH_SQRTSIZE);
+	key = ((key % BORDER_TOUCH_HASH_SIZE) + BORDER_TOUCH_HASH_SIZE) % BORDER_TOUCH_HASH_SIZE;
+	if(key<0 || key>=BORDER_TOUCH_HASH_SIZE) fatal_error("hash key out of range");
+	return key;
+}
 
 char *mpoly_border_touch_create_hashtable(mpoly_t *mp) {
 	char *table = (char *)malloc_or_die(BORDER_TOUCH_HASH_SIZE);
@@ -792,9 +799,7 @@ char *mpoly_border_touch_create_hashtable(mpoly_t *mp) {
 		int v_idx;
 		for(v_idx=0; v_idx<ring->npts; v_idx++) {
 			vertex_t *v = &ring->pts[v_idx];
-			int key = (int)(v->x + v->y * (double)BORDER_TOUCH_HASH_SQRTSIZE);
-			key = ((key % BORDER_TOUCH_HASH_SIZE) + BORDER_TOUCH_HASH_SIZE) % BORDER_TOUCH_HASH_SIZE;
-			if(key<0 || key>=BORDER_TOUCH_HASH_SIZE) fatal_error("hash key out of range");
+			int key = get_touch_hash_key(v);
 			if(table[key] < 2) table[key]++;
 		}
 	}
@@ -804,10 +809,10 @@ char *mpoly_border_touch_create_hashtable(mpoly_t *mp) {
 inline int mpoly_border_touches_point(char *table, mpoly_t *mp, int r1_idx, int v1_idx) {
 	vertex_t *v1 = &mp->rings[r1_idx].pts[v1_idx];
 
-	int key = (int)(v1->x + v1->y * (double)BORDER_TOUCH_HASH_SQRTSIZE);
-	key = ((key % BORDER_TOUCH_HASH_SIZE) + BORDER_TOUCH_HASH_SIZE) % BORDER_TOUCH_HASH_SIZE;
-	if(key<0 || key>=BORDER_TOUCH_HASH_SIZE) fatal_error("hash key out of range");
+	int key = get_touch_hash_key(v1);
 	if(table[key] < 2) return 0;
+
+	//if(VERBOSE) fprintf(stderr, "hash hit for %d,%d\n", r1_idx, v1_idx);
 
 	int r2_idx;
 	for(r2_idx=0; r2_idx<mp->num_rings; r2_idx++) {
@@ -817,9 +822,15 @@ inline int mpoly_border_touches_point(char *table, mpoly_t *mp, int r1_idx, int 
 			vertex_t *v2 = &ring->pts[v2_idx];
 			int same = (r1_idx == r2_idx) && (v1_idx == v2_idx);
 			int touches = !same && (v1->x == v2->x) && (v1->y == v2->y);
-			if(touches) return 1;
+			if(touches) {
+				//if(VERBOSE) fprintf(stderr, "touches for %d,%d vs. %d,%d\n", r1_idx, v1_idx, r2_idx, v2_idx);
+				return 1;
+			}
 		}
 	}
+
+	//if(VERBOSE) fprintf(stderr, "no touch for %d,%d\n", r1_idx, v1_idx);
+
 	return 0;
 }
 
@@ -827,6 +838,8 @@ inline int mpoly_border_touches_point(char *table, mpoly_t *mp, int r1_idx, int 
 // that have orthogonal sides on an integer lattice.
 void bevel_self_intersections(mpoly_t *mp) {
 	double amount = .1;
+
+	if(VERBOSE) fprintf(stderr, "bevel with amount=%lf\n", amount);
 
 	char *table = mpoly_border_touch_create_hashtable(mp);
 
@@ -848,7 +861,7 @@ void bevel_self_intersections(mpoly_t *mp) {
 			}
 		}
 		if(num_touch) {
-			//fprintf(stderr, "ring %d: num_touch=%d\n", r_idx, num_touch);
+			if(VERBOSE) fprintf(stderr, "ring %d: num_touch=%d\n", r_idx, num_touch);
 			int new_numpts = ring->npts + num_touch;
 			vertex_t *new_pts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * new_numpts);
 			int vout_idx = 0;
