@@ -553,7 +553,7 @@ int main(int argc, char **argv) {
 		if(wkt_ll_fn) {
 			if(!georef.fwd_affine) fatal_error("missing affine transform");
 			if(!georef.fwd_xform) fatal_error("missing coordinate transform");
-			mpoly_t *ll_poly = mpoly_xy2ll_with_interp(&georef, bpoly, .2);
+			mpoly_t *ll_poly = mpoly_xy2ll_with_interp(&georef, bpoly, .2); // FIXME - configurable tolerance
 			output_wkt_mpoly(wkt_ll_fn, *ll_poly, split_polys);
 		}
 	}

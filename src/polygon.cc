@@ -973,7 +973,6 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 				(ll1->x + ll2->x)/2.0,
 				(ll1->y + ll2->y)/2.0 };
 
-			// FIXME - use ll2xy here
 			vertex_t xy_m_test;
 			ll2xy(georef, 
 				ll_m_interp.x, ll_m_interp.y,
