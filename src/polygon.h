@@ -28,7 +28,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define POLYGON_H
 
 #include "common.h"
-#include "geocode.h"
+#include "georef.h"
 
 typedef struct {
 	double x, y;

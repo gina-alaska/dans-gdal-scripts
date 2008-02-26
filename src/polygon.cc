@@ -26,7 +26,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "common.h"
 #include "polygon.h"
-#include "geocode.h"
+#include "georef.h"
 
 #ifdef MIN
 #undef MIN

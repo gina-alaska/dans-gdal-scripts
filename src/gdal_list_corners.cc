@@ -27,7 +27,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "common.h"
 #include "polygon.h"
 #include "debugplot.h"
-#include "geocode.h"
+#include "georef.h"
 
 #ifndef PI
 #define PI 3.141592653

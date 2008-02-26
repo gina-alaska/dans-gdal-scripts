@@ -25,7 +25,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 #include "common.h"
-#include "geocode.h"
+#include "georef.h"
 
 void xy2en(
 	double *affine,

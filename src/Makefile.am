@@ -10,7 +10,7 @@ gdal_raw2geotiff_CXXFLAGS = $(AM_CXXFLAGS)
 gdal_dem2rgb_SOURCES = gdal_dem2rgb.cc common.cc
 gdal_dem2rgb_CXXFLAGS = $(AM_CXXFLAGS)
 
-gdal_list_corners_SOURCES = gdal_list_corners.cc common.cc polygon.cc debugplot.cc geocode.cc
+gdal_list_corners_SOURCES = gdal_list_corners.cc common.cc polygon.cc debugplot.cc georef.cc
 gdal_list_corners_CXXFLAGS = $(AM_CXXFLAGS)
 
 gdal_contrast_stretch_SOURCES = gdal_contrast_stretch.cc common.cc
@@ -25,5 +25,5 @@ gdal_merge_simple_CXXFLAGS = $(AM_CXXFLAGS)
 gdal_merge_vrt_SOURCES = gdal_merge_vrt.cc common.cc
 gdal_merge_vrt_CXXFLAGS = $(AM_CXXFLAGS)
 
-noinst_HEADERS = common.h polygon.h debugplot.h geocode.h
+noinst_HEADERS = common.h polygon.h debugplot.h georef.h
 EXTRA_DIST = dem.pal test2.sh testcase.tif testcase2.tif
