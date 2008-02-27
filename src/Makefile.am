@@ -2,7 +2,7 @@ AM_CFLAGS = -Wall -g -O3 @GDAL_CFLAGS@
 AM_CXXFLAGS = -Wall -g -O3 @GDAL_CFLAGS@
 LIBS = @GDAL_LIBS@
 
-bin_PROGRAMS = gdal_raw2geotiff gdal_dem2rgb gdal_list_corners gdal_contrast_stretch gdal_landsat_pansharp gdal_merge_simple gdal_merge_vrt
+bin_PROGRAMS = gdal_raw2geotiff gdal_dem2rgb gdal_list_corners gdal_trace_outline gdal_contrast_stretch gdal_landsat_pansharp gdal_merge_simple gdal_merge_vrt
 
 gdal_raw2geotiff_SOURCES = gdal_raw2geotiff.cc common.cc
 gdal_raw2geotiff_CXXFLAGS = $(AM_CXXFLAGS)
@@ -12,6 +12,9 @@ gdal_dem2rgb_CXXFLAGS = $(AM_CXXFLAGS)
 
 gdal_list_corners_SOURCES = gdal_list_corners.cc common.cc polygon.cc debugplot.cc georef.cc mask.cc
 gdal_list_corners_CXXFLAGS = $(AM_CXXFLAGS)
+
+gdal_trace_outline_SOURCES = gdal_trace_outline.cc common.cc polygon.cc debugplot.cc georef.cc mask.cc
+gdal_trace_outline_CXXFLAGS = $(AM_CXXFLAGS)
 
 gdal_contrast_stretch_SOURCES = gdal_contrast_stretch.cc common.cc
 gdal_contrast_stretch_CXXFLAGS = $(AM_CXXFLAGS)
