@@ -33,15 +33,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 int VERBOSE = 0;
 
 void usage(char *cmdname) {
-	fprintf(stderr, "Usage:\n  %s image_name [options]\n", cmdname);
+	fprintf(stderr, "Usage:\n  %s [options] [image_name]\n", cmdname);
+	fprintf(stderr, "\n");
+	
+	print_georef_usage(stderr);
+
 	fprintf(stderr, "\
-\n\
-Geocoding: \n\
-  -s_srs 's_srs'                  Set or override source SRS \n\
-  -ll_en left_east lower_north    Set or override lower-left coordinate \n\
-  -ul_en left_east lower_north    Set or override upper-left coordinate (don't use both ll_en and ul_en)\n\
-  -wh width height                Set or override image size \n\
-  -res res_x res_y                Set or override resolution \n\
 \n\
 Inspection: \n\
   -inspect-rect4                  Attempt to find 4-sided bounding polygon  \n\
@@ -106,6 +103,8 @@ int main(int argc, char **argv) {
 	int skip_erosion = 0;
 
 	int i, j;
+
+	if(argc == 1) usage(argv[0]);
 
 	geo_opts_t geo_opts = init_geo_options(&argc, &argv);
 

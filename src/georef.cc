@@ -29,6 +29,17 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 void usage(char *cmdname); // externally defined
 
+void print_georef_usage(FILE *fh) {
+	fprintf(fh, "\
+Geocoding: \n\
+  -s_srs 's_srs'                  Set or override source SRS \n\
+  -ll_en left_east lower_north    Set or override lower-left coordinate \n\
+  -ul_en left_east lower_north    Set or override upper-left coordinate (don't use both ll_en and ul_en)\n\
+  -wh width height                Set or override image size \n\
+  -res res_x res_y                Set or override resolution \n\
+");
+}
+
 void _add_arg_to_list(int *argc_ptr, char ***argv_ptr, char *new_arg) {
 	*argv_ptr= (char **)realloc_or_die(*argv_ptr, sizeof(char *) * (*argc_ptr+1));
 	(*argv_ptr)[*argc_ptr] = new_arg;

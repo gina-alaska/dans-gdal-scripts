@@ -47,6 +47,7 @@ typedef struct {
 	double *inv_affine;
 } georef_t;
 
+void print_georef_usage(FILE *fh);
 geo_opts_t init_geo_options(int *argc_ptr, char ***argv_ptr);
 georef_t init_georef(geo_opts_t *opt, GDALDatasetH ds);
 
