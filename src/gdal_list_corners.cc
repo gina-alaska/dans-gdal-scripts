@@ -184,7 +184,7 @@ int main(int argc, char **argv) {
 	}
 
 	if(georef.s_srs && strlen(georef.s_srs)) {
-		printf("georef.s_srs: '%s'\n", georef.s_srs);
+		printf("s_srs: '%s'\n", georef.s_srs);
 	}
 	if(georef.res_x && georef.res_y) printf("res: %.15f %.15f\n", georef.res_x, georef.res_y);
 	if(georef.fwd_affine) {

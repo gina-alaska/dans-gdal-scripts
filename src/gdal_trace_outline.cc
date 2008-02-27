@@ -30,6 +30,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "georef.h"
 #include "mask.h"
 
+#define CS_UNKNOWN 0
+#define CS_XY 1
+#define CS_EN 2
+#define CS_LL 3
+
 int VERBOSE = 0;
 
 void usage(char *cmdname) {
@@ -40,22 +45,24 @@ void usage(char *cmdname) {
 
 	fprintf(stderr, "\
 \n\
-Inspection: \n\
+Behavior: \n\
   -nodataval 'val [val ...]'      Specify value of no-data pixels \n\
   -ndv-toler val                  Tolerance for deciding if a pixel matches nodataval \n\
   -b band_id -b band_id ...       Bands to inspect (default is all bands) \n\
   -skip-erosion                   Don't use erosion filter \n\
-  -major-ring                     Output only the biggest outer ring \n\
-  -no-donuts                      Output only top-level rings \n\
+  -major-ring                     Take only the biggest outer ring \n\
+  -no-donuts                      Take only top-level rings \n\
   -min-ring-area val              Drop rings with less than this area (in square pixels) \n\
   -dp-toler val                   Tolerance for point reduction (in pixel units) \n\
                                       default is 2 pixels\n\
+\n\
+Output: \n\
   -report fn.ppm                  Output graphical report of bounds found \n\
-  -wkt-xy fn.wkt                  Output bounds in WKT format (x/y coords) \n\
-  -wkt-en fn.wkt                  Output bounds in WKT format (east/north coords) \n\
-  -wkt-ll fn.wkt                  Output bounds in WKT format (lat/lon coords) \n\
-  -wkt-split-polys                Output several polygons rather than one multipolygon\n\
   -mask-out fn.pbm                Output mask of bounding polygon in PBM format \n\
+  -out-cs [xy | en | ll]          Coordinate system for output \n\
+                                      (pixel coords, easting/northing, or lon/lat)\n\
+  -wkt fn.wkt                     Output bounds in WKT format\n\
+  -wkt-split-polys                Output several polygons rather than one multipolygon\n\
 \n\
 Misc: \n\
   -v                              Verbose\n\
@@ -83,17 +90,14 @@ int main(int argc, char **argv) {
 	int inspect_numbands = 0;
 	int *inspect_bandids = NULL;
 	int split_polys = 0;
-	char *wkt_xy_fn = NULL;
-	char *wkt_en_fn = NULL;
-	char *wkt_ll_fn = NULL;
+	int out_cs = CS_UNKNOWN;
+	char *wkt_fn = NULL;
 	char *mask_out_fn = NULL;
 	int major_ring_only = 0;
 	int no_donuts = 0;
 	double min_ring_area = 0;
 	double reduction_tolerance = 2;
 	int skip_erosion = 0;
-
-	int i, j;
 
 	if(argc == 1) usage(argv[0]);
 
@@ -125,15 +129,16 @@ int main(int argc, char **argv) {
 				skip_erosion++;
 			} else if(!strcmp(arg, "-wkt-split-polys")) {
 				split_polys++;
-			} else if(!strcmp(arg, "-wkt-xy")) {
+			} else if(!strcmp(arg, "-wkt")) {
 				if(argp == argc) usage(argv[0]);
-				wkt_xy_fn = argv[argp++];
-			} else if(!strcmp(arg, "-wkt-en")) {
+				wkt_fn = argv[argp++];
+			} else if(!strcmp(arg, "-out-cs")) {
 				if(argp == argc) usage(argv[0]);
-				wkt_en_fn = argv[argp++];
-			} else if(!strcmp(arg, "-wkt-ll")) {
-				if(argp == argc) usage(argv[0]);
-				wkt_ll_fn = argv[argp++];
+				char *cs = argv[argp++];
+				if(!strcmp(cs, "xy")) out_cs = CS_XY;
+				else if(!strcmp(cs, "en")) out_cs = CS_EN;
+				else if(!strcmp(cs, "ll")) out_cs = CS_LL;
+				else fatal_error("unrecognized value for -out-cs option");
 			} else if(!strcmp(arg, "-mask-out")) {
 				if(argp == argc) usage(argv[0]);
 				mask_out_fn = argv[argp++];
@@ -165,7 +170,9 @@ int main(int argc, char **argv) {
 
 	if(!input_raster_fn) fatal_error("must specify filename of image");
 
-	int do_wkt_output = wkt_xy_fn || wkt_en_fn || wkt_ll_fn;
+	int do_wkt_output = wkt_fn ? 1 : 0;
+	if(do_wkt_output && (out_cs == CS_UNKNOWN)) 
+		fatal_error("must specify output coordinate system with -out-cs option");
 
 	if(major_ring_only && min_ring_area) fatal_error(
 		"-major-ring and -min-ring-area options cannot both be used at the same time");
@@ -174,26 +181,23 @@ int main(int argc, char **argv) {
 
 	GDALAllRegister();
 
-	GDALDatasetH ds = NULL;
-	if(input_raster_fn) {
-		ds = GDALOpen(input_raster_fn, GA_ReadOnly);
-		if(!ds) fatal_error("open failed");
-	}
+	GDALDatasetH ds = GDALOpen(input_raster_fn, GA_ReadOnly);
+	if(!ds) fatal_error("open failed");
 
 	if(!inspect_numbands) {
 		inspect_numbands = GDALGetRasterCount(ds);
 		inspect_bandids = (int *)malloc_or_die(sizeof(int)*inspect_numbands);
+		int i;
 		for(i=0; i<inspect_numbands; i++) inspect_bandids[i] = i+1;
 	}
 	setup_ndv_list(ds, inspect_numbands, inspect_bandids, &num_ndv, &ndv_list);
 
 	CPLPushErrorHandler(CPLQuietErrorHandler);
 
-	// FIXME - use blank georef if projection not requested
 	georef_t georef = init_georef(&geo_opts, ds);
 
-	if((wkt_en_fn || wkt_ll_fn) && !georef.fwd_affine) fatal_error("missing affine transform");
-	if(wkt_ll_fn && !georef.fwd_xform) fatal_error("missing coordinate transform");
+	if((out_cs == CS_EN || out_cs == CS_LL) && !georef.fwd_affine) fatal_error("missing affine transform");
+	if((out_cs == CS_LL) && !georef.fwd_xform) fatal_error("missing coordinate transform");
 
 	report_image_t *dbuf = NULL;
 	if(debug_report) {
@@ -215,44 +219,44 @@ int main(int argc, char **argv) {
 	if(bpoly->num_rings == 0) bpoly = 0;
 
 	if(mask_out_fn) {
-		if(!bpoly) fatal_error("missing bound polygon");
 		mask_from_mpoly(bpoly, georef.w, georef.h, mask_out_fn);
 	}
 
-	if(bpoly && reduction_tolerance > 0) {
+	if(reduction_tolerance > 0) {
 		*bpoly = compute_reduced_pointset(bpoly, reduction_tolerance);
 	}
 
+	int num_outer=0, num_inner=0, total_pts=0;
+	int r_idx;
+	for(r_idx=0; r_idx<bpoly->num_rings; r_idx++) {
+		if(bpoly->rings[r_idx].is_hole) num_inner++;
+		else num_outer++;
+		total_pts += bpoly->rings[r_idx].npts;
+	}
+	fprintf(stderr, "Found %d outer rings and %d holes with a total of %d vertices.\n",
+		num_outer, num_inner, total_pts);
+
 	if(dbuf && dbuf->mode == PLOT_CONTOURS) {
-		if(!bpoly) fatal_error("missing bound polygon");
 		debug_plot_rings(bpoly, dbuf);
 	}
 
 	if(do_wkt_output) {
-		if(!bpoly) fatal_error("missing bound polygon");
+		mpoly_t *proj_poly;
 
-		int num_outer=0, num_inner=0, total_pts=0;
-		for(i=0; i<bpoly->num_rings; i++) {
-			if(bpoly->rings[i].is_hole) num_inner++;
-			else num_outer++;
-			total_pts += bpoly->rings[i].npts;
-		}
-		fprintf(stderr, "Found %d outer rings and %d holes with a total of %d vertices.\n", num_outer, num_inner, total_pts);
-
-		if(wkt_xy_fn) output_wkt_mpoly(wkt_xy_fn, *bpoly, split_polys);
-
-		if(wkt_en_fn) {
+		if(out_cs == CS_XY) {
+			proj_poly = bpoly;
+		} else if(out_cs == CS_EN) {
 			if(!georef.fwd_affine) fatal_error("missing affine transform");
-			mpoly_t *en_poly = mpoly_xy2en(&georef, bpoly);
-			output_wkt_mpoly(wkt_en_fn, *en_poly, split_polys);
-		}
-
-		if(wkt_ll_fn) {
+			proj_poly = mpoly_xy2en(&georef, bpoly);
+		} else if(out_cs == CS_LL) {
 			if(!georef.fwd_affine) fatal_error("missing affine transform");
 			if(!georef.fwd_xform) fatal_error("missing coordinate transform");
-			mpoly_t *ll_poly = mpoly_xy2ll_with_interp(&georef, bpoly, .2); // FIXME - configurable tolerance
-			output_wkt_mpoly(wkt_ll_fn, *ll_poly, split_polys);
+			proj_poly = mpoly_xy2ll_with_interp(&georef, bpoly, .2); // FIXME - configurable tolerance
+		} else {
+			fatal_error("bad val for out_cs");
 		}
+
+		output_wkt_mpoly(wkt_fn, *proj_poly, split_polys);
 	}
 
 	if(dbuf) write_plot(dbuf, debug_report);
