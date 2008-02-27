@@ -72,7 +72,96 @@ char segs_cross(ring_t *c1, segment_t *s1, ring_t *c2, segment_t *s2);
 
 extern int VERBOSE;
 
-void output_wkt_mpoly(char *wkt_fn, mpoly_t mpoly, int split_polys) {
+ring_t duplicate_ring(ring_t *in_ring) {
+	ring_t out_ring = *in_ring; // copy metadata
+	out_ring.pts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * out_ring.npts);
+	memcpy(out_ring.pts, in_ring->pts, sizeof(vertex_t) * out_ring.npts);
+	return out_ring;
+}
+
+void free_ring(ring_t *ring) {
+	free(ring->pts);
+}
+
+void insert_point_into_ring(ring_t *ring, int idx) {
+	if(idx<0 || idx>ring->npts) fatal_error("idx out of range in insert_point_into_ring");
+	ring->pts = (vertex_t *)realloc_or_die(ring->pts, sizeof(vertex_t) * (ring->npts+1));
+	memmove(ring->pts + idx + 1, ring->pts + idx, sizeof(vertex_t) * (ring->npts - idx));
+	ring->npts++;
+}
+
+OGRGeometryH ring_to_ogr(ring_t *ring) {
+	OGRGeometryH r_out = OGR_G_CreateGeometry(wkbLinearRing);
+	int i;
+	for(i=0; i<ring->npts+1; i++) {
+		int j_in = i==ring->npts ? 0 : i;
+		OGR_G_AddPoint_2D(r_out, ring->pts[j_in].x, ring->pts[j_in].y);
+	}
+	return r_out;
+}
+
+OGRGeometryH mpoly_to_ogr(mpoly_t *mpoly_in) {
+	int num_rings_in = mpoly_in->num_rings;
+
+	int outer_idx;
+	int num_geom_out = 0;
+	for(outer_idx=0; outer_idx<num_rings_in; outer_idx++) {
+		ring_t *ring = mpoly_in->rings + outer_idx;
+		if(!ring->is_hole) num_geom_out++;
+	}
+
+	OGRGeometryH mpoly_out = OGR_G_CreateGeometry(wkbMultiPolygon);
+	for(outer_idx=0; outer_idx<num_rings_in; outer_idx++) {
+		ring_t *ring = mpoly_in->rings + outer_idx;
+		if(ring->is_hole) continue;
+
+		int inner_idx;
+		int num_holes = 0;
+		for(inner_idx=0; inner_idx<num_rings_in; inner_idx++) {
+			ring_t *hole = mpoly_in->rings + inner_idx;
+			if(hole->parent_id == outer_idx) num_holes++;
+		}
+
+		OGRGeometryH poly_out = OGR_G_CreateGeometry(wkbPolygon);
+		OGR_G_AddGeometry(poly_out, ring_to_ogr(ring));
+
+		for(inner_idx=0; inner_idx<num_rings_in; inner_idx++) {
+			ring_t *hole = mpoly_in->rings + inner_idx;
+			if(hole->parent_id != outer_idx) continue;
+			OGR_G_AddGeometry(poly_out, ring_to_ogr(hole));
+		}
+
+		if(OGR_G_GetGeometryCount(poly_out) != num_holes+1) {
+			fatal_error("GeometryCount != num_holes+1 (%d vs. %d)", 
+				OGR_G_GetGeometryCount(poly_out), num_holes+1);
+		}
+
+		OGR_G_AddGeometry(mpoly_out, poly_out);
+	}
+
+	if(OGR_G_GetGeometryCount(mpoly_out) != num_geom_out) {
+		fatal_error("GeometryCount != num_geom_out (%d vs. %d)",
+			OGR_G_GetGeometryCount(mpoly_out), num_geom_out);
+	}
+
+	return mpoly_out;
+}
+
+void write_mpoly_wkt(char *wkt_fn, mpoly_t *mpoly, int split_polys) {
+	if(split_polys) fatal_error("split_polys not implemented"); // FIXME
+
+	OGRGeometryH ogr_poly = mpoly_to_ogr(mpoly);
+	char *wkt_out;
+	OGR_G_ExportToWkt(ogr_poly, &wkt_out);
+
+	FILE *fout = fopen(wkt_fn, "w");
+	if(!fout) fatal_error("cannot open output file for WKT");
+	fprintf(fout, "%s", wkt_out);
+	fclose(fout);
+}
+
+/*
+void write_mpoly_wkt(char *wkt_fn, mpoly_t mpoly, int split_polys) {
 	int num_rings = mpoly.num_rings;
 	ring_t *rings = mpoly.rings;
 
@@ -128,6 +217,7 @@ void output_wkt_mpoly(char *wkt_fn, mpoly_t mpoly, int split_polys) {
 
 	fclose(fout);
 }
+*/
 
 mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance) {
 	if(VERBOSE) fprintf(stderr, "reducing...\n");
@@ -889,24 +979,6 @@ void bevel_self_intersections(mpoly_t *mp) {
 	}
 
 	free(table);
-}
-
-ring_t duplicate_ring(ring_t *in_ring) {
-	ring_t out_ring = *in_ring; // copy metadata
-	out_ring.pts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * out_ring.npts);
-	memcpy(out_ring.pts, in_ring->pts, sizeof(vertex_t) * out_ring.npts);
-	return out_ring;
-}
-
-void free_ring(ring_t *ring) {
-	free(ring->pts);
-}
-
-void insert_point_into_ring(ring_t *ring, int idx) {
-	if(idx<0 || idx>ring->npts) fatal_error("idx out of range in insert_point_into_ring");
-	ring->pts = (vertex_t *)realloc_or_die(ring->pts, sizeof(vertex_t) * (ring->npts+1));
-	memmove(ring->pts + idx + 1, ring->pts + idx, sizeof(vertex_t) * (ring->npts - idx));
-	ring->npts++;
 }
 
 mpoly_t *mpoly_xy2en(georef_t *georef, mpoly_t *xy_poly) {

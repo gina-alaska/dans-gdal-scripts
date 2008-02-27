@@ -256,7 +256,7 @@ int main(int argc, char **argv) {
 			fatal_error("bad val for out_cs");
 		}
 
-		output_wkt_mpoly(wkt_fn, *proj_poly, split_polys);
+		write_mpoly_wkt(wkt_fn, proj_poly, split_polys);
 	}
 
 	if(dbuf) write_plot(dbuf, debug_report);

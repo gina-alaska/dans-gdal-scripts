@@ -26,8 +26,17 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <common.h>
 
-void fatal_error(char *s) {
-	fprintf(stderr, "error: %s\n", s);
+void fatal_error(const char *fmt, ...) {
+	va_list argp;
+	
+	fprintf(stderr, "\n\nerror:\n");
+	
+	va_start(argp, fmt);
+	vfprintf(stderr, fmt, argp);
+	va_end(argp);
+
+	fprintf(stderr, "\n\n");
+
 	exit(1);
 }
 
