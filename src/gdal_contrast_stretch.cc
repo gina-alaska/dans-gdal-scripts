@@ -247,10 +247,10 @@ int main(int argc, char *argv[]) {
 			int bsize_x = blocksize_x;
 			if(bsize_x + boff_x > w) bsize_x = w - boff_x;
 
-			double progress = (double)(
-				(long)boff_y * (long)w +
-				(long)(boff_x+bsize_x) * (long)bsize_y) /
-				(double)((long)w * (long)h);
+			double progress = 
+				((double)boff_y * (double)w +
+				(double)boff_x * (double)bsize_y) /
+				((double)w * (double)h);
 			GDALTermProgress(progress, NULL, NULL);
 
 			for(band_idx=0; band_idx<band_count; band_idx++) {

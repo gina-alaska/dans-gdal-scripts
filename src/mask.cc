@@ -44,7 +44,6 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 	for(i=0; i<mask_rowlen*h; i++) mask[i] = 0;
 
 	int bandlist_idx;
-	int last_progress = 0;
 	for(bandlist_idx=0; bandlist_idx<bandlist_size; bandlist_idx++) {
 		int band_idx = bandlist[bandlist_idx];
 		if(band_idx < 1 || band_idx > band_count) fatal_error("bandid out of range");
@@ -59,6 +58,8 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 		if(VERBOSE) printf("band %d: block size = %d,%d  nodataval = %.15f\n",
 			band_idx, blocksize_x, blocksize_y, nodataval);
 
+		GDALTermProgress(0, "Reading", NULL);
+
 		double *buf = (double *)malloc_or_die(blocksize_x*blocksize_y*sizeof(double));
 		int boff_x, boff_y;
 		for(boff_y=0; boff_y<h; boff_y+=blocksize_y) {
@@ -67,6 +68,13 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 			for(boff_x=0; boff_x<w; boff_x+=blocksize_x) {
 				int bsize_x = blocksize_x;
 				if(bsize_x + boff_x > w) bsize_x = w - boff_x;
+
+				double progress = 
+					((double)bandlist_idx * (double)w * (double)h +
+					(double)boff_y * (double)w +
+					(double)boff_x * (double)bsize_y) /
+					((double)bandlist_size * (double)w * (double)h);
+				GDALTermProgress(progress, "Reading", NULL);
 
 				GDALRasterIO(band, GF_Read, boff_x, boff_y, bsize_x, bsize_y, 
 					buf, bsize_x, bsize_y, GDT_Float64, 0, 0);
@@ -106,23 +114,13 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 						}
 					}
 				}
-
-				int progress = (int)(100L * (
-					(long)(bandlist_idx) * (long)w * (long)h +
-					(long)boff_y * (long)w +
-					(long)(boff_x+bsize_x) * (long)bsize_y) /
-					((long)bandlist_size * (long)w * (long)h));
-				if(progress != last_progress) {
-					printf("reading: %d%%\r", progress);
-					fflush(stderr);
-					last_progress = progress;
-				}
 			}
 		}
 
 		free(buf);
 	}
-	printf("\n");
+
+	GDALTermProgress(1, "Reading", NULL);
 
 	return mask;
 }
