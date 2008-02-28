@@ -41,6 +41,7 @@ typedef struct {
 	char *s_srs;
 	double res_x, res_y; // zero if there is rotation
 	int w, h;
+	OGRSpatialReferenceH spatial_ref;
 	OGRCoordinateTransformationH fwd_xform;
 	OGRCoordinateTransformationH inv_xform;
 	double *fwd_affine;

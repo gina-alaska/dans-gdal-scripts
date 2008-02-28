@@ -984,10 +984,10 @@ mpoly_t *mpoly_xy2en(georef_t *georef, mpoly_t *xy_poly) {
 		for(v_idx=0; v_idx<en_ring->npts; v_idx++) {
 			double x = xy_ring->pts[v_idx].x;
 			double y = xy_ring->pts[v_idx].y;
-			double lon, lat;
-			en2ll(georef, x, y, &lon, &lat);
-			en_ring->pts[v_idx].x = lon;
-			en_ring->pts[v_idx].y = lat;
+			double east, north;
+			xy2en(georef, x, y, &east, &north);
+			en_ring->pts[v_idx].x = east;
+			en_ring->pts[v_idx].y = north;
 		}
 	}
 

@@ -186,6 +186,12 @@ unsigned char *erode_mask(unsigned char *in_mask, int w, int h) {
 	return out_mask;
 }
 
+void invert_mask(unsigned char *mask, int w, int h) {
+	int mask_rowlen = (w+7)/8;
+	int i;
+	for(i=0; i<mask_rowlen*h; i++) mask[i] ^= 0xff;
+}
+
 vertex_t calc_centroid_from_mask(unsigned char *mask, int w, int h) {
 	int mask_rowlen = (w+7)/8;
 

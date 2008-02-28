@@ -47,38 +47,40 @@ void usage(char *cmdname) {
 
 	fprintf(stderr, "\
 \n\
-Behavior: \n\
-  -nodataval 'val [val ...]'      Specify value of no-data pixels \n\
-  -ndv-toler val                  Tolerance for deciding if a pixel matches nodataval \n\
-  -b band_id -b band_id ...       Bands to inspect (default is all bands) \n\
-  -skip-erosion                   Don't use erosion filter \n\
-  -major-ring                     Take only the biggest outer ring \n\
-  -no-donuts                      Take only top-level rings \n\
-  -min-ring-area val              Drop rings with less than this area (in square pixels) \n\
-  -dp-toler val                   Tolerance for point reduction (in pixel units) \n\
+Behavior:\n\
+  -nodataval 'val [val ...]'      Specify value of no-data pixels\n\
+  -ndv-toler val                  Tolerance for deciding if a pixel matches nodataval\n\
+  -b band_id -b band_id ...       Bands to inspect (default is all bands)\n\
+  -invert                         Trace no-data pixels rather than data pixels\n\
+  -erosion                        Erode pixels that don't have two consecutive neighbors\n\
+  -major-ring                     Take only the biggest outer ring\n\
+  -no-donuts                      Take only top-level rings\n\
+  -min-ring-area val              Drop rings with less than this area (in square pixels)\n\
+  -dp-toler val                   Tolerance for point reduction (in pixel units)\n\
                                       default is 2 pixels\n\
 \n\
-Output: \n\
-  -report fn.ppm                  Output graphical report of bounds found \n\
-  -mask-out fn.pbm                Output mask of bounding polygon in PBM format \n\
-  -out-cs [xy | en | ll]          Coordinate system for output \n\
+Output:\n\
+  -report fn.ppm                  Output graphical report of bounds found\n\
+  -mask-out fn.pbm                Output mask of bounding polygon in PBM format\n\
+  -out-cs [xy | en | ll]          Coordinate system for output\n\
                                       (pixel coords, easting/northing, or lon/lat)\n\
   -wkt-out fn.wkt                 Output bounds in WKT format\n\
   -ogr-out fn.shp                 Output bounds using an OGR format\n\
   -ogr-fmt                        OGR format to use (default is 'ESRI Shapefile')\n\
   -split-polys                    Output several polygons rather than one multipolygon\n\
 \n\
-Misc: \n\
+Misc:\n\
   -v                              Verbose\n\
 \n\
 Examples:\n\
   Inspect image and output contour of data region:\n\
-    gdal_trace_outline raster.tif -inspect-contour -nodataval 0 -wkt-ll outline.wkt > geocode.yaml \n\
+    gdal_trace_outline raster.tif -nodataval 0 -erosion -out-cs ll -wkt-out outline.wkt\n\
   Same as above but polygon actually follows border pixel-by-pixel:\n\
-    gdal_trace_outline raster.tif -inspect-contour -nodataval 0 -dp-toler 0 -wkt-ll outline.wkt > geocode.yaml \n\
+    gdal_trace_outline raster.tif -nodataval 0 -dp-toler 0 -out-cs ll -wkt-out outline.wkt\n\
+  Output ESRI Shapefile in projection of input image:\n\
+    gdal_trace_outline raster.tif -nodataval 0 -erosion -out-cs en -ogr-out outline.shp\n\
 \n\
 ");
-	// FIXME - update examples
 	exit(1);
 }
 
@@ -104,7 +106,8 @@ int main(int argc, char **argv) {
 	int no_donuts = 0;
 	double min_ring_area = 0;
 	double reduction_tolerance = 2;
-	int skip_erosion = 0;
+	int do_erosion = 0;
+	int do_invert = 0;
 
 	if(argc == 1) usage(argv[0]);
 
@@ -132,8 +135,10 @@ int main(int argc, char **argv) {
 				inspect_bandids = (int *)realloc_or_die(inspect_bandids,
 					sizeof(int)*(inspect_numbands+1));
 				inspect_bandids[inspect_numbands++] = bandid;
-			} else if(!strcmp(arg, "-skip-erosion")) {
-				skip_erosion++;
+			} else if(!strcmp(arg, "-erosion")) {
+				do_erosion = 1;
+			} else if(!strcmp(arg, "-invert")) {
+				do_invert = 1;
 			} else if(!strcmp(arg, "-split-polys")) {
 				split_polys++;
 			} else if(!strcmp(arg, "-wkt-out")) {
@@ -221,7 +226,11 @@ int main(int argc, char **argv) {
 	unsigned char *mask = get_mask_for_dataset(ds, inspect_numbands, inspect_bandids,
 		num_ndv, ndv_list, ndv_tolerance, dbuf);
 
-	if(!skip_erosion) {
+	if(do_invert) {
+		invert_mask(mask, georef.w, georef.h);
+	}
+
+	if(do_erosion) {
 		unsigned char *eroded_mask = erode_mask(mask, georef.w, georef.h);
 		free(mask);
 		mask = eroded_mask;
@@ -268,8 +277,18 @@ int main(int argc, char **argv) {
 		if(!ogr_driver) fatal_error("cannot get OGR driver");
 		ogr_ds = OGR_Dr_CreateDataSource(ogr_driver, ogr_fn, NULL);
 		if(!ogr_ds) fatal_error("cannot create OGR data source");
+
 		char *layer_name = ogr_fn;
-		ogr_layer = OGR_DS_CreateLayer(ogr_ds, layer_name, NULL, wkbMultiPolygon, NULL);
+
+		OGRSpatialReferenceH sref = NULL;
+		if(out_cs == CS_EN) {
+			sref = georef.spatial_ref;
+		} else if(out_cs == CS_LL) {
+			sref = OSRNewSpatialReference(NULL);
+			OSRImportFromProj4(sref, "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs");
+		}
+
+		ogr_layer = OGR_DS_CreateLayer(ogr_ds, layer_name, sref, wkbMultiPolygon, NULL);
 		if(!ogr_layer) fatal_error("cannot create OGR layer");
 	}
 

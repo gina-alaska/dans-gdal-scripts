@@ -123,31 +123,34 @@ georef_t init_georef(geo_opts_t *opt, GDALDatasetH ds) {
 		opt->w && opt->h && opt->res_x && opt->res_y)) fatal_error("not enough information to determine geolocation");
 
 	georef_t georef;
-	georef.fwd_xform = NULL;
-	georef.fwd_affine = NULL;
 
-	OGRSpatialReferenceH p1 = NULL;
 	if(opt->s_srs) {
-		p1 = OSRNewSpatialReference(NULL);
-		if(OSRImportFromProj4(p1, opt->s_srs) != OGRERR_NONE) fatal_error("cannot parse proj4 definition");
+		georef.spatial_ref = OSRNewSpatialReference(NULL);
+		if(OSRImportFromProj4(georef.spatial_ref, opt->s_srs)
+			!= OGRERR_NONE) fatal_error("cannot parse proj4 definition");
 	} else if(ds) {
 		const char *wkt = GDALGetProjectionRef(ds);
 		if(wkt && strlen(wkt)) {
 			//if(VERBOSE) fprintf(stderr, "%s\n", wkt);
-			p1 = OSRNewSpatialReference(wkt);
+			georef.spatial_ref = OSRNewSpatialReference(wkt);
 		}
 	}
 
-	if(p1) {
+	if(georef.spatial_ref) {
 		opt->s_srs = NULL;
-		OSRExportToProj4(p1, &opt->s_srs);
+		OSRExportToProj4(georef.spatial_ref, &opt->s_srs);
 
 		OGRSpatialReferenceH p2 = OSRNewSpatialReference(NULL);
 		OSRImportFromProj4(p2, "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs");
 
-		georef.fwd_xform = OCTNewCoordinateTransformation(p1, p2);
-		georef.inv_xform = OCTNewCoordinateTransformation(p2, p1);
+		georef.fwd_xform = OCTNewCoordinateTransformation(georef.spatial_ref, p2);
+		georef.inv_xform = OCTNewCoordinateTransformation(p2, georef.spatial_ref);
+	} else {
+		georef.fwd_xform = NULL;
+		georef.inv_xform = NULL;
 	}
+
+	georef.s_srs = opt->s_srs;
 
 	if(ds) {
 		if(!opt->w) opt->w = GDALGetRasterXSize(ds);
@@ -157,6 +160,8 @@ georef_t init_georef(geo_opts_t *opt, GDALDatasetH ds) {
 
 	opt->res_x = fabs(opt->res_x);
 	opt->res_y = fabs(opt->res_y);
+
+	georef.fwd_affine = NULL;
 
 	if((opt->got_ul_en || opt->got_ll_en) && opt->res_x && opt->res_y) {
 		if(opt->got_ll_en) {
@@ -213,7 +218,6 @@ georef_t init_georef(geo_opts_t *opt, GDALDatasetH ds) {
 		}
 	}
 
-	georef.s_srs = opt->s_srs;
 	georef.res_x = opt->res_x;
 	georef.res_y = opt->res_y;
 	georef.w = opt->w;
