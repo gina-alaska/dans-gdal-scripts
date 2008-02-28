@@ -108,16 +108,6 @@ int main(int argc, char *argv[]) {
 			char **metadata = GDALGetMetadata(src_band, "vrt_sources");
 			GDALSetMetadata(dst_band, metadata, "new_vrt_sources");
 
-			/*
-			char xml[10000]; // FIXME - resize buffer
-			sprintf(xml,
-    			"<SimpleSource>"
-    			"  <SourceFilename>%s</SourceFilename>"
-    			"  <SourceBand>%d</SourceBand>"
-    			"</SimpleSource>",
-				src_fn[ds_idx], i+1);
-			GDALSetMetadataItem(dst_band, "source_0", xml, "new_vrt_sources");
-			*/
 			band_idx++;
 		}
 
