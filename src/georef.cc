@@ -124,6 +124,7 @@ georef_t init_georef(geo_opts_t *opt, GDALDatasetH ds) {
 
 	georef_t georef;
 
+	georef.spatial_ref = NULL;
 	if(opt->s_srs) {
 		georef.spatial_ref = OSRNewSpatialReference(NULL);
 		if(OSRImportFromProj4(georef.spatial_ref, opt->s_srs)
