@@ -38,20 +38,21 @@ void usage(char *cmdname) {
 
 	printf("\
 \n\
-Inspection: \n\
-  -inspect-rect4                  Attempt to find 4-sided bounding polygon  \n\
-  -nodataval 'val [val ...]'      Specify value of no-data pixels \n\
-  -ndv-toler val                  Tolerance for deciding if a pixel matches nodataval \n\
-  -b band_id -b band_id ...       Bands to inspect (default is all bands) \n\
-  -skip-erosion                   Don't use erosion filter \n\
-  -report fn.ppm                  Output graphical report of bounds found \n\
+Inspection:\n\
+  -inspect-rect4                  Attempt to find 4-sided bounding polygon\n\
+  -nodataval 'val [val ...]'      Specify value of no-data pixels\n\
+  -ndv-toler val                  Tolerance for deciding if a pixel\n\
+                                  matches nodataval\n\
+  -b band_id -b band_id ...       Bands to inspect (default is all bands)\n\
+  -skip-erosion                   Don't use erosion filter\n\
+  -report fn.ppm                  Output graphical report of bounds found\n\
 \n\
-Misc: \n\
+Misc:\n\
   -v                              Verbose\n\
 \n\
 Examples:\n\
   Output basic geocoding info:\n\
-    gdal_list_corners raster.tif > geocode.yaml \n\
+    gdal_list_corners raster.tif > geocode.yaml\n\
   Inspect image to find corners of actual data (arbitrary four-sided region):\n\
     gdal_list_corners raster.tif -inspect-rect4 -nodataval 0 > geocode.yaml\n\
 \n\
