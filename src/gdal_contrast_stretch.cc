@@ -36,12 +36,14 @@ void invert_histogram_to_gaussian(int *histogram_in, double variance,
 void copyGeoCode(GDALDatasetH dst_ds, GDALDatasetH src_ds);
 
 void usage(char *cmdname) {
-	fprintf(stderr, "Usage: %s <src.tif> <dst.tif>\n", cmdname);
-	fprintf(stderr, "  { { -linear-stretch <target_avg> <target_stddev> } |\n");
-	fprintf(stderr, "    { -percentile-range <from: 0.0-1.0> <to: 0.0-1.0> } |\n");
-	fprintf(stderr, "    { -histeq <target_stddev> } }\n");
-	fprintf(stderr, "  [ -ndv <no_data_val> ]\n");
-	fprintf(stderr, "Input must be either 8-bit or 16-bit.  Output is 8-bit.\n");
+	printf("Usage: %s <src.tif> <dst.tif>\n", cmdname);
+	printf("\
+  { { -linear-stretch <target_avg> <target_stddev> } |\n\
+    { -percentile-range <from: 0.0-1.0> <to: 0.0-1.0> } |\n\
+    { -histeq <target_stddev> } }\n\
+  [ -ndv <no_data_val> ]\n\
+Input must be either 8-bit or 16-bit.  Output is 8-bit.\n\
+");
 	exit(1);
 }
 
@@ -192,7 +194,7 @@ int main(int argc, char *argv[]) {
 					get_scale_from_percentile(histogram, input_range, output_range,
 						from_percentile, to_percentile, &scale, &offset);
 				}
-				fprintf(stderr, "scale=%f, offset=%f, src_range=[%f, %f]\n",
+				printf("scale=%f, offset=%f, src_range=[%f, %f]\n",
 					scale, offset, -offset/scale, ((double)(output_range-1)-offset)/scale);
 				for(i=0; i<input_range; i++) {
 					xform_table[band_idx][i] = (int)( (double)i * scale + offset );
@@ -337,7 +339,7 @@ void get_scale_from_stddev(
 	}
 	double src_stddev = sqrt(error_total / (double)num_pixels);
 
-	fprintf(stderr, "source: count=%d, avg=%f, std_dev=%f\n", num_pixels, src_avg, src_stddev);
+	printf("source: count=%d, avg=%f, std_dev=%f\n", num_pixels, src_avg, src_stddev);
 
 	*scale_out = src_stddev ? dst_stddev / src_stddev : 0;
 	*offset_out = dst_avg - src_avg * (*scale_out);

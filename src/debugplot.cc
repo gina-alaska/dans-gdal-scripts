@@ -100,7 +100,7 @@ unsigned char r, unsigned char g, unsigned char b) {
 }
 
 void debug_plot_rings(mpoly_t *mpoly, report_image_t *dbuf) {
-	if(VERBOSE) fprintf(stderr, "plotting...\n");
+	if(VERBOSE) printf("plotting...\n");
 
 	int i, j;
 	for(i=0; i<mpoly->num_rings; i++) {
@@ -111,7 +111,7 @@ void debug_plot_rings(mpoly_t *mpoly, report_image_t *dbuf) {
 		ring_t c = mpoly->rings[i];
 		if(c.is_hole) { r=255; g=0; b=0; }
 		else { r=255; g=255; b=0; }
-		if(VERBOSE) fprintf(stderr, "ring %d: %d pts color=%02x%02x%02x\n", i, c.npts, r, g, b);
+		if(VERBOSE) printf("ring %d: %d pts color=%02x%02x%02x\n", i, c.npts, r, g, b);
 		for(j=0; j<c.npts; j++) {
 			vertex_t p0 = c.pts[j];
 			vertex_t p1 = c.pts[(j+1)%c.npts];

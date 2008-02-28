@@ -40,50 +40,60 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 int VERBOSE = 0;
 
 void usage(char *cmdname) {
-	fprintf(stderr, "Usage:\n  %s [options] [image_name]\n", cmdname);
-	fprintf(stderr, "\n");
+	printf("Usage:\n  %s [options] [image_name]\n", cmdname);
+	printf("\n");
 	
-	print_georef_usage(stderr);
+	print_georef_usage();
 
-	fprintf(stderr, "\
+	printf("\
 \n\
 Behavior:\n\
   -nodataval 'val [val ...]'   Specify value of no-data pixels\n\
-  -ndv-toler val               Tolerance for deciding if a pixel matches nodataval\n\
+  -ndv-toler val               Tolerance for deciding if a pixel\n\
+                               matches nodataval\n\
   -b band_id -b band_id ...    Bands to inspect (default is all bands)\n\
   -invert                      Trace no-data pixels rather than data pixels\n\
-  -erosion                     Erode pixels that don't have two consecutive neighbors\n\
+  -erosion                     Erode pixels that don't have two consecutive\n\
+                               neighbors\n\
   -major-ring                  Take only the biggest outer ring\n\
   -no-donuts                   Take only top-level rings\n\
-  -min-ring-area val           Drop rings with less than this area (in square pixels)\n\
+  -min-ring-area val           Drop rings with less than this area\n\
+                               (in square pixels)\n\
   -dp-toler val                Tolerance for point reduction\n\
-                                   (in pixels, default is 2.0)\n\
-  -bevel-size                  How much to shave off corners at self-intersection points\n\
-                                   (in pixels, default it 0.1)\n\
-                                   (this is done to make geometries that PostGIS/GEOS/Jump can handle)\n\
+                               (in pixels, default is 2.0)\n\
+  -bevel-size                  How much to shave off corners at\n\
+                               self-intersection points\n\
+                               (in pixels, default it 0.1)\n\
+                               (this is done to make geometries that\n\
+                               PostGIS/GEOS/Jump can handle)\n\
 \n\
 Output:\n\
   -report fn.ppm               Output graphical report of bounds found\n\
   -mask-out fn.pbm             Output mask of bounding polygon in PBM format\n\
   -out-cs [xy | en | ll]       Coordinate system for output\n\
-                                   (pixel coords, easting/northing, or lon/lat)\n\
-  -llproj-toler val            Error tolerance for curved lines when using '-out-cs ll'\n\
-                                   (in pixels, default is 0.2)\n\
+                               (pixel coords, easting/northing, or lon/lat)\n\
+  -llproj-toler val            Error tolerance for curved lines when\n\
+                               using '-out-cs ll'\n\
+                               (in pixels, default is 0.2)\n\
   -wkt-out fn.wkt              Output bounds in WKT format\n\
   -ogr-out fn.shp              Output bounds using an OGR format\n\
   -ogr-fmt                     OGR format to use (default is 'ESRI Shapefile')\n\
-  -split-polys                 Output several polygons rather than one multipolygon\n\
+  -split-polys                 Output several polygons rather than one\n\
+                               multipolygon\n\
 \n\
 Misc:\n\
   -v                           Verbose\n\
 \n\
 Examples:\n\
-  Inspect image and output contour of data region:\n\
-    gdal_trace_outline raster.tif -nodataval 0 -erosion -out-cs ll -wkt-out outline.wkt\n\
-  Same as above but polygon actually follows border pixel-by-pixel:\n\
-    gdal_trace_outline raster.tif -nodataval 0 -dp-toler 0 -out-cs ll -wkt-out outline.wkt\n\
-  Output ESRI Shapefile in projection of input image:\n\
-    gdal_trace_outline raster.tif -nodataval 0 -erosion -out-cs en -ogr-out outline.shp\n\
+\n\
+Inspect image and output contour of data region:\n\
+gdal_trace_outline raster.tif -nodataval 0 -erosion -out-cs ll -wkt-out outline.wkt\n\
+\n\
+Same as above but polygon actually follows border pixel-by-pixel:\n\
+gdal_trace_outline raster.tif -nodataval 0 -dp-toler 0 -out-cs ll -wkt-out outline.wkt\n\
+\n\
+Output ESRI Shapefile in projection of input image:\n\
+gdal_trace_outline raster.tif -nodataval 0 -erosion -out-cs en -ogr-out outline.shp\n\
 \n\
 ");
 	exit(1);
@@ -186,6 +196,8 @@ int main(int argc, char **argv) {
 				char *endptr;
 				bevel_size = strtod(argv[argp++], &endptr);
 				if(*endptr) usage(argv[0]);
+				if(bevel_size < 0 || bevel_size > 1) fatal_error(
+					"-bevel-size must be between 0 and 1");
 			} else if(!strcmp(arg, "-llproj-toler")) {
 				if(argp == argc) usage(argv[0]);
 				char *endptr;
@@ -273,7 +285,7 @@ int main(int argc, char **argv) {
 		else num_outer++;
 		total_pts += bounds_poly->rings[r_idx].npts;
 	}
-	fprintf(stderr, "Found %d outer rings and %d holes with a total of %d vertices.\n",
+	printf("Found %d outer rings and %d holes with a total of %d vertices.\n",
 		num_outer, num_inner, total_pts);
 
 	if(dbuf && dbuf->mode == PLOT_CONTOURS) {
@@ -397,7 +409,7 @@ int create_descender_pair(int *num_descenders, descender_t **descenders, int y, 
 	d1->pts = (int *)malloc_or_die(sizeof(int) * max_pts);
 	d2->pts = (int *)malloc_or_die(sizeof(int) * max_pts);
 	(*num_descenders) += 2;
-	if(VERBOSE) fprintf(stderr, "num_descenders = %d (y=%d)\n", *num_descenders, y);
+	if(VERBOSE) printf("num_descenders = %d (y=%d)\n", *num_descenders, y);
 	return n;
 }
 
@@ -406,7 +418,7 @@ report_image_t *dbuf, int major_ring_only, int no_donuts,
 double min_ring_area, double bevel_size) {
 	int x, y;
 
-	fprintf(stderr, "finding rings: begin\n");
+	printf("finding rings: begin\n");
 
 	rowstat_t up_row, down_row;
 	down_row.num_transitions = 0; // prevent compiler warning;
@@ -455,20 +467,20 @@ double min_ring_area, double bevel_size) {
 				}
 				if(mask_right && !mask_left) {
 					down_row.openings[down_row.num_transitions] = x;
-					//if(VERBOSE) fprintf(stderr, "[%d,", x);
+					//if(VERBOSE) printf("[%d,", x);
 				}
 				if(mask_left && !mask_right) {
 					down_row.closings[down_row.num_transitions++] = x;
-					//if(VERBOSE) fprintf(stderr, "%d] ", x);
+					//if(VERBOSE) printf("%d] ", x);
 				}
 				mask_left = mask_right;
 			}
-			//if(VERBOSE) fprintf(stderr, "\n");
+			//if(VERBOSE) printf("\n");
 		}
 
 		int up_tid=0, down_tid=0;
 		while(up_tid < up_row.num_transitions || down_tid < down_row.num_transitions) {
-			//if(VERBOSE) fprintf(stderr, "%d/%d:[%d,%d]  %d/%d:[%d,%d]\n",
+			//if(VERBOSE) printf("%d/%d:[%d,%d]  %d/%d:[%d,%d]\n",
 			//	up_tid, up_row.num_transitions, up_row.openings[up_tid], up_row.closings[up_tid],
 			//	down_tid, down_row.num_transitions, down_row.openings[down_tid], down_row.closings[down_tid]);
 			if(
@@ -512,7 +524,7 @@ double min_ring_area, double bevel_size) {
 					plot_point(dbuf, down_row.openings[down_tid], y, 255, 255, 0);
 				}
 				int dl = up_row.descender_ids[up_tid*2];
-//if(VERBOSE) fprintf(stderr, "dl=%d\n", dl);
+//if(VERBOSE) printf("dl=%d\n", dl);
 				down_row.descender_ids[down_tid*2] = dl;
 				descenders[dl].pts[y-descenders[dl].top_y] = down_row.openings[down_tid];
 				for(;;) {
@@ -567,12 +579,12 @@ double min_ring_area, double bevel_size) {
 	int i;
 
 	if(VERBOSE) {
-		for(i=0; i<num_descenders; i++) fprintf(stderr, "%d: top_link=%d bottom_link=%d\n",
+		for(i=0; i<num_descenders; i++) printf("%d: top_link=%d bottom_link=%d\n",
 			i, descenders[i].top_linkage, descenders[i].bottom_linkage);
 	}
 
 	if(!num_descenders) {
-		fprintf(stderr, "image was completely blank - therefore there is no bounding polygon\n");
+		printf("image was completely blank - therefore there is no bounding polygon\n");
 		return (mpoly_t){ 0, NULL };
 	}
 
@@ -598,7 +610,7 @@ double min_ring_area, double bevel_size) {
 
 		int cur_d = start_d;
 		do {
-			if(VERBOSE) fprintf(stderr, "d:%d ", cur_d);
+			if(VERBOSE) printf("d:%d ", cur_d);
 			descender_t *d = descenders + cur_d;
 			if(used_desc[cur_d]) fatal_error("descender used twice");
 			used_desc[cur_d]++;
@@ -619,7 +631,7 @@ double min_ring_area, double bevel_size) {
 			cur_d = d->bottom_linkage;
 			if(cur_d < 0) fatal_error("uninitialized val in descender linkage");
 
-			if(VERBOSE) fprintf(stderr, "u:%d ", cur_d);
+			if(VERBOSE) printf("u:%d ", cur_d);
 			d = descenders + cur_d;
 			if(used_desc[cur_d]) fatal_error("descender used twice");
 			used_desc[cur_d]++;
@@ -640,14 +652,14 @@ double min_ring_area, double bevel_size) {
 			cur_d = d->top_linkage;
 			if(cur_d < 0) fatal_error("uninitialized val in descender linkage");
 		} while(cur_d != start_d);
-		if(VERBOSE) fprintf(stderr, "\n");
+		if(VERBOSE) printf("\n");
 
-		if(VERBOSE) fprintf(stderr, "ring %d: %d pts\n", mp.num_rings, ring.npts);
+		if(VERBOSE) printf("ring %d: %d pts\n", mp.num_rings, ring.npts);
 
 		mp.rings = (ring_t *)realloc_or_die(mp.rings, sizeof(ring_t)*(mp.num_rings+1));
 		mp.rings[mp.num_rings++] = ring;
 	}
-	fprintf(stderr, "finding rings: end\n");
+	printf("finding rings: end\n");
 
 	if(bevel_size > 0) {
 		// the topology cannot be resolved by us or by geos/jump/postgis if
@@ -656,18 +668,18 @@ double min_ring_area, double bevel_size) {
 	}
 
 	if(min_ring_area > 0) {
-		if(VERBOSE) fprintf(stderr, "removing small rings...\n");
+		if(VERBOSE) printf("removing small rings...\n");
 
 		ring_t *filtered_rings = (ring_t *)malloc_or_die(sizeof(ring_t)*mp.num_rings);
 		int num_filtered_rings = 0;
 		for(i=0; i<mp.num_rings; i++) {
 			double area = polygon_area(mp.rings+i);
-			if(VERBOSE) if(area > 10) fprintf(stderr, "ring %d has area %.15f\n", i, area);
+			if(VERBOSE) if(area > 10) printf("ring %d has area %.15f\n", i, area);
 			if(area >= min_ring_area) {
 				filtered_rings[num_filtered_rings++] = mp.rings[i];
 			}
 		}
-		fprintf(stderr, "filtered by area %d => %d rings\n",
+		printf("filtered by area %d => %d rings\n",
 			mp.num_rings, num_filtered_rings);
 
 		mp.rings = filtered_rings;
@@ -684,15 +696,15 @@ double min_ring_area, double bevel_size) {
 				best_idx = i;
 			}
 		}
-		if(VERBOSE) fprintf(stderr, "major ring was %d with %d pts, %.1f area\n",
+		if(VERBOSE) printf("major ring was %d with %d pts, %.1f area\n",
 			best_idx, mp.rings[best_idx].npts, biggest_area);
 		mp.rings = mp.rings+best_idx;
 		mp.num_rings = 1;
 	}
 
-	//fprintf(stderr, "computing containments: begin\n");
+	//printf("computing containments: begin\n");
 	compute_containments(&mp);
-	//fprintf(stderr, "computing containments: end\n");
+	//printf("computing containments: end\n");
 
 	if(no_donuts) {
 		int out_idx = 0;
@@ -702,7 +714,7 @@ double min_ring_area, double bevel_size) {
 			}
 		}
 		mp.num_rings = out_idx;
-		if(VERBOSE) fprintf(stderr, "number of non-donut rings is %d", mp.num_rings);
+		if(VERBOSE) printf("number of non-donut rings is %d", mp.num_rings);
 	}
 
 	return mp;

@@ -33,12 +33,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 int VERBOSE = 0;
 
 void usage(char *cmdname) {
-	fprintf(stderr, "Usage:\n  %s [options] [image_name]\n", cmdname);
-	fprintf(stderr, "\n");
+	printf("Usage:\n  %s [options] [image_name]\n", cmdname);
+	printf("\n");
 	
-	print_georef_usage(stderr);
+	print_georef_usage();
 
-	fprintf(stderr, "\
+	printf("\
 \n\
 Inspection: \n\
   -inspect-rect4                  Attempt to find 4-sided bounding polygon  \n\
@@ -78,6 +78,14 @@ int main(int argc, char **argv) {
 	int i, j;
 
 	if(argc == 1) usage(argv[0]);
+
+	// We will be sending YAML to stdout, so stuff that would normally
+	// go to stdout (such as debug messages or progress bars) should
+	// go to stderr.
+	// See http://forums.devshed.com/c-programming-42/redirect-standard-error-and-assert-how-to-52650.html
+	FILE *yaml_fh = fdopen(dup(1), "w");
+	close(1);
+	dup2(2, 1);
 
 	geo_opts_t geo_opts = init_geo_options(&argc, &argv);
 
@@ -161,7 +169,7 @@ int main(int argc, char **argv) {
 
 	// output phase
 
-	printf("width: %d\nheight: %d\n", georef.w, georef.h);
+	fprintf(yaml_fh, "width: %d\nheight: %d\n", georef.w, georef.h);
 
 	if(ds) {
 		int band_count = GDALGetRasterCount(ds);
@@ -179,54 +187,54 @@ int main(int argc, char **argv) {
 				datatypes = dt;
 			}
 		}
-		printf("num_bands: %d\n", band_count);
-		printf("datatype: %s\n", datatypes);
+		fprintf(yaml_fh, "num_bands: %d\n", band_count);
+		fprintf(yaml_fh, "datatype: %s\n", datatypes);
 	}
 
 	if(georef.s_srs && strlen(georef.s_srs)) {
-		printf("s_srs: '%s'\n", georef.s_srs);
+		fprintf(yaml_fh, "s_srs: '%s'\n", georef.s_srs);
 	}
-	if(georef.res_x && georef.res_y) printf("res: %.15f %.15f\n", georef.res_x, georef.res_y);
+	if(georef.res_x && georef.res_y) fprintf(yaml_fh, "res: %.15f %.15f\n", georef.res_x, georef.res_y);
 	if(georef.fwd_affine) {
-		printf("affine:\n");
-		for(i=0; i<6; i++) printf("  - %.15f\n", georef.fwd_affine[i]);
+		fprintf(yaml_fh, "affine:\n");
+		for(i=0; i<6; i++) fprintf(yaml_fh, "  - %.15f\n", georef.fwd_affine[i]);
 	}
 
 	double lon, lat;
 	double east, north;
 
 	vertex_t center;
-	printf("center:\n");
+	fprintf(yaml_fh, "center:\n");
 	center = (vertex_t){ (double)georef.w/2.0, (double)georef.h/2.0 };
 	if(georef.fwd_xform && georef.fwd_affine) {
 		xy2ll(&georef, center.x, center.y, &lon, &lat);
-		printf("  lon: %.15f\n", lon);
-		printf("  lat: %.15f\n", lat);
+		fprintf(yaml_fh, "  lon: %.15f\n", lon);
+		fprintf(yaml_fh, "  lat: %.15f\n", lat);
 	}
 	if(georef.fwd_affine) {
 		xy2en(&georef, center.x, center.y, &east, &north);
-		printf("  east: %.15f\n", east);
-		printf("  north: %.15f\n", north);
+		fprintf(yaml_fh, "  east: %.15f\n", east);
+		fprintf(yaml_fh, "  north: %.15f\n", north);
 	}
-	printf("  x: %.15f\n", center.x);
-	printf("  y: %.15f\n", center.y);
+	fprintf(yaml_fh, "  x: %.15f\n", center.x);
+	fprintf(yaml_fh, "  y: %.15f\n", center.y);
 
 	if(do_inspect) {
 		vertex_t centroid;
-		printf("centroid:\n");
+		fprintf(yaml_fh, "centroid:\n");
 		centroid = calc_centroid_from_mask(mask, georef.w, georef.h);
 		if(georef.fwd_xform && georef.fwd_affine) {
 			xy2ll(&georef, centroid.x, centroid.y, &lon, &lat);
-			printf("  lon: %.15f\n", lon);
-			printf("  lat: %.15f\n", lat);
+			fprintf(yaml_fh, "  lon: %.15f\n", lon);
+			fprintf(yaml_fh, "  lat: %.15f\n", lat);
 		}
 		if(georef.fwd_affine) {
 			xy2en(&georef, centroid.x, centroid.y, &east, &north);
-			printf("  east: %.15f\n", east);
-			printf("  north: %.15f\n", north);
+			fprintf(yaml_fh, "  east: %.15f\n", east);
+			fprintf(yaml_fh, "  north: %.15f\n", north);
 		}
-		printf("  x: %.15f\n", centroid.x);
-		printf("  y: %.15f\n", centroid.y);
+		fprintf(yaml_fh, "  x: %.15f\n", centroid.x);
+		fprintf(yaml_fh, "  y: %.15f\n", centroid.y);
 	}
 
 	if(inspect_rect4) {
@@ -235,25 +243,25 @@ int main(int argc, char **argv) {
 		if(rect4.npts == 4) {
 			char *labels[] = { "upper_left", "upper_right", "lower_right", "lower_left" };
 			if(georef.fwd_xform && georef.fwd_affine) {
-				printf("geometry_ll:\n  type: rectangle4\n");
+				fprintf(yaml_fh, "geometry_ll:\n  type: rectangle4\n");
 				for(i=0; i<4; i++) {
 					xy2ll(&georef, rect4.pts[i].x, rect4.pts[i].y, &lon, &lat);
-					printf("  %s_lon: %.15f\n", labels[i], lon);
-					printf("  %s_lat: %.15f\n", labels[i], lat);
+					fprintf(yaml_fh, "  %s_lon: %.15f\n", labels[i], lon);
+					fprintf(yaml_fh, "  %s_lat: %.15f\n", labels[i], lat);
 				}
 			}
 			if(georef.fwd_affine) {
-				printf("geometry_en:\n  type: rectangle4\n");
+				fprintf(yaml_fh, "geometry_en:\n  type: rectangle4\n");
 				for(i=0; i<4; i++) {
 					xy2en(&georef, rect4.pts[i].x, rect4.pts[i].y, &east, &north);
-					printf("  %s_east: %.15f\n", labels[i], east);
-					printf("  %s_north: %.15f\n", labels[i], north);
+					fprintf(yaml_fh, "  %s_east: %.15f\n", labels[i], east);
+					fprintf(yaml_fh, "  %s_north: %.15f\n", labels[i], north);
 				}
 			}
-			printf("geometry_xy:\n  type: rectangle4\n");
+			fprintf(yaml_fh, "geometry_xy:\n  type: rectangle4\n");
 			for(i=0; i<4; i++) {
-				printf("  %s_x: %.15f\n", labels[i], rect4.pts[i].x);
-				printf("  %s_y: %.15f\n", labels[i], rect4.pts[i].y);
+				fprintf(yaml_fh, "  %s_x: %.15f\n", labels[i], rect4.pts[i].x);
+				fprintf(yaml_fh, "  %s_y: %.15f\n", labels[i], rect4.pts[i].y);
 			}
 		}
 	} else {
@@ -262,28 +270,28 @@ int main(int argc, char **argv) {
 		char *n_labels[] = { "upper", "mid", "lower" };
 		double n_pos[] = { 0, (double)georef.h/2.0, georef.h };
 		if(georef.fwd_xform && georef.fwd_affine) {
-			printf("geometry_ll:\n  type: rectangle8\n");
+			fprintf(yaml_fh, "geometry_ll:\n  type: rectangle8\n");
 			for(i=0; i<3; i++) for(j=0; j<3; j++) {
 				if(!strcmp(e_labels[i], "mid") && !strcmp(n_labels[j], "mid")) continue;
 				xy2ll(&georef, e_pos[i], n_pos[j], &lon, &lat);
-				printf("  %s_%s_lon: %.15f\n", n_labels[j], e_labels[i], lon);
-				printf("  %s_%s_lat: %.15f\n", n_labels[j], e_labels[i], lat);
+				fprintf(yaml_fh, "  %s_%s_lon: %.15f\n", n_labels[j], e_labels[i], lon);
+				fprintf(yaml_fh, "  %s_%s_lat: %.15f\n", n_labels[j], e_labels[i], lat);
 			}
 		}
 		if(georef.fwd_affine) {
-			printf("geometry_en:\n  type: rectangle8\n");
+			fprintf(yaml_fh, "geometry_en:\n  type: rectangle8\n");
 			for(i=0; i<3; i++) for(j=0; j<3; j++) {
 				if(!strcmp(e_labels[i], "mid") && !strcmp(n_labels[j], "mid")) continue;
 				xy2en(&georef, e_pos[i], n_pos[j], &east, &north);
-				printf("  %s_%s_east: %.15f\n", n_labels[j], e_labels[i], east);
-				printf("  %s_%s_north: %.15f\n", n_labels[j], e_labels[i], north);
+				fprintf(yaml_fh, "  %s_%s_east: %.15f\n", n_labels[j], e_labels[i], east);
+				fprintf(yaml_fh, "  %s_%s_north: %.15f\n", n_labels[j], e_labels[i], north);
 			}
 		}
-		printf("geometry_xy:\n  type: rectangle8\n");
+		fprintf(yaml_fh, "geometry_xy:\n  type: rectangle8\n");
 		for(i=0; i<3; i++) for(j=0; j<3; j++) {
 			if(!strcmp(e_labels[i], "mid") && !strcmp(n_labels[j], "mid")) continue;
-			printf("  %s_%s_x: %.15f\n", n_labels[j], e_labels[i], e_pos[i]);
-			printf("  %s_%s_y: %.15f\n", n_labels[j], e_labels[i], n_pos[j]);
+			fprintf(yaml_fh, "  %s_%s_x: %.15f\n", n_labels[j], e_labels[i], e_pos[i]);
+			fprintf(yaml_fh, "  %s_%s_y: %.15f\n", n_labels[j], e_labels[i], n_pos[j]);
 		}
 	}
 
@@ -354,7 +362,7 @@ ring_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *d
 		}
 	}
 	if(fulcrum_x<0) fatal_error("image was empty");
-	//if(VERBOSE) fprintf(stderr, "start point: %d,%d\n", fulcrum_x, fulcrum_y);
+	//if(VERBOSE) printf("start point: %d,%d\n", fulcrum_x, fulcrum_y);
 
 	edge_t *all_edges = NULL;
 	int num_edges = 0;
@@ -382,13 +390,13 @@ ring_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *d
 					int bdist = best_dx*best_dx + best_dy*best_dy;
 					if(pdist < bdist) continue;
 				}
-				//if(VERBOSE) fprintf(stderr, "%d %d   %.15f\n", i, j, atan2((double)pix_dy, (double)pix_dx)*180.0/PI);
+				//if(VERBOSE) printf("%d %d   %.15f\n", i, j, atan2((double)pix_dy, (double)pix_dx)*180.0/PI);
 				best_dx = pix_dx; best_dy = pix_dy;
 				best_x = i; best_y = j;
 			}
 		}
-		//if(VERBOSE) fprintf(stderr, "  f=[%3d,%3d] ", best_x, best_y);
-		//if(VERBOSE) fprintf(stderr, "  a=[% 3.1f]\n", angle);
+		//if(VERBOSE) printf("  f=[%3d,%3d] ", best_x, best_y);
+		//if(VERBOSE) printf("  a=[% 3.1f]\n", angle);
 
 		all_edges = (edge_t *)realloc_or_die(all_edges, (num_edges+1)*sizeof(edge_t));
 		all_edges[num_edges].p0.x = fulcrum_x;
@@ -451,28 +459,28 @@ ring_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *d
 		}
 
 		if(VERBOSE) {
-			fprintf(stderr, "a=%.15f  l=%.15f  ", l.angle, l.seg_len);
-			fprintf(stderr, "  l2=%.15f  ad=%.15f  ratio=%.15f", len, adiff, len/adiff);
+			printf("a=%.15f  l=%.15f  ", l.angle, l.seg_len);
+			printf("  l2=%.15f  ad=%.15f  ratio=%.15f", len, adiff, len/adiff);
 			l = all_edges[i];
 			r = all_edges[(i+1) % num_edges];
-			fprintf(stderr, "  lg=%d rg=%d\n", l.group, r.group);
+			printf("  lg=%d rg=%d\n", l.group, r.group);
 		}
 	}
-	if(VERBOSE) fprintf(stderr, "num groups: %d\n", num_groups);
+	if(VERBOSE) printf("num groups: %d\n", num_groups);
 	for(i=0; i<num_edges; i++) {
 		if(all_edges[i].group < 0) fatal_error("edge not assigned to a group");
 		//all_edges[i].group = (num_groups++);
 	}
-	//if(VERBOSE) fprintf(stderr, "num groups: %d\n", num_groups);
+	//if(VERBOSE) printf("num groups: %d\n", num_groups);
 
 	if(VERBOSE) for(i=0; i<num_edges; i++) {
 		edge_t l = all_edges[i];
 		edge_t r = all_edges[(i+1) % num_edges];
 		double len = l.seg_len + r.seg_len;
 		double adiff = ang_diff(l.angle, r.angle);
-		fprintf(stderr, "a=%.15f  l=%.15f  ", l.angle, l.seg_len);
-		fprintf(stderr, "  l2=%.15f  ad=%.15f  ratio=%.15f", len, adiff, len/adiff);
-		fprintf(stderr, "  group=%d\n", l.group);
+		printf("a=%.15f  l=%.15f  ", l.angle, l.seg_len);
+		printf("  l2=%.15f  ad=%.15f  ratio=%.15f", len, adiff, len/adiff);
+		printf("  group=%d\n", l.group);
 	}
 
 	edge_group_t *groups = (edge_group_t *)malloc_or_die(sizeof(edge_group_t) * num_groups);
@@ -485,7 +493,7 @@ ring_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *d
 		edge_t e = all_edges[i];
 		int eg = e.group;
 		if(eg < 0 || eg >= num_groups) {
-			fprintf(stderr, "i=%d, g=%d, num_groups=%d\n", i, eg, num_groups);
+			printf("i=%d, g=%d, num_groups=%d\n", i, eg, num_groups);
 			fatal_error("group out of range");
 		}
 		groups[eg].arc_len += e.seg_len;
@@ -493,7 +501,7 @@ ring_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *d
 		groups[eg].wy += e.seg_len * sin(e.angle / 180.0 * PI);
 	}
 	for(i=0; i<num_groups; i++) {
-		if(VERBOSE) fprintf(stderr, "group %d: l=%.15f\n", i, groups[i].arc_len);
+		if(VERBOSE) printf("group %d: l=%.15f\n", i, groups[i].arc_len);
 		if(groups[i].arc_len > (w+h)/10) { // FIXME - arbitrary
 			groups[i].use = 1;
 			groups[i].avg_ang = atan2(groups[i].wy, groups[i].wx) * 180.0 / PI;
@@ -509,7 +517,7 @@ ring_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *d
 	}
 	num_groups = j;
 	double top_edge_angle = 0;
-	if(VERBOSE) fprintf(stderr, "num groups: %d\n", num_groups);
+	if(VERBOSE) printf("num groups: %d\n", num_groups);
 	for(i=0; i<num_groups; i++) {
 		// FIXME - instead of choosing an existing edge close to avg_ang, it would
 		// be better to create a new edge with the desired angle and with proper
@@ -520,7 +528,7 @@ ring_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *d
 			double d2 = ang_diff(groups[i].avg_ang, groups[i].best_edge.angle);
 			if(d1 < d2) groups[i].best_edge = all_edges[j];
 		}
-		if(VERBOSE) fprintf(stderr, "group %d: l=%.15f  a=%.15f  b=%.15f\n", i, groups[i].arc_len, groups[i].avg_ang, groups[i].best_edge.angle);
+		if(VERBOSE) printf("group %d: l=%.15f  a=%.15f  b=%.15f\n", i, groups[i].arc_len, groups[i].avg_ang, groups[i].best_edge.angle);
 		double ang = groups[i].best_edge.angle;
 		if(i==0 || (fabs(ang) < fabs(top_edge_angle))) top_edge_angle = ang;
 	}
@@ -540,12 +548,12 @@ ring_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *d
 			}
 		}
 	}
-	if(VERBOSE) fprintf(stderr, "sorted:\n");
+	if(VERBOSE) printf("sorted:\n");
 	if(VERBOSE) for(i=0; i<num_groups; i++) {
-		fprintf(stderr, "group %d: l=%.15f  a=%.15f  s=%.15f\n", i, groups[i].arc_len, groups[i].best_edge.angle, groups[i].sort_key);
+		printf("group %d: l=%.15f  a=%.15f  s=%.15f\n", i, groups[i].arc_len, groups[i].best_edge.angle, groups[i].sort_key);
 	}
 
-	//if(VERBOSE) fprintf(stderr, "%d edges\n", num_groups);
+	//if(VERBOSE) printf("%d edges\n", num_groups);
 	vertex_t *verts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * num_groups);
 	for(i=0; i<num_groups; i++) {
 		j = i ? i-1 : num_groups-1;
@@ -555,7 +563,7 @@ ring_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *d
 			e1.p0, e1.p1,
 			e2.p0, e2.p1,
 			&verts[i]);
-		if(VERBOSE) fprintf(stderr, "vert[%d] = %.15f, %.15f\n", i, verts[i].x, verts[i].y);
+		if(VERBOSE) printf("vert[%d] = %.15f, %.15f\n", i, verts[i].x, verts[i].y);
 	}
 
 	if(dbuf && dbuf->mode == PLOT_RECT4) {
@@ -574,7 +582,7 @@ ring_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *d
 	} else {
 		rect4.npts = 0;
 		rect4.pts = NULL;
-		fprintf(stderr, "could not find a 4-sided bounding polygon\n");
+		printf("could not find a 4-sided bounding polygon\n");
 	}
 	return rect4;
 }

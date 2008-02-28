@@ -29,10 +29,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 void copyGeoCode(GDALDatasetH dst_ds, GDALDatasetH src_ds);
 
 void usage(char *cmdname) {
-	fprintf(stderr, "Usage:\n");
-	fprintf(stderr, "    %s -in <rgb.tif> -in <mask.tif> -out <out.tif>\n", cmdname);
-	fprintf(stderr, "\nMerges several images into one image with many bands.\n");
-	fprintf(stderr, "Currently only 8-bit data is supported.\n");
+	printf("Usage:\n");
+	printf("    %s -in <rgb.tif> -in <mask.tif> -out <out.tif>\n", cmdname);
+	printf("\nMerges several images into one image with many bands.\n");
+	printf("Currently only 8-bit data is supported.\n");
 	exit(1);
 }
 

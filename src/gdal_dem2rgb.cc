@@ -64,29 +64,29 @@ void compute_tierow_invaffine(
 );
 
 void usage(char *cmdname) {
-	fprintf(stderr, "Usage: %s\n", cmdname);
-	fprintf(stderr, "\t[-b input_band_id]\n");
-	fprintf(stderr, "\t[-res input_resolution] | [-s_srs input_srs_def]\n");
-	fprintf(stderr, "\t[-of output_format]\n");
-	fprintf(stderr, "\t[-ndv no_data_val [-ndv val] ...] [-min min_val] [-max max_val]       (set range of valid input values)\n");
-	fprintf(stderr, "\t[-palette palette.pal] | [-texture texture_image] | [-alpha-overlay]  (default: gray background)\n");
-	fprintf(stderr, "\t[-exag slope_exageration]                                             (default: %.1f)\n", default_slope_exageration);
-	fprintf(stderr, "\t[-shade ambient diffuse specular_intensity specular_falloff]          (default: %.1f, %.1f, %.1f, %.1f)\n",
+	printf("Usage: %s\n", cmdname);
+	printf("\t[-b input_band_id]\n");
+	printf("\t[-res input_resolution] | [-s_srs input_srs_def]\n");
+	printf("\t[-of output_format]\n");
+	printf("\t[-ndv no_data_val [-ndv val] ...] [-min min_val] [-max max_val]       (set range of valid input values)\n");
+	printf("\t[-palette palette.pal] | [-texture texture_image] | [-alpha-overlay]  (default: gray background)\n");
+	printf("\t[-exag slope_exageration]                                             (default: %.1f)\n", default_slope_exageration);
+	printf("\t[-shade ambient diffuse specular_intensity specular_falloff]          (default: %.1f, %.1f, %.1f, %.1f)\n",
 		default_shade_params[0], default_shade_params[1], default_shade_params[2], default_shade_params[3]);
-	fprintf(stderr, "\t[-lightvec sun_x sun_y sun_z]                                         (default: %.1f, %.1f, %.1f)\n",
+	printf("\t[-lightvec sun_x sun_y sun_z]                                         (default: %.1f, %.1f, %.1f)\n",
 		default_lightvec[0], default_lightvec[1], default_lightvec[2]);
-	fprintf(stderr, "\t[-offset new_zeropoint] [-scale scale_factor]                         (default: offset=0 scale=1)\n");
-	fprintf(stderr, "\tsrc_dataset dst_dataset\n");
-	fprintf(stderr, "\n");
-	fprintf(stderr, "The -palette option creates a color-mapped image.  A default palette (dem.pal)\n");
-	fprintf(stderr, "is included in the distribution.  The -texture option is used for hillshading\n");
-	fprintf(stderr, "a raster image.  The texture and DEM must have the same geocoding.  The\n");
-	fprintf(stderr, "-alpha-overlay option generates an output with an alpha channel that can be\n");
-	fprintf(stderr, "drawn on top of a map to create a hillshaded image.\n");
-	fprintf(stderr, "\n");
-	fprintf(stderr, "If the DEM has projection information it will be used to ensure that the\n");
-	fprintf(stderr, "shading is done relative to true north.\n");
-	fprintf(stderr, "\n");
+	printf("\t[-offset new_zeropoint] [-scale scale_factor]                         (default: offset=0 scale=1)\n");
+	printf("\tsrc_dataset dst_dataset\n");
+	printf("\n");
+	printf("The -palette option creates a color-mapped image.  A default palette (dem.pal)\n");
+	printf("is included in the distribution.  The -texture option is used for hillshading\n");
+	printf("a raster image.  The texture and DEM must have the same geocoding.  The\n");
+	printf("-alpha-overlay option generates an output with an alpha channel that can be\n");
+	printf("drawn on top of a map to create a hillshaded image.\n");
+	printf("\n");
+	printf("If the DEM has projection information it will be used to ensure that the\n");
+	printf("shading is done relative to true north.\n");
+	printf("\n");
 	exit(1);
 }
 
@@ -741,7 +741,7 @@ void xy2ll(
 		u < -180.0 || u > 180.0 ||
 	    v < -90.0 || v > 90.0
 	) {
-		fprintf(stderr, "lon/lat out of bounds: %f %f\n", u, v);
+		printf("lon/lat out of bounds: %f %f\n", u, v);
 		*lon_out = HUGE_VAL;
 		*lat_out = HUGE_VAL;
 	} else {
@@ -776,7 +776,7 @@ void compute_invaffine(
 		lon_dx == HUGE_VAL || lat_dx == HUGE_VAL ||
 		lon_dy == HUGE_VAL || lat_dy == HUGE_VAL
 	) {
-		//fprintf(stderr, "proj error\n");
+		//printf("proj error\n");
 		// error - return [0,0,0,0]
 		return;
 	}
@@ -815,7 +815,7 @@ void compute_invaffine(
 	// if s << l then dx and dy are parallel in the north/east plane
 	double l = (te_dx*te_dx + te_dy*te_dy + tn_dx*tn_dx + tn_dy*tn_dy) / 2.0;
 	if(fabs(s) < fabs(l) / 100.0 || s == 0.0) {
-		//fprintf(stderr, "cannot invert affine matrix [%f, %f], [%f, %f, %f, %f]\n",
+		//printf("cannot invert affine matrix [%f, %f], [%f, %f, %f, %f]\n",
 		//	col, row, lon_dx, lon_dy, lat_dx, lat_dy);
 		// error - return [0,0,0,0]
 		return;

@@ -38,10 +38,10 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 	int w = GDALGetRasterXSize(ds);
 	int h = GDALGetRasterYSize(ds);
 	int band_count = GDALGetRasterCount(ds);
-	if(VERBOSE) fprintf(stderr, "input is %d x %d x %d\n", w, h, band_count);
+	if(VERBOSE) printf("input is %d x %d x %d\n", w, h, band_count);
 
 	int mask_rowlen = (w+7)/8;
-	if(VERBOSE) fprintf(stderr, "mask array is %.1f megabytes\n", (double)mask_rowlen*h/1024.0/1024.0);
+	if(VERBOSE) printf("mask array is %.1f megabytes\n", (double)mask_rowlen*h/1024.0/1024.0);
 	unsigned char *mask = (unsigned char *)malloc_or_die(mask_rowlen*h);
 	for(i=0; i<mask_rowlen*h; i++) mask[i] = 0;
 
@@ -58,7 +58,7 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 
 		double nodataval = ndv_list[bandlist_idx];
 
-		if(VERBOSE) fprintf(stderr, "band %d: block size = %d,%d  nodataval = %.15f\n",
+		if(VERBOSE) printf("band %d: block size = %d,%d  nodataval = %.15f\n",
 			band_idx, blocksize_x, blocksize_y, nodataval);
 
 		double *buf = (double *)malloc_or_die(blocksize_x*blocksize_y*sizeof(double));
@@ -75,7 +75,7 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 
 				/*
 				if(!boff_x && !boff_y) {
-					if(VERBOSE) fprintf(stderr, "band %d: pixel[0] = %.15f\n", band_idx, buf[0]);
+					if(VERBOSE) printf("band %d: pixel[0] = %.15f\n", band_idx, buf[0]);
 					nodataval = buf[0];
 				}
 				*/
@@ -115,7 +115,7 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 					(long)(boff_x+bsize_x) * (long)bsize_y) /
 					((long)bandlist_size * (long)w * (long)h));
 				if(progress != last_progress) {
-					fprintf(stderr, "reading: %d%%\r", progress);
+					printf("reading: %d%%\r", progress);
 					fflush(stderr);
 					last_progress = progress;
 				}
@@ -124,7 +124,7 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 
 		free(buf);
 	}
-	fprintf(stderr, "\n");
+	printf("\n");
 
 	return mask;
 }

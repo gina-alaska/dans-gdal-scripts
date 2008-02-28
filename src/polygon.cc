@@ -254,7 +254,7 @@ void write_mpoly_wkt(char *wkt_fn, mpoly_t mpoly, int split_polys) {
 */
 
 mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance) {
-	if(VERBOSE) fprintf(stderr, "reducing...\n");
+	if(VERBOSE) printf("reducing...\n");
 
 	reduced_ring_t *reduced_rings = (reduced_ring_t *)
 		malloc_or_die(sizeof(reduced_ring_t) * in_mpoly->num_rings);
@@ -276,7 +276,7 @@ mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance) {
 #define VECLEN(x,y) sqrt((x)*(x)+(y)*(y))
 
 reduced_ring_t reduce_linestring_detail(ring_t *orig_string, double res) {
-//fprintf(stderr, "enter dp\n");
+//printf("enter dp\n");
 
 	int num_in = orig_string->npts;
 	vertex_t *pts_in = orig_string->pts;
@@ -301,7 +301,7 @@ reduced_ring_t reduce_linestring_detail(ring_t *orig_string, double res) {
 		stack_ptr--;
 		int seg_begin = stack[stack_ptr].begin;
 		int seg_end = stack[stack_ptr].end;
-//fprintf(stderr, "stack_ptr=%d / range=[%d,%d]\n", stack_ptr, seg_begin, seg_end);
+//printf("stack_ptr=%d / range=[%d,%d]\n", stack_ptr, seg_begin, seg_end);
 
 		double max_dist = -1.0;
 		int idx_of_max = -1; // to prevent compiler warning
@@ -339,7 +339,7 @@ reduced_ring_t reduce_linestring_detail(ring_t *orig_string, double res) {
 			}
 		}
 
-//fprintf(stderr, "max=%.15f, toler=%.15f, idx=%i\n", max_dist, tolerance, idx_of_max);
+//printf("max=%.15f, toler=%.15f, idx=%i\n", max_dist, tolerance, idx_of_max);
 		if(max_dist >= tolerance) {
 			if(idx_of_max <= 0) fatal_error(
 				"idx_of_max out of range (perhaps it wasn't set?)");
@@ -364,8 +364,8 @@ reduced_ring_t reduce_linestring_detail(ring_t *orig_string, double res) {
 		}
 	}
 
-//fprintf(stderr, "keeping %d of %d\n", num_keep_segs, num_in);
-//fprintf(stderr, "exit dp\n");
+//printf("keeping %d of %d\n", num_keep_segs, num_in);
+//printf("exit dp\n");
 
 	free(stack);
 
@@ -431,7 +431,7 @@ ring_t make_ring_from_segs(ring_t *c_in, reduced_ring_t *r_in) {
 	// number of points == number of line segments
 	if(num_to_keep != r_in->num_segs) fatal_error("num_to_keep != r_in->num_segs");
 
-//fprintf(stderr, "keeping %d of %d\n", num_to_keep, num_in);
+//printf("keeping %d of %d\n", num_to_keep, num_in);
 
 	ring_t new_string = *c_in; // copy parent_id, is_hole, etc.
 	new_string.npts = num_to_keep;
@@ -468,7 +468,7 @@ mpoly_t reduction_to_mpoly(mpoly_t *in_mpoly, reduced_ring_t *reduced_rings) {
 		ring_t *c_in = &in_mpoly->rings[c_idx];
 		reduced_ring_t *r_in = &reduced_rings[c_idx];
 
-		if(VERBOSE) fprintf(stderr, "ring %d: %d => %d pts\n", c_idx, c_in->npts, r_in->num_segs);
+		if(VERBOSE) printf("ring %d: %d => %d pts\n", c_idx, c_in->npts, r_in->num_segs);
 		total_npts_in += c_in->npts;
 
 		if(r_in->num_segs > 2) {
@@ -495,7 +495,7 @@ mpoly_t reduction_to_mpoly(mpoly_t *in_mpoly, reduced_ring_t *reduced_rings) {
 	int out_idx = 0;
 	for(c_idx=0; c_idx<in_mpoly->num_rings; c_idx++) {
 		if(keep_rings[c_idx]) {
-			//fprintf(stderr, "map ring %d => %d\n", c_idx, out_idx);
+			//printf("map ring %d => %d\n", c_idx, out_idx);
 			new_idx_map[c_idx] = out_idx++;
 		} else {
 			new_idx_map[c_idx] = -1;
@@ -518,14 +518,14 @@ mpoly_t reduction_to_mpoly(mpoly_t *in_mpoly, reduced_ring_t *reduced_rings) {
 		int old_parent_id = in_mpoly->rings[c_idx].parent_id;
 		if(old_parent_id >= 0) {
 			int new_parent_id = new_idx_map[old_parent_id];
-			//fprintf(stderr, "map parent_id %d => %d\n", old_parent_id, new_parent_id);
+			//printf("map parent_id %d => %d\n", old_parent_id, new_parent_id);
 			new_string.parent_id = new_parent_id;
 		}
 
 		out_rings[out_idx] = new_string;
 	}
 
-	if(VERBOSE) fprintf(stderr, "reduced %d => %d rings, %d => %d pts\n",
+	if(VERBOSE) printf("reduced %d => %d rings, %d => %d pts\n",
 		in_mpoly->num_rings, num_out_rings, total_npts_in, total_npts_out);
 
 	return (mpoly_t){ num_out_rings, out_rings };
@@ -560,7 +560,7 @@ void fix_topology(mpoly_t *mpoly, reduced_ring_t *reduced_rings) {
 
 					char crosses = segs_cross(c1, &r1->segs[seg1_idx], c2, &r2->segs[seg2_idx]);
 					if(crosses) {
-						//fprintf(stderr, "found a crossing: %d,%d,%d,%d\n",
+						//printf("found a crossing: %d,%d,%d,%d\n",
 						//	c1_idx, seg1_idx, c2_idx, seg2_idx);
 						r1->segs[seg1_idx].is_problem = 1;
 						r2->segs[seg2_idx].is_problem = 1;
@@ -572,12 +572,12 @@ void fix_topology(mpoly_t *mpoly, reduced_ring_t *reduced_rings) {
 	} // ring loop
 
 	if(have_problems) {
-		if(VERBOSE) fprintf(stderr, "fixing %d crossed segments from reduction\n", have_problems/2);
+		if(VERBOSE) printf("fixing %d crossed segments from reduction\n", have_problems/2);
 	}
 
 	int did_something = 1;
 	while(have_problems && did_something) {
-		//fprintf(stderr, "%d crossings to fix\n", have_problems/2);
+		//printf("%d crossings to fix\n", have_problems/2);
 		did_something = 0;
 		// subdivide problem segments
 		for(c1_idx=0; c1_idx < mpoly->num_rings; c1_idx++) {
@@ -615,7 +615,7 @@ void fix_topology(mpoly_t *mpoly, reduced_ring_t *reduced_rings) {
 					for(seg2_idx=0; seg2_idx < r2->num_segs; seg2_idx++) {
 						char crosses = segs_cross(c1, &r1->segs[seg1_idx], c2, &r2->segs[seg2_idx]);
 						if(crosses) {
-							//fprintf(stderr, "found a crossing (still): %d,%d,%d,%d\n",
+							//printf("found a crossing (still): %d,%d,%d,%d\n",
 							//	c1_idx, seg1_idx, c2_idx, seg2_idx);
 							r1->segs[seg1_idx].is_problem = 1;
 							r2->segs[seg2_idx].is_problem = 1;
@@ -628,7 +628,7 @@ void fix_topology(mpoly_t *mpoly, reduced_ring_t *reduced_rings) {
 	} // while problems
 
 	if(have_problems) {
-		fprintf(stderr, "WARNING: Could not fix all topology problems.\n  Please inspect output shapefile manually.\n");
+		printf("WARNING: Could not fix all topology problems.\n  Please inspect output shapefile manually.\n");
 	}
 }
 
@@ -707,7 +707,7 @@ int polygon_contains(ring_t *c1, ring_t *c2) {
 	for(j=0; j<c2npts; j++) {
 		double px = c2->pts[j].x;
 		double py = c2->pts[j].y;
-		//fprintf(stderr, "px=%.15f py=%.15f\n", px, py);
+		//printf("px=%.15f py=%.15f\n", px, py);
 		int num_crossings = 0;
 		int i;
 		for(i=0; i<c1->npts; i++) {
@@ -726,12 +726,12 @@ int polygon_contains(ring_t *c1, ring_t *c2) {
 
 			double alpha = (py-y0)/(y1-y0);
 			double cx = x0 + (x1-x0)*alpha;
-			//fprintf(stderr, "x0=%.15f x1=%.15f\n", x0, x1);
-			//fprintf(stderr, "y0=%.15f y1=%.15f\n", y0, y1);
-			//fprintf(stderr, "alpha=%.15f cx=%.15f px=%.15f\n", alpha, cx, px);
+			//printf("x0=%.15f x1=%.15f\n", x0, x1);
+			//printf("y0=%.15f y1=%.15f\n", y0, y1);
+			//printf("alpha=%.15f cx=%.15f px=%.15f\n", alpha, cx, px);
 			if(cx > px) num_crossings++;
 		}
-		//fprintf(stderr, "num_crossings=%d\n", num_crossings);
+		//printf("num_crossings=%d\n", num_crossings);
 		// if there are an odd number of crossings, then (px,py) is within c1
 		if(0 == (num_crossings & 1)) return 0;
 	}
@@ -763,7 +763,7 @@ void compute_containments(mpoly_t *mp) {
 				containments[i][j] = 0;
 			} else {
 				containments[i][j] = polygon_contains(&mp->rings[i], &mp->rings[j]);
-				//fprintf(stderr, "containtments[%d][%d] = %d\n", i, j, containments[i][j]);
+				//printf("containtments[%d][%d] = %d\n", i, j, containments[i][j]);
 			}
 		}
 	}
@@ -774,12 +774,12 @@ void compute_containments(mpoly_t *mp) {
 		containment_levels[i] = 0;
 		for(j=0; j<mp->num_rings; j++) {
 			if(containments[i][j] && containments[j][i]) {
-				fprintf(stderr, "topology error: %d and %d contain each other\n", i, j);
+				printf("topology error: %d and %d contain each other\n", i, j);
 				fatal_error("topology error");
 			}
 			if(containments[j][i]) containment_levels[i]++;
 		}
-		if(VERBOSE) fprintf(stderr, "containment_levels[%d] = %d\n", i, containment_levels[i]);
+		if(VERBOSE) printf("containment_levels[%d] = %d\n", i, containment_levels[i]);
 		if(containment_levels[i] > max_level) max_level = containment_levels[i];
 	}
 
@@ -805,7 +805,7 @@ void compute_containments(mpoly_t *mp) {
 void mask_from_mpoly(mpoly_t *mpoly, int w, int h, char *fn) {
 	int i, j, y;
 
-	fprintf(stderr, "mask draw: begin\n");
+	printf("mask draw: begin\n");
 
 	row_crossings_t *rows = (row_crossings_t *)malloc_or_die(sizeof(row_crossings_t) * h);
 	for(i=0; i<h; i++) {
@@ -842,7 +842,7 @@ void mask_from_mpoly(mpoly_t *mpoly, int w, int h, char *fn) {
 		}
 	}
 
-	fprintf(stderr, "mask draw: write\n");
+	printf("mask draw: write\n");
 
 	FILE *fout = fopen(fn, "wb");
 	if(!fout) fatal_error("cannot open mask output");
@@ -870,7 +870,7 @@ void mask_from_mpoly(mpoly_t *mpoly, int w, int h, char *fn) {
 	}
 	fclose(fout);
 
-	fprintf(stderr, "mask draw: done\n");
+	printf("mask draw: done\n");
 }
 
 /*
@@ -937,7 +937,7 @@ inline int mpoly_border_touches_point(char *table, mpoly_t *mp, int r1_idx, int 
 	int key = get_touch_hash_key(v1);
 	if(table[key] < 2) return 0;
 
-	//if(VERBOSE) fprintf(stderr, "hash hit for %d,%d\n", r1_idx, v1_idx);
+	//if(VERBOSE) printf("hash hit for %d,%d\n", r1_idx, v1_idx);
 
 	int r2_idx;
 	for(r2_idx=0; r2_idx<mp->num_rings; r2_idx++) {
@@ -948,13 +948,13 @@ inline int mpoly_border_touches_point(char *table, mpoly_t *mp, int r1_idx, int 
 			int same = (r1_idx == r2_idx) && (v1_idx == v2_idx);
 			int touches = !same && (v1->x == v2->x) && (v1->y == v2->y);
 			if(touches) {
-				//if(VERBOSE) fprintf(stderr, "touches for %d,%d vs. %d,%d\n", r1_idx, v1_idx, r2_idx, v2_idx);
+				//if(VERBOSE) printf("touches for %d,%d vs. %d,%d\n", r1_idx, v1_idx, r2_idx, v2_idx);
 				return 1;
 			}
 		}
 	}
 
-	//if(VERBOSE) fprintf(stderr, "no touch for %d,%d\n", r1_idx, v1_idx);
+	//if(VERBOSE) printf("no touch for %d,%d\n", r1_idx, v1_idx);
 
 	return 0;
 }
@@ -962,7 +962,7 @@ inline int mpoly_border_touches_point(char *table, mpoly_t *mp, int r1_idx, int 
 // This function is only meant to be called on polygons
 // that have orthogonal sides on an integer lattice.
 void bevel_self_intersections(mpoly_t *mp, double amount) {
-	if(VERBOSE) fprintf(stderr, "bevel with amount=%lf\n", amount);
+	if(VERBOSE) printf("bevel with amount=%lf\n", amount);
 
 	char *table = mpoly_border_touch_create_hashtable(mp);
 
@@ -984,7 +984,7 @@ void bevel_self_intersections(mpoly_t *mp, double amount) {
 			}
 		}
 		if(num_touch) {
-			if(VERBOSE) fprintf(stderr, "ring %d: num_touch=%d\n", r_idx, num_touch);
+			if(VERBOSE) printf("ring %d: num_touch=%d\n", r_idx, num_touch);
 			int new_numpts = ring->npts + num_touch;
 			vertex_t *new_pts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * new_numpts);
 			int vout_idx = 0;
@@ -1086,9 +1086,9 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 			double sqr_error = dx*dx + dy*dy;
 
 			//if(VERBOSE) {
-			//	fprintf(stderr, "%d,%d (delta=%lf,%lf)\n", r_idx, v_idx, dx, dy);
-			//	fprintf(stderr, "  xy=[%lf,%lf]:[%lf,%lf]\n", xy1->x, xy1->y, xy2->x, xy2->y);
-			//	fprintf(stderr, "  ll=[%lf,%lf]:[%lf,%lf]\n", ll1->x, ll1->y, ll2->x, ll2->y);
+			//	printf("%d,%d (delta=%lf,%lf)\n", r_idx, v_idx, dx, dy);
+			//	printf("  xy=[%lf,%lf]:[%lf,%lf]\n", xy1->x, xy1->y, xy2->x, xy2->y);
+			//	printf("  ll=[%lf,%lf]:[%lf,%lf]\n", ll1->x, ll1->y, ll2->x, ll2->y);
 			//}
 
 			int need_midpt = sqr_error > toler*toler;
@@ -1099,9 +1099,9 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 					&ll_m_proj.x, &ll_m_proj.y);
 
 				if(VERBOSE) {
-					fprintf(stderr, "  inserting midpoint at %d,%d (delta=%lf,%lf > %lf)\n",
+					printf("  inserting midpoint at %d,%d (delta=%lf,%lf > %lf)\n",
 						r_idx, v_idx, dx, dy, toler);
-					//fprintf(stderr, "  xy=[%lf,%lf] ll=[%lf,%lf]\n", 
+					//printf("  xy=[%lf,%lf] ll=[%lf,%lf]\n", 
 					//	xy_m.x, xy_m.y, ll_m_proj.x, ll_m_proj.y);
 				}
 				insert_point_into_ring(&xy_ring, v_idx+1);

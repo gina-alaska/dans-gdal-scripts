@@ -43,22 +43,23 @@ scaled_band_t getScaledBand(GDALDatasetH lores_ds, int band_id, GDALDatasetH hir
 void readLineScaled(scaled_band_t *sb, int row, double *hires_buf);
 
 void usage(char *cmdname) {
-	fprintf(stderr, "Usage:\n");
-	fprintf(stderr, "    %s\n", cmdname);
-	fprintf(stderr, "      -rgb <src_rgb.tif> [ -rgb <src.tif> ... ]\n");
-	fprintf(stderr, "      [ -lum <lum.tif> <weight> ... ] -pan <pan.tif>\n");
-	fprintf(stderr, "      [ -ndv <nodataval> ] -o <out-rgb.tif>\n");
-	fprintf(stderr, "Where:\n");
-	fprintf(stderr, "    rgb.tif    Source bands that are to be enhanced\n");
-	fprintf(stderr, "    lum.tif    Bands used to simulate lo-res pan band\n");
-	fprintf(stderr, "    pan.tif    Hi-res panchromatic band\n");
-	fprintf(stderr, "Examples:\n");
-	fprintf(stderr, "    %s -rgb lansat321.tif -lum landsat234.tif 0.25 0.23 0.52 \\\n", cmdname);
-	fprintf(stderr, "      -pan landsat8.tif -ndv 0 -o out.tif\n\n");
-	fprintf(stderr, "    %s -rgb landsat3.tif -rgb landsat2.tif -rgb landsat1.tif \\\n", cmdname);
-	fprintf(stderr, "      -lum landsat2.tif 0.25 -lum landsat3.tif 0.23 -lum landsat4.tif 0.52 \\\n");
-	fprintf(stderr, "      -pan landsat8.tif -ndv 0 -out.tif\n\n");
-	fprintf(stderr, "    %s -rgb quickbird_rgb.tif -pan quickbird_pan.tif -o out.tif\n", cmdname);
+	printf("Usage:\n %s\n", cmdname);
+	printf("\
+      -rgb <src_rgb.tif> [ -rgb <src.tif> ... ]\n\
+      [ -lum <lum.tif> <weight> ... ] -pan <pan.tif>\n\
+      [ -ndv <nodataval> ] -o <out-rgb.tif>\n\
+Where:\n\
+    rgb.tif    Source bands that are to be enhanced\n\
+    lum.tif    Bands used to simulate lo-res pan band\n\
+    pan.tif    Hi-res panchromatic band\n\
+Examples:\n\
+    gdal_landsat_pansharp -rgb lansat321.tif -lum landsat234.tif 0.25 0.23 0.52 \\\n\
+      -pan landsat8.tif -ndv 0 -o out.tif\n\n\
+    gdal_landsat_pansharp -rgb landsat3.tif -rgb landsat2.tif -rgb landsat1.tif \\\n\
+      -lum landsat2.tif 0.25 -lum landsat3.tif 0.23 -lum landsat4.tif 0.52 \\\n\
+      -pan landsat8.tif -ndv 0 -out.tif\n\n\
+    gdal_landsat_pansharp -rgb quickbird_rgb.tif -pan quickbird_pan.tif -o out.tif\n\
+");
 	exit(1);
 }
 
@@ -342,7 +343,7 @@ scaled_band_t getScaledBand(GDALDatasetH lores_ds, int band_id, GDALDatasetH hir
 	sb.hi_h = GDALGetRasterYSize(hires_ds);
 	if(!sb.hi_w || !sb.hi_h) fatal_error("missing width/height");
 
-	//fprintf(stderr, "%d: %f %f %d %dx%d\n", band_id, 
+	//printf("%d: %f %f %d %dx%d\n", band_id, 
 	//	offset_x, offset_y, sb.oversample, sb.lo_w, sb.lo_h);
 
 	sb.band = GDALGetRasterBand(lores_ds, band_id);
