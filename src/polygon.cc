@@ -110,7 +110,11 @@ OGRGeometryH mpoly_to_ogr(mpoly_t *mpoly_in) {
 		if(!ring->is_hole) num_geom_out++;
 	}
 
-	OGRGeometryH mpoly_out = OGR_G_CreateGeometry(wkbMultiPolygon);
+	int use_multi = num_geom_out > 1;
+
+	OGRGeometryH geom_out = OGR_G_CreateGeometry(
+		use_multi ? wkbMultiPolygon : wkbPolygon);
+
 	for(outer_idx=0; outer_idx<num_rings_in; outer_idx++) {
 		ring_t *ring = mpoly_in->rings + outer_idx;
 		if(ring->is_hole) continue;
@@ -122,7 +126,7 @@ OGRGeometryH mpoly_to_ogr(mpoly_t *mpoly_in) {
 			if(hole->parent_id == outer_idx) num_holes++;
 		}
 
-		OGRGeometryH poly_out = OGR_G_CreateGeometry(wkbPolygon);
+		OGRGeometryH poly_out = use_multi ? OGR_G_CreateGeometry(wkbPolygon) : geom_out;
 		OGR_G_AddGeometry(poly_out, ring_to_ogr(ring));
 
 		for(inner_idx=0; inner_idx<num_rings_in; inner_idx++) {
@@ -136,15 +140,58 @@ OGRGeometryH mpoly_to_ogr(mpoly_t *mpoly_in) {
 				OGR_G_GetGeometryCount(poly_out), num_holes+1);
 		}
 
-		OGR_G_AddGeometry(mpoly_out, poly_out);
+		if(use_multi) OGR_G_AddGeometry(geom_out, poly_out);
 	}
 
-	if(OGR_G_GetGeometryCount(mpoly_out) != num_geom_out) {
+	if(use_multi && OGR_G_GetGeometryCount(geom_out) != num_geom_out) {
 		fatal_error("GeometryCount != num_geom_out (%d vs. %d)",
-			OGR_G_GetGeometryCount(mpoly_out), num_geom_out);
+			OGR_G_GetGeometryCount(geom_out), num_geom_out);
 	}
 
-	return mpoly_out;
+	return geom_out;
+}
+
+void split_mpoly_to_polys(mpoly_t *mpoly_in, int *num_polys, mpoly_t **polys) {
+	int num_rings_in = mpoly_in->num_rings;
+
+	int outer_idx;
+	int num_geom_out = 0;
+	for(outer_idx=0; outer_idx<num_rings_in; outer_idx++) {
+		ring_t *ring = mpoly_in->rings + outer_idx;
+		if(!ring->is_hole) num_geom_out++;
+	}
+
+	*num_polys = num_geom_out;
+	*polys = (mpoly_t *)malloc_or_die(sizeof(mpoly_t) * num_geom_out);
+	int poly_out_idx = 0;
+
+	for(outer_idx=0; outer_idx<num_rings_in; outer_idx++) {
+		ring_t *ring = mpoly_in->rings + outer_idx;
+		if(ring->is_hole) continue;
+
+		int inner_idx;
+		int num_holes = 0;
+		for(inner_idx=0; inner_idx<num_rings_in; inner_idx++) {
+			ring_t *hole = mpoly_in->rings + inner_idx;
+			if(hole->parent_id == outer_idx) num_holes++;
+		}
+
+		mpoly_t out_poly;
+		out_poly.num_rings = num_holes+1;
+		out_poly.rings = (ring_t *)malloc_or_die(sizeof(ring_t) * out_poly.num_rings);
+		int ring_out_idx = 0;
+		out_poly.rings[ring_out_idx++] = duplicate_ring(ring);
+
+		for(inner_idx=0; inner_idx<num_rings_in; inner_idx++) {
+			ring_t *hole = mpoly_in->rings + inner_idx;
+			if(hole->parent_id != outer_idx) continue;
+			ring_t dup_ring = duplicate_ring(hole);
+			dup_ring.parent_id = 0;
+			out_poly.rings[ring_out_idx++] = dup_ring;
+		}
+
+		(*polys)[poly_out_idx++] = out_poly;
+	}
 }
 
 /*
