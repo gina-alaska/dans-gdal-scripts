@@ -29,8 +29,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "polygon.h"
 #include "debugplot.h"
 
-extern int VERBOSE;
-
 unsigned char *get_mask_for_dataset(GDALDatasetH ds, int bandlist_size, int *bandlist, 
 int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 	int i, j;

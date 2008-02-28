@@ -67,7 +67,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #define D2R (3.141592653 / 180.0)
 
-void fatal_error(const char *s, ...) __attribute__((noreturn));
+extern int VERBOSE;
+
+void fatal_error(const char *s, ...) __attribute__((noreturn, format(printf, 1, 2)));
 void *malloc_or_die(size_t size);
 void *realloc_or_die(void *p, size_t size);
 int parse_list_of_doubles(char *input, int *num_out, double **list_out);

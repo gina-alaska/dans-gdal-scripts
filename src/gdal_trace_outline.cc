@@ -37,8 +37,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define CS_EN 2
 #define CS_LL 3
 
-int VERBOSE = 0;
-
 void usage(char *cmdname) {
 	printf("Usage:\n  %s [options] [image_name]\n", cmdname);
 	printf("\n");

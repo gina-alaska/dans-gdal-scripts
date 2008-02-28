@@ -26,8 +26,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "debugplot.h"
 
-extern int VERBOSE;
-
 report_image_t *create_plot(double w, double h) {
 	report_image_t *dbuf = (report_image_t *)malloc_or_die(sizeof(report_image_t));
 	dbuf->canvas_w = w+2;

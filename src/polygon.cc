@@ -70,8 +70,6 @@ mpoly_t reduction_to_mpoly(mpoly_t *in_mpoly, reduced_ring_t *reduced_rings);
 void fix_topology(mpoly_t *mpoly, reduced_ring_t *reduced_rings);
 char segs_cross(ring_t *c1, segment_t *s1, ring_t *c2, segment_t *s2);
 
-extern int VERBOSE;
-
 ring_t duplicate_ring(ring_t *in_ring) {
 	ring_t out_ring = *in_ring; // copy metadata
 	out_ring.pts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * out_ring.npts);

@@ -30,8 +30,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "georef.h"
 #include "mask.h"
 
-int VERBOSE = 0;
-
 void usage(char *cmdname) {
 	printf("Usage:\n  %s [options] [image_name]\n", cmdname);
 	printf("\n");

@@ -26,6 +26,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <common.h>
 
+int VERBOSE = 0;
+
 void fatal_error(const char *fmt, ...) {
 	va_list argp;
 	
