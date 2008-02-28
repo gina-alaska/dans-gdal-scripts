@@ -56,14 +56,16 @@ Behavior:\n\
   -major-ring                     Take only the biggest outer ring\n\
   -no-donuts                      Take only top-level rings\n\
   -min-ring-area val              Drop rings with less than this area (in square pixels)\n\
-  -dp-toler val                   Tolerance for point reduction (in pixel units)\n\
-                                      default is 2 pixels\n\
+  -dp-toler val                   Tolerance for point reduction\n\
+                                      (in pixels, default is 2.0)\n\
 \n\
 Output:\n\
   -report fn.ppm                  Output graphical report of bounds found\n\
   -mask-out fn.pbm                Output mask of bounding polygon in PBM format\n\
   -out-cs [xy | en | ll]          Coordinate system for output\n\
                                       (pixel coords, easting/northing, or lon/lat)\n\
+  -llproj-toler val               Error tolerance for curved lines when using '-out-cs ll'\n\
+                                      (in pixels, default is 0.2)\n\
   -wkt-out fn.wkt                 Output bounds in WKT format\n\
   -ogr-out fn.shp                 Output bounds using an OGR format\n\
   -ogr-fmt                        OGR format to use (default is 'ESRI Shapefile')\n\
@@ -89,7 +91,6 @@ mpoly_t calc_ring_from_mask(unsigned char *mask, int w, int h,
 
 int main(int argc, char **argv) {
 	char *input_raster_fn = NULL;
-
 	int num_ndv = 0;
 	double *ndv_list = NULL;
 	double ndv_tolerance = 0;
@@ -108,6 +109,7 @@ int main(int argc, char **argv) {
 	double reduction_tolerance = 2;
 	int do_erosion = 0;
 	int do_invert = 0;
+	double llproj_toler = .2;
 
 	if(argc == 1) usage(argv[0]);
 
@@ -174,6 +176,11 @@ int main(int argc, char **argv) {
 				char *endptr;
 				reduction_tolerance = strtod(argv[argp++], &endptr);
 				if(*endptr) usage(argv[0]);
+			} else if(!strcmp(arg, "-llproj-toler")) {
+				if(argp == argc) usage(argv[0]);
+				char *endptr;
+				llproj_toler = strtod(argv[argp++], &endptr);
+				if(*endptr) usage(argv[0]);
 			} else if(!strcmp(arg, "-ndv-toler")) {
 				if(argp == argc) usage(argv[0]);
 				char *endptr;
@@ -238,6 +245,7 @@ int main(int argc, char **argv) {
 
 	mpoly_t *bounds_poly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
 	*bounds_poly = calc_ring_from_mask(mask, georef.w, georef.h, dbuf, major_ring_only, no_donuts, min_ring_area);
+	free(mask);
 
 	if(mask_out_fn) {
 		mask_from_mpoly(bounds_poly, georef.w, georef.h, mask_out_fn);
@@ -313,7 +321,7 @@ int main(int argc, char **argv) {
 			} else if(out_cs == CS_EN) {
 				proj_poly = mpoly_xy2en(&georef, poly_in);
 			} else if(out_cs == CS_LL) {
-				proj_poly = mpoly_xy2ll_with_interp(&georef, poly_in, .2); // FIXME - configurable tolerance
+				proj_poly = mpoly_xy2ll_with_interp(&georef, poly_in, llproj_toler);
 			} else {
 				fatal_error("bad val for out_cs");
 			}
