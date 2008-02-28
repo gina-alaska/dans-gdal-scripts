@@ -48,31 +48,34 @@ void usage(char *cmdname) {
 	fprintf(stderr, "\
 \n\
 Behavior:\n\
-  -nodataval 'val [val ...]'      Specify value of no-data pixels\n\
-  -ndv-toler val                  Tolerance for deciding if a pixel matches nodataval\n\
-  -b band_id -b band_id ...       Bands to inspect (default is all bands)\n\
-  -invert                         Trace no-data pixels rather than data pixels\n\
-  -erosion                        Erode pixels that don't have two consecutive neighbors\n\
-  -major-ring                     Take only the biggest outer ring\n\
-  -no-donuts                      Take only top-level rings\n\
-  -min-ring-area val              Drop rings with less than this area (in square pixels)\n\
-  -dp-toler val                   Tolerance for point reduction\n\
-                                      (in pixels, default is 2.0)\n\
+  -nodataval 'val [val ...]'   Specify value of no-data pixels\n\
+  -ndv-toler val               Tolerance for deciding if a pixel matches nodataval\n\
+  -b band_id -b band_id ...    Bands to inspect (default is all bands)\n\
+  -invert                      Trace no-data pixels rather than data pixels\n\
+  -erosion                     Erode pixels that don't have two consecutive neighbors\n\
+  -major-ring                  Take only the biggest outer ring\n\
+  -no-donuts                   Take only top-level rings\n\
+  -min-ring-area val           Drop rings with less than this area (in square pixels)\n\
+  -dp-toler val                Tolerance for point reduction\n\
+                                   (in pixels, default is 2.0)\n\
+  -bevel-size                  How much to shave off corners at self-intersection points\n\
+                                   (in pixels, default it 0.1)\n\
+                                   (this is done to make geometries that PostGIS/GEOS/Jump can handle)\n\
 \n\
 Output:\n\
-  -report fn.ppm                  Output graphical report of bounds found\n\
-  -mask-out fn.pbm                Output mask of bounding polygon in PBM format\n\
-  -out-cs [xy | en | ll]          Coordinate system for output\n\
-                                      (pixel coords, easting/northing, or lon/lat)\n\
-  -llproj-toler val               Error tolerance for curved lines when using '-out-cs ll'\n\
-                                      (in pixels, default is 0.2)\n\
-  -wkt-out fn.wkt                 Output bounds in WKT format\n\
-  -ogr-out fn.shp                 Output bounds using an OGR format\n\
-  -ogr-fmt                        OGR format to use (default is 'ESRI Shapefile')\n\
-  -split-polys                    Output several polygons rather than one multipolygon\n\
+  -report fn.ppm               Output graphical report of bounds found\n\
+  -mask-out fn.pbm             Output mask of bounding polygon in PBM format\n\
+  -out-cs [xy | en | ll]       Coordinate system for output\n\
+                                   (pixel coords, easting/northing, or lon/lat)\n\
+  -llproj-toler val            Error tolerance for curved lines when using '-out-cs ll'\n\
+                                   (in pixels, default is 0.2)\n\
+  -wkt-out fn.wkt              Output bounds in WKT format\n\
+  -ogr-out fn.shp              Output bounds using an OGR format\n\
+  -ogr-fmt                     OGR format to use (default is 'ESRI Shapefile')\n\
+  -split-polys                 Output several polygons rather than one multipolygon\n\
 \n\
 Misc:\n\
-  -v                              Verbose\n\
+  -v                           Verbose\n\
 \n\
 Examples:\n\
   Inspect image and output contour of data region:\n\
@@ -87,7 +90,8 @@ Examples:\n\
 }
 
 mpoly_t calc_ring_from_mask(unsigned char *mask, int w, int h,
-	report_image_t *dbuf, int major_ring_only, int no_donuts, double min_ring_area);
+	report_image_t *dbuf, int major_ring_only, int no_donuts,
+	double min_ring_area, double bevel_size);
 
 int main(int argc, char **argv) {
 	char *input_raster_fn = NULL;
@@ -110,6 +114,7 @@ int main(int argc, char **argv) {
 	int do_erosion = 0;
 	int do_invert = 0;
 	double llproj_toler = .2;
+	double bevel_size = .1;
 
 	if(argc == 1) usage(argv[0]);
 
@@ -175,6 +180,11 @@ int main(int argc, char **argv) {
 				if(argp == argc) usage(argv[0]);
 				char *endptr;
 				reduction_tolerance = strtod(argv[argp++], &endptr);
+				if(*endptr) usage(argv[0]);
+			} else if(!strcmp(arg, "-bevel-size")) {
+				if(argp == argc) usage(argv[0]);
+				char *endptr;
+				bevel_size = strtod(argv[argp++], &endptr);
 				if(*endptr) usage(argv[0]);
 			} else if(!strcmp(arg, "-llproj-toler")) {
 				if(argp == argc) usage(argv[0]);
@@ -244,7 +254,8 @@ int main(int argc, char **argv) {
 	}
 
 	mpoly_t *bounds_poly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
-	*bounds_poly = calc_ring_from_mask(mask, georef.w, georef.h, dbuf, major_ring_only, no_donuts, min_ring_area);
+	*bounds_poly = calc_ring_from_mask(mask, georef.w, georef.h, dbuf, 
+		major_ring_only, no_donuts, min_ring_area, bevel_size);
 	free(mask);
 
 	if(mask_out_fn) {
@@ -391,7 +402,8 @@ int create_descender_pair(int *num_descenders, descender_t **descenders, int y, 
 }
 
 mpoly_t calc_ring_from_mask(unsigned char *mask, int w, int h,
-report_image_t *dbuf, int major_ring_only, int no_donuts, double min_ring_area) {
+report_image_t *dbuf, int major_ring_only, int no_donuts, 
+double min_ring_area, double bevel_size) {
 	int x, y;
 
 	fprintf(stderr, "finding rings: begin\n");
@@ -637,9 +649,11 @@ report_image_t *dbuf, int major_ring_only, int no_donuts, double min_ring_area) 
 	}
 	fprintf(stderr, "finding rings: end\n");
 
-	// the topology cannot be resolved by us or by geos/jump/postgis if
-	// there are self-intersections
-	bevel_self_intersections(&mp);
+	if(bevel_size > 0) {
+		// the topology cannot be resolved by us or by geos/jump/postgis if
+		// there are self-intersections
+		bevel_self_intersections(&mp, bevel_size);
+	}
 
 	if(min_ring_area > 0) {
 		if(VERBOSE) fprintf(stderr, "removing small rings...\n");

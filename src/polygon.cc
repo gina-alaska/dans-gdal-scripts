@@ -961,9 +961,7 @@ inline int mpoly_border_touches_point(char *table, mpoly_t *mp, int r1_idx, int 
 
 // This function is only meant to be called on polygons
 // that have orthogonal sides on an integer lattice.
-void bevel_self_intersections(mpoly_t *mp) {
-	double amount = .1;
-
+void bevel_self_intersections(mpoly_t *mp, double amount) {
 	if(VERBOSE) fprintf(stderr, "bevel with amount=%lf\n", amount);
 
 	char *table = mpoly_border_touch_create_hashtable(mp);
