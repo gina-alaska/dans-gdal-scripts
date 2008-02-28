@@ -30,6 +30,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "georef.h"
 #include "mask.h"
 
+#include <ogrsf_frmts.h>
+
 #define CS_UNKNOWN 0
 #define CS_XY 1
 #define CS_EN 2
@@ -61,8 +63,10 @@ Output: \n\
   -mask-out fn.pbm                Output mask of bounding polygon in PBM format \n\
   -out-cs [xy | en | ll]          Coordinate system for output \n\
                                       (pixel coords, easting/northing, or lon/lat)\n\
-  -wkt fn.wkt                     Output bounds in WKT format\n\
-  -wkt-split-polys                Output several polygons rather than one multipolygon\n\
+  -wkt-out fn.wkt                 Output bounds in WKT format\n\
+  -ogr-out fn.shp                 Output bounds using an OGR format\n\
+  -ogr-fmt                        OGR format to use (default is 'ESRI Shapefile')\n\
+  -split-polys                    Output several polygons rather than one multipolygon\n\
 \n\
 Misc: \n\
   -v                              Verbose\n\
@@ -74,6 +78,7 @@ Examples:\n\
     gdal_trace_outline raster.tif -inspect-contour -nodataval 0 -dp-toler 0 -wkt-ll outline.wkt > geocode.yaml \n\
 \n\
 ");
+	// FIXME - update examples
 	exit(1);
 }
 
@@ -92,6 +97,8 @@ int main(int argc, char **argv) {
 	int split_polys = 0;
 	int out_cs = CS_UNKNOWN;
 	char *wkt_fn = NULL;
+	char *ogr_fn = NULL;
+	char *ogr_fmt = NULL;
 	char *mask_out_fn = NULL;
 	int major_ring_only = 0;
 	int no_donuts = 0;
@@ -127,11 +134,17 @@ int main(int argc, char **argv) {
 				inspect_bandids[inspect_numbands++] = bandid;
 			} else if(!strcmp(arg, "-skip-erosion")) {
 				skip_erosion++;
-			} else if(!strcmp(arg, "-wkt-split-polys")) {
+			} else if(!strcmp(arg, "-split-polys")) {
 				split_polys++;
-			} else if(!strcmp(arg, "-wkt")) {
+			} else if(!strcmp(arg, "-wkt-out")) {
 				if(argp == argc) usage(argv[0]);
 				wkt_fn = argv[argp++];
+			} else if(!strcmp(arg, "-ogr-out")) {
+				if(argp == argc) usage(argv[0]);
+				ogr_fn = argv[argp++];
+			} else if(!strcmp(arg, "-ogr-fmt")) {
+				if(argp == argc) usage(argv[0]);
+				ogr_fmt = argv[argp++];
 			} else if(!strcmp(arg, "-out-cs")) {
 				if(argp == argc) usage(argv[0]);
 				char *cs = argv[argp++];
@@ -170,8 +183,8 @@ int main(int argc, char **argv) {
 
 	if(!input_raster_fn) fatal_error("must specify filename of image");
 
-	int do_wkt_output = wkt_fn ? 1 : 0;
-	if(do_wkt_output && (out_cs == CS_UNKNOWN)) 
+	int do_geom_output = wkt_fn || ogr_fn;
+	if(do_geom_output && (out_cs == CS_UNKNOWN)) 
 		fatal_error("must specify output coordinate system with -out-cs option");
 
 	if(major_ring_only && min_ring_area) fatal_error(
@@ -240,7 +253,27 @@ int main(int argc, char **argv) {
 		debug_plot_rings(bpoly, dbuf);
 	}
 
-	if(do_wkt_output) {
+	FILE *wkt_fh = NULL;
+	if(wkt_fn) {
+		wkt_fh = fopen(wkt_fn, "w");
+		if(!wkt_fh) fatal_error("cannot open output file for WKT");
+	}
+
+	OGRDataSourceH ogr_ds = NULL;
+	OGRLayerH ogr_layer = NULL;
+	if(ogr_fn) {
+		OGRRegisterAll();
+		if(!ogr_fmt) ogr_fmt = "ESRI Shapefile";
+		OGRSFDriverH ogr_driver = OGRGetDriverByName(ogr_fmt);
+		if(!ogr_driver) fatal_error("cannot get OGR driver");
+		ogr_ds = OGR_Dr_CreateDataSource(ogr_driver, ogr_fn, NULL);
+		if(!ogr_ds) fatal_error("cannot create OGR data source");
+		char *layer_name = ogr_fn;
+		ogr_layer = OGR_DS_CreateLayer(ogr_ds, layer_name, NULL, wkbMultiPolygon, NULL);
+		if(!ogr_layer) fatal_error("cannot create OGR layer");
+	}
+
+	if(do_geom_output) {
 		mpoly_t *proj_poly;
 
 		if(out_cs == CS_XY) {
@@ -256,7 +289,29 @@ int main(int argc, char **argv) {
 			fatal_error("bad val for out_cs");
 		}
 
-		write_mpoly_wkt(wkt_fn, proj_poly, split_polys);
+		if(split_polys) fatal_error("split_polys not implemented"); // FIXME
+
+		OGRGeometryH ogr_poly = mpoly_to_ogr(proj_poly);
+
+		if(wkt_fh) {
+			char *wkt_out;
+			OGR_G_ExportToWkt(ogr_poly, &wkt_out);
+			fprintf(wkt_fh, "%s", wkt_out);
+		}
+
+		if(ogr_ds) {
+			OGRFeatureH ogr_feat = OGR_F_Create(OGR_L_GetLayerDefn(ogr_layer));
+			OGR_F_SetGeometry(ogr_feat, ogr_poly);
+			OGR_L_CreateFeature(ogr_layer, ogr_feat);
+			OGR_F_Destroy(ogr_feat);
+		}
+	}
+
+	if(wkt_fh) {
+		fclose(wkt_fh);
+	}
+	if(ogr_ds) {
+		OGR_DS_Destroy(ogr_ds);
 	}
 
 	if(dbuf) write_plot(dbuf, debug_report);

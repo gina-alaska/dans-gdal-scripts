@@ -52,7 +52,6 @@ ring_t duplicate_ring(ring_t *in_ring);
 void free_ring(ring_t *ring);
 void insert_point_into_ring(ring_t *ring, int idx);
 OGRGeometryH mpoly_to_ogr(mpoly_t *mpoly_in);
-void write_mpoly_wkt(char *wkt_fn, mpoly_t *mpoly, int split_polys);
 mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance);
 int polygon_contains(ring_t *c1, ring_t *c2);
 double polygon_area(ring_t *c);

@@ -147,19 +147,6 @@ OGRGeometryH mpoly_to_ogr(mpoly_t *mpoly_in) {
 	return mpoly_out;
 }
 
-void write_mpoly_wkt(char *wkt_fn, mpoly_t *mpoly, int split_polys) {
-	if(split_polys) fatal_error("split_polys not implemented"); // FIXME
-
-	OGRGeometryH ogr_poly = mpoly_to_ogr(mpoly);
-	char *wkt_out;
-	OGR_G_ExportToWkt(ogr_poly, &wkt_out);
-
-	FILE *fout = fopen(wkt_fn, "w");
-	if(!fout) fatal_error("cannot open output file for WKT");
-	fprintf(fout, "%s", wkt_out);
-	fclose(fout);
-}
-
 /*
 void write_mpoly_wkt(char *wkt_fn, mpoly_t mpoly, int split_polys) {
 	int num_rings = mpoly.num_rings;
