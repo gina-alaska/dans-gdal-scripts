@@ -493,8 +493,7 @@ ring_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *d
 		edge_t e = all_edges[i];
 		int eg = e.group;
 		if(eg < 0 || eg >= num_groups) {
-			printf("i=%d, g=%d, num_groups=%d\n", i, eg, num_groups);
-			fatal_error("group out of range");
+			fatal_error("group out of range (i=%d, g=%d, num_groups=%d)", i, eg, num_groups);
 		}
 		groups[eg].arc_len += e.seg_len;
 		groups[eg].wx += e.seg_len * cos(e.angle / 180.0 * PI);

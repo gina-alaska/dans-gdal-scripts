@@ -191,7 +191,7 @@ int main(int argc, char *argv[]) {
 	GDALAllRegister();
 
 	GDALDriverH dst_driver = GDALGetDriverByName("GTiff");
-	if(!dst_driver) fatal_error("unrecognized output format");
+	if(!dst_driver) fatal_error("unrecognized output format (GTiff)");
 	GDALDatasetH dst_ds = GDALCreate(dst_driver, dst_fn, w, h, 1, gdal_dt, NULL);
 	if(!dst_ds) fatal_error("could create dst_dataset");
 

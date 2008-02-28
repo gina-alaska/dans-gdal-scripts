@@ -173,7 +173,7 @@ int main(int argc, char **argv) {
 				if(!strcmp(cs, "xy")) out_cs = CS_XY;
 				else if(!strcmp(cs, "en")) out_cs = CS_EN;
 				else if(!strcmp(cs, "ll")) out_cs = CS_LL;
-				else fatal_error("unrecognized value for -out-cs option");
+				else fatal_error("unrecognized value for -out-cs option (%s)", cs);
 			} else if(!strcmp(arg, "-mask-out")) {
 				if(argp == argc) usage(argv[0]);
 				mask_out_fn = argv[argp++];
@@ -305,7 +305,7 @@ int main(int argc, char **argv) {
 			OGRRegisterAll();
 			if(!ogr_fmt) ogr_fmt = "ESRI Shapefile";
 			OGRSFDriverH ogr_driver = OGRGetDriverByName(ogr_fmt);
-			if(!ogr_driver) fatal_error("cannot get OGR driver");
+			if(!ogr_driver) fatal_error("cannot get OGR driver (%s)", ogr_fmt);
 			ogr_ds = OGR_Dr_CreateDataSource(ogr_driver, ogr_fn, NULL);
 			if(!ogr_ds) fatal_error("cannot create OGR data source");
 

@@ -146,7 +146,7 @@ int main(int argc, char *argv[]) {
 	int h = GDALGetRasterYSize(pan_ds);
 	if(!w || !h) fatal_error("missing width/height");
 
-	if(GDALGetRasterCount(pan_ds) != 1) fatal_error("Band 8 input must be only one band");
+	if(GDALGetRasterCount(pan_ds) != 1) fatal_error("Pan input must be only one band");
 
 	GDALRasterBandH pan_band = GDALGetRasterBand(pan_ds, 1);
 
@@ -196,7 +196,7 @@ int main(int argc, char *argv[]) {
 	printf("Output size is %d x %d x %d\n", w, h, rgb_band_count);
 
 	GDALDriverH dst_driver = GDALGetDriverByName(output_format);
-	if(!dst_driver) fatal_error("unrecognized output format");
+	if(!dst_driver) fatal_error("unrecognized output format (%s)", output_format);
 	GDALDatasetH dst_ds = GDALCreate(dst_driver, dst_fn, w, h, rgb_band_count, GDT_Byte, NULL);
 	if(!dst_ds) fatal_error("could not create output");
 	copyGeoCode(dst_ds, pan_ds);

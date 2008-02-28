@@ -268,12 +268,12 @@ void en2ll(
 		fatal_error("OCTTransform failed");
 	}
 
-	if(north < -90.0 || north > 90.0) fatal_error("latitude out of range");
+	if(north < -90.0 || north > 90.0) fatal_error("latitude out of range (%lf)", north);
 	// images in latlong projection that cross the dateline can
 	// have numbers outside of this range...
 	//if(east < -180.0 || east > 180.0) fatal_error("longitude out of range");
 	// but it shouldn't be outside of *this* range no matter what!
-	if(east < -360.0 || east > 540.0) fatal_error("longitude out of range");
+	if(east < -360.0 || east > 540.0) fatal_error("longitude out of range (%lf)", east);
 
 	*lon_out = east;
 	*lat_out = north;
@@ -286,12 +286,12 @@ void ll2en(
 ) {
 	if(!georef->inv_xform) fatal_error("missing xform");
 
-	if(lat < -90.0 || lat > 90.0) fatal_error("latitude out of range");
+	if(lat < -90.0 || lat > 90.0) fatal_error("latitude out of range (%lf)", lat);
 	// images in latlong projection that cross the dateline can
 	// have numbers outside of this range...
 	//if(lon < -180.0 || lon > 180.0) fatal_error("longitude out of range");
 	// but it shouldn't be outside of *this* range no matter what!
-	if(lon < -360.0 || lon > 540.0) fatal_error("longitude out of range");
+	if(lon < -360.0 || lon > 540.0) fatal_error("longitude out of range (%lf)", lon);
 
 	if(!OCTTransform(georef->inv_xform, 1, &lon, &lat, NULL)) {
 		fatal_error("OCTTransform failed");

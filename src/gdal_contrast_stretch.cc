@@ -147,7 +147,7 @@ int main(int argc, char *argv[]) {
 	printf("Output size is %d x %d x %d\n", w, h, band_count);
 
 	GDALDriverH dst_driver = GDALGetDriverByName(output_format);
-	if(!dst_driver) fatal_error("unrecognized output format");
+	if(!dst_driver) fatal_error("unrecognized output format (%s)", output_format);
 	GDALDatasetH dst_ds = GDALCreate(dst_driver, dst_fn, w, h, band_count, GDT_Byte, NULL);
 	if(!dst_ds) fatal_error("could create output");
 	copyGeoCode(dst_ds, src_ds);

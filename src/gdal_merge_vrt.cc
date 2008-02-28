@@ -84,7 +84,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	GDALDriverH dst_driver = GDALGetDriverByName("VRT");
-	if(!dst_driver) fatal_error("unrecognized output format");
+	if(!dst_driver) fatal_error("unrecognized output format (VRT)");
 	GDALDatasetH dst_ds = GDALCreateCopy(dst_driver, dst_fn, src_ds[0], 0, NULL, NULL, NULL);
 	if(!dst_ds) fatal_error("could not create output");
 

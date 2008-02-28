@@ -774,8 +774,7 @@ void compute_containments(mpoly_t *mp) {
 		containment_levels[i] = 0;
 		for(j=0; j<mp->num_rings; j++) {
 			if(containments[i][j] && containments[j][i]) {
-				printf("topology error: %d and %d contain each other\n", i, j);
-				fatal_error("topology error");
+				fatal_error("topology error: %d and %d contain each other", i, j);
 			}
 			if(containments[j][i]) containment_levels[i]++;
 		}
