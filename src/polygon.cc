@@ -70,6 +70,13 @@ mpoly_t reduction_to_mpoly(mpoly_t *in_mpoly, reduced_ring_t *reduced_rings);
 void fix_topology(mpoly_t *mpoly, reduced_ring_t *reduced_rings);
 char segs_cross(ring_t *c1, segment_t *s1, ring_t *c2, segment_t *s2);
 
+mpoly_t empty_polygon() {
+	mpoly_t empty;
+	empty.num_rings = 0;
+	empty.rings = NULL;
+	return empty;
+}
+
 ring_t duplicate_ring(ring_t *in_ring) {
 	ring_t out_ring = *in_ring; // copy metadata
 	out_ring.pts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * out_ring.npts);
@@ -78,7 +85,15 @@ ring_t duplicate_ring(ring_t *in_ring) {
 }
 
 void free_ring(ring_t *ring) {
-	free(ring->pts);
+	if(ring->pts) free(ring->pts);
+}
+
+void free_mpoly(mpoly_t *mpoly) {
+	int i;
+	for(i=0; i<mpoly->num_rings; i++) {
+		free_ring(mpoly->rings + i);
+	}
+	if(mpoly->rings) free(mpoly->rings);
 }
 
 void insert_point_into_ring(ring_t *ring, int idx) {
@@ -253,6 +268,10 @@ void write_mpoly_wkt(char *wkt_fn, mpoly_t mpoly, int split_polys) {
 
 mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance) {
 	if(VERBOSE) printf("reducing...\n");
+
+	if(!in_mpoly->num_rings) {
+		return empty_polygon();
+	}
 
 	reduced_ring_t *reduced_rings = (reduced_ring_t *)
 		malloc_or_die(sizeof(reduced_ring_t) * in_mpoly->num_rings);
@@ -500,6 +519,8 @@ mpoly_t reduction_to_mpoly(mpoly_t *in_mpoly, reduced_ring_t *reduced_rings) {
 		}
 	}
 	int num_out_rings = out_idx;
+
+	if(!num_out_rings) return empty_polygon();
 
 	// Now create the new rings and update parent_id using the
 	// remapped index values.

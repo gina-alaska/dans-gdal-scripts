@@ -1,5 +1,5 @@
-AM_CFLAGS = -Wall -pg -g -O3 @GDAL_CFLAGS@
-AM_CXXFLAGS = -Wall -pg -g -O3 @GDAL_CFLAGS@
+AM_CFLAGS = -Wall -g -O3 @GDAL_CFLAGS@
+AM_CXXFLAGS = -Wall -g -O3 @GDAL_CFLAGS@
 LIBS = @GDAL_LIBS@
 
 bin_PROGRAMS = gdal_raw2geotiff gdal_dem2rgb gdal_list_corners gdal_trace_outline gdal_contrast_stretch gdal_landsat_pansharp gdal_merge_simple gdal_merge_vrt
@@ -29,4 +29,4 @@ gdal_merge_vrt_SOURCES = gdal_merge_vrt.cc common.cc
 gdal_merge_vrt_CXXFLAGS = $(AM_CXXFLAGS)
 
 noinst_HEADERS = common.h polygon.h debugplot.h georef.h mask.h
-EXTRA_DIST = dem.pal test2.sh testcase.tif testcase2.tif
+EXTRA_DIST = dem.pal test2.sh testcase.tif testcase2.tif testcase3.tif

@@ -48,8 +48,10 @@ typedef struct {
 } mpoly_t;
 
 
+mpoly_t empty_polygon();
 ring_t duplicate_ring(ring_t *in_ring);
 void free_ring(ring_t *ring);
+void free_mpoly(mpoly_t *mpoly);
 void insert_point_into_ring(ring_t *ring, int idx);
 OGRGeometryH mpoly_to_ogr(mpoly_t *mpoly_in);
 void split_mpoly_to_polys(mpoly_t *mpoly, int *num_polys, mpoly_t **polys);

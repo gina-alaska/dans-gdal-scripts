@@ -43,6 +43,8 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 	unsigned char *mask = (unsigned char *)malloc_or_die(mask_rowlen*h);
 	for(i=0; i<mask_rowlen*h; i++) mask[i] = 0;
 
+	printf("Reading %d bands of size %d x %d\n", bandlist_size, w, h);
+
 	int bandlist_idx;
 	for(bandlist_idx=0; bandlist_idx<bandlist_size; bandlist_idx++) {
 		int band_idx = bandlist[bandlist_idx];
@@ -72,7 +74,7 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 					(double)boff_y * (double)w +
 					(double)boff_x * (double)bsize_y) /
 					((double)bandlist_size * (double)w * (double)h);
-				GDALTermProgress(progress, "Reading", NULL);
+				GDALTermProgress(progress, NULL, NULL);
 
 				GDALRasterIO(band, GF_Read, boff_x, boff_y, bsize_x, bsize_y, 
 					buf, bsize_x, bsize_y, GDT_Float64, 0, 0);
@@ -118,7 +120,7 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 		free(buf);
 	}
 
-	GDALTermProgress(1, "Reading", NULL);
+	GDALTermProgress(1, NULL, NULL);
 
 	return mask;
 }
@@ -143,6 +145,8 @@ unsigned char *read_dataset_8bit(GDALDatasetH ds, int band_idx, unsigned char *u
 	if(VERBOSE) printf("band %d: block size = %d,%d\n",
 		band_idx, blocksize_x, blocksize_y);
 
+	printf("Reading image of size %d x %d\n", w, h);
+
 	unsigned char *outbuf = (unsigned char *)malloc_or_die(w*h);
 	unsigned char *inbuf = (unsigned char *)malloc_or_die(blocksize_x*blocksize_y);
 	int boff_x, boff_y;
@@ -157,7 +161,7 @@ unsigned char *read_dataset_8bit(GDALDatasetH ds, int band_idx, unsigned char *u
 				((double)boff_y * (double)w +
 				(double)boff_x * (double)bsize_y) /
 				((double)w * (double)h);
-			GDALTermProgress(progress, "Reading", NULL);
+			GDALTermProgress(progress, NULL, NULL);
 
 			GDALRasterIO(band, GF_Read, boff_x, boff_y, bsize_x, bsize_y, 
 				inbuf, bsize_x, bsize_y, GDT_Byte, 0, 0);
@@ -188,7 +192,7 @@ unsigned char *read_dataset_8bit(GDALDatasetH ds, int band_idx, unsigned char *u
 
 	free(inbuf);
 
-	GDALTermProgress(1, "Reading", NULL);
+	GDALTermProgress(1, NULL, NULL);
 
 	return outbuf;
 }

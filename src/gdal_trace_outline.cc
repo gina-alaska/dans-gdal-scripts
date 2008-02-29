@@ -46,6 +46,10 @@ void usage(char *cmdname) {
 	printf("\
 \n\
 Behavior:\n\
+  -classify                    Output a polygon for each value of an 8-bit band\n\
+                               (default is to generate a single polygon that\n\
+							   surrounds all pixels that don't match\n\
+							   the no-data-value)\n\
   -nodataval 'val [val ...]'   Specify value of no-data pixels\n\
   -ndv-toler val               Tolerance for deciding if a pixel\n\
                                matches nodataval\n\
@@ -137,7 +141,7 @@ int main(int argc, char **argv) {
 			if(!strcmp(arg, "-v")) {
 				VERBOSE++;
 			} else if(!strcmp(arg, "-classify")) {
-				classify = 1; // FIXME - document this
+				classify = 1;
 			} else if(!strcmp(arg, "-nodataval")) {
 				if(argp == argc) usage(argv[0]);
 				int result = parse_list_of_doubles(argv[argp++], &num_ndv, &ndv_list);
@@ -227,6 +231,12 @@ int main(int argc, char **argv) {
 	if(major_ring_only && no_donuts) fatal_error(
 		"-major-ring and -no-donuts options cannot both be used at the same time");
 
+	if(classify) {
+		if(num_ndv) fatal_error("-classify option is not compatible with -nodataval option");
+		if(do_invert) fatal_error("-classify option is not compatible with -invert option");
+		if(mask_out_fn) fatal_error("-classify option is not compatible with -mask-out option");
+	}
+
 	GDALAllRegister();
 
 	GDALDatasetH ds = GDALOpen(input_raster_fn, GA_ReadOnly);
@@ -310,6 +320,8 @@ int main(int argc, char **argv) {
 		}
 	}
 
+	int num_shapes_written = 0;
+
 	int class_id;
 	for(class_id=0; class_id<256; class_id++) {
 		if(classify) {
@@ -319,6 +331,7 @@ int main(int argc, char **argv) {
 				raster, (unsigned char)class_id);
 		} else {
 			if(class_id != 0) continue;
+			printf("\nTracing data pixels\n");
 		}
 
 		if(do_invert) {
@@ -336,12 +349,15 @@ int main(int argc, char **argv) {
 			major_ring_only, no_donuts, min_ring_area, bevel_size);
 		free(mask);
 
+		// FIXME - mask in case of classify
 		if(mask_out_fn) {
 			mask_from_mpoly(bounds_poly, georef.w, georef.h, mask_out_fn);
 		}
 
 		if(reduction_tolerance > 0) {
-			*bounds_poly = compute_reduced_pointset(bounds_poly, reduction_tolerance);
+			mpoly_t reduced_poly = compute_reduced_pointset(bounds_poly, reduction_tolerance);
+			free_mpoly(bounds_poly);
+			*bounds_poly = reduced_poly;
 		}
 
 		int num_outer=0, num_inner=0, total_pts=0;
@@ -358,28 +374,35 @@ int main(int argc, char **argv) {
 			debug_plot_rings(bounds_poly, dbuf);
 		}
 
-		if(do_geom_output) {
+		if(do_geom_output && bounds_poly->num_rings) {
 			int num_shapes;
 			mpoly_t *shapes;
+			int shape_is_copy;
 			if(split_polys) {
 				split_mpoly_to_polys(bounds_poly, &num_shapes, &shapes);
+				shape_is_copy = 0;
 			} else {
 				num_shapes = 1;
 				shapes = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
 				shapes[0] = *bounds_poly;
+				shape_is_copy = 1;
 			}
 
 			int shape_idx;
 			for(shape_idx=0; shape_idx<num_shapes; shape_idx++) {
 				mpoly_t *poly_in = shapes+shape_idx;
-				mpoly_t *proj_poly;
 
+				mpoly_t *proj_poly;
+				int proj_is_copy;
 				if(out_cs == CS_XY) {
 					proj_poly = poly_in;
+					proj_is_copy = 1;
 				} else if(out_cs == CS_EN) {
 					proj_poly = mpoly_xy2en(&georef, poly_in);
+					proj_is_copy = 0;
 				} else if(out_cs == CS_LL) {
 					proj_poly = mpoly_xy2ll_with_interp(&georef, poly_in, llproj_toler);
+					proj_is_copy = 0;
 				} else {
 					fatal_error("bad val for out_cs");
 				}
@@ -399,13 +422,27 @@ int main(int argc, char **argv) {
 					OGR_L_CreateFeature(ogr_layer, ogr_feat);
 					OGR_F_Destroy(ogr_feat);
 				}
+
+				if(!proj_is_copy) free_mpoly(proj_poly);
+				if(!shape_is_copy) free_mpoly(poly_in);
+
+				num_shapes_written++;
 			}
 		}
+
+		free_mpoly(bounds_poly);
 	}
+
+	printf("\n");
 
 	if(wkt_fh) fclose(wkt_fh);
 	if(ogr_ds) OGR_DS_Destroy(ogr_ds);
 	if(dbuf) write_plot(dbuf, debug_report);
+
+	if(do_geom_output) {
+		if(num_shapes_written) printf("Wrote %d shapes.\n", num_shapes_written);
+		else printf("Wrote empty shapefile.\n");
+	}
 
 	CPLPopErrorHandler();
 
@@ -450,7 +487,7 @@ report_image_t *dbuf, int major_ring_only, int no_donuts,
 double min_ring_area, double bevel_size) {
 	int x, y;
 
-	printf("finding rings: begin\n");
+	if(VERBOSE) printf("finding rings: begin\n");
 
 	rowstat_t up_row, down_row;
 	down_row.num_transitions = 0; // prevent compiler warning;
@@ -616,14 +653,14 @@ double min_ring_area, double bevel_size) {
 	}
 
 	if(!num_descenders) {
-		printf("image was completely blank - therefore there is no bounding polygon\n");
-		return (mpoly_t){ 0, NULL };
+		printf("Mask was completely blank - therefore there is no bounding polygon\n");
+		return empty_polygon();
 	}
 
 	unsigned char *used_desc = (unsigned char *)malloc_or_die(num_descenders);
 	for(i=0; i<num_descenders; i++) used_desc[i] = 0;
 
-	mpoly_t mp = (mpoly_t){ 0, NULL };
+	mpoly_t mp = empty_polygon();
 
 	for(;;) {
 		int start_d = -1;
@@ -691,7 +728,7 @@ double min_ring_area, double bevel_size) {
 		mp.rings = (ring_t *)realloc_or_die(mp.rings, sizeof(ring_t)*(mp.num_rings+1));
 		mp.rings[mp.num_rings++] = ring;
 	}
-	printf("finding rings: end\n");
+	if(VERBOSE) printf("finding rings: end\n");
 
 	if(bevel_size > 0) {
 		// the topology cannot be resolved by us or by geos/jump/postgis if
