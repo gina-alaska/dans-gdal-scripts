@@ -349,7 +349,8 @@ int main(int argc, char **argv) {
 			major_ring_only, no_donuts, min_ring_area, bevel_size);
 		free(mask);
 
-		// FIXME - mask in case of classify
+		//free_mpoly(bounds_poly); continue; // FIXME
+
 		if(mask_out_fn) {
 			mask_from_mpoly(bounds_poly, georef.w, georef.h, mask_out_fn);
 		}
@@ -728,6 +729,13 @@ double min_ring_area, double bevel_size) {
 		mp.rings = (ring_t *)realloc_or_die(mp.rings, sizeof(ring_t)*(mp.num_rings+1));
 		mp.rings[mp.num_rings++] = ring;
 	}
+
+	free(used_desc);
+	for(i=0; i<num_descenders; i++) {
+		free(descenders[i].pts);
+	}
+	free(descenders);
+
 	if(VERBOSE) printf("finding rings: end\n");
 
 	if(bevel_size > 0) {
@@ -746,11 +754,14 @@ double min_ring_area, double bevel_size) {
 			if(VERBOSE) if(area > 10) printf("ring %d has area %.15f\n", i, area);
 			if(area >= min_ring_area) {
 				filtered_rings[num_filtered_rings++] = mp.rings[i];
+			} else {
+				free_ring(mp.rings + i);
 			}
 		}
 		printf("filtered by area %d => %d rings\n",
 			mp.num_rings, num_filtered_rings);
 
+		free(mp.rings);
 		mp.rings = filtered_rings;
 		mp.num_rings = num_filtered_rings;
 	}
