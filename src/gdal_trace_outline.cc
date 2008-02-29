@@ -103,6 +103,7 @@ mpoly_t calc_ring_from_mask(unsigned char *mask, int w, int h,
 
 int main(int argc, char **argv) {
 	char *input_raster_fn = NULL;
+	int classify = 0;
 	int num_ndv = 0;
 	double *ndv_list = NULL;
 	double ndv_tolerance = 0;
@@ -135,6 +136,8 @@ int main(int argc, char **argv) {
 		if(arg[0] == '-') {
 			if(!strcmp(arg, "-v")) {
 				VERBOSE++;
+			} else if(!strcmp(arg, "-classify")) {
+				classify = 1; // FIXME - document this
 			} else if(!strcmp(arg, "-nodataval")) {
 				if(argp == argc) usage(argv[0]);
 				int result = parse_list_of_doubles(argv[argp++], &num_ndv, &ndv_list);
@@ -235,7 +238,11 @@ int main(int argc, char **argv) {
 		int i;
 		for(i=0; i<inspect_numbands; i++) inspect_bandids[i] = i+1;
 	}
-	setup_ndv_list(ds, inspect_numbands, inspect_bandids, &num_ndv, &ndv_list);
+
+	// FIXME - optional NDV for classify
+	if(!classify) {
+		setup_ndv_list(ds, inspect_numbands, inspect_bandids, &num_ndv, &ndv_list);
+	}
 
 	CPLPushErrorHandler(CPLQuietErrorHandler);
 
@@ -250,55 +257,27 @@ int main(int argc, char **argv) {
 		dbuf->mode = PLOT_CONTOURS;
 	}
 
-	unsigned char *mask = get_mask_for_dataset(ds, inspect_numbands, inspect_bandids,
-		num_ndv, ndv_list, ndv_tolerance, dbuf);
-
-	if(do_invert) {
-		invert_mask(mask, georef.w, georef.h);
+	unsigned char *raster = NULL;
+	unsigned char *mask = NULL;
+	unsigned char usage_array[256];
+	if(classify) {
+		// FIXME - choose band_idx
+		raster = read_dataset_8bit(ds, 1, usage_array, dbuf);
+	} else {
+		mask = get_mask_for_dataset(ds, inspect_numbands, inspect_bandids,
+			num_ndv, ndv_list, ndv_tolerance, dbuf);
 	}
 
-	if(do_erosion) {
-		unsigned char *eroded_mask = erode_mask(mask, georef.w, georef.h);
-		free(mask);
-		mask = eroded_mask;
-	}
-
-	mpoly_t *bounds_poly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
-	*bounds_poly = calc_ring_from_mask(mask, georef.w, georef.h, dbuf, 
-		major_ring_only, no_donuts, min_ring_area, bevel_size);
-	free(mask);
-
-	if(mask_out_fn) {
-		mask_from_mpoly(bounds_poly, georef.w, georef.h, mask_out_fn);
-	}
-
-	if(reduction_tolerance > 0) {
-		*bounds_poly = compute_reduced_pointset(bounds_poly, reduction_tolerance);
-	}
-
-	int num_outer=0, num_inner=0, total_pts=0;
-	int r_idx;
-	for(r_idx=0; r_idx<bounds_poly->num_rings; r_idx++) {
-		if(bounds_poly->rings[r_idx].is_hole) num_inner++;
-		else num_outer++;
-		total_pts += bounds_poly->rings[r_idx].npts;
-	}
-	printf("Found %d outer rings and %d holes with a total of %d vertices.\n",
-		num_outer, num_inner, total_pts);
-
-	if(dbuf && dbuf->mode == PLOT_CONTOURS) {
-		debug_plot_rings(bounds_poly, dbuf);
-	}
-
+	FILE *wkt_fh = NULL;
+	OGRDataSourceH ogr_ds = NULL;
+	OGRLayerH ogr_layer = NULL;
+	int val_fld_idx = -1;
 	if(do_geom_output) {
-		FILE *wkt_fh = NULL;
 		if(wkt_fn) {
 			wkt_fh = fopen(wkt_fn, "w");
 			if(!wkt_fh) fatal_error("cannot open output file for WKT");
 		}
 
-		OGRDataSourceH ogr_ds = NULL;
-		OGRLayerH ogr_layer = NULL;
 		if(ogr_fn) {
 			OGRRegisterAll();
 			if(!ogr_fmt) ogr_fmt = "ESRI Shapefile";
@@ -320,57 +299,112 @@ int main(int argc, char **argv) {
 			ogr_layer = OGR_DS_CreateLayer(ogr_ds, layer_name, sref, 
 				(split_polys ? wkbPolygon : wkbMultiPolygon), NULL);
 			if(!ogr_layer) fatal_error("cannot create OGR layer");
-		}
 
-		int num_shapes;
-		mpoly_t *shapes;
-		if(split_polys) {
-			split_mpoly_to_polys(bounds_poly, &num_shapes, &shapes);
-		} else {
-			num_shapes = 1;
-			shapes = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
-			shapes[0] = *bounds_poly;
-		}
+			if(classify) {
+				OGRFieldDefnH val_fld = OGR_Fld_Create("value", OFTInteger);
+				OGR_Fld_SetWidth(val_fld, 4);
+				OGR_L_CreateField(ogr_layer, val_fld, TRUE);
 
-		int shape_idx;
-		for(shape_idx=0; shape_idx<num_shapes; shape_idx++) {
-			mpoly_t *poly_in = shapes+shape_idx;
-			mpoly_t *proj_poly;
-
-			if(out_cs == CS_XY) {
-				proj_poly = poly_in;
-			} else if(out_cs == CS_EN) {
-				proj_poly = mpoly_xy2en(&georef, poly_in);
-			} else if(out_cs == CS_LL) {
-				proj_poly = mpoly_xy2ll_with_interp(&georef, poly_in, llproj_toler);
-			} else {
-				fatal_error("bad val for out_cs");
+				val_fld_idx = OGR_FD_GetFieldIndex(OGR_L_GetLayerDefn(ogr_layer), "value");
 			}
-
-			OGRGeometryH ogr_poly = mpoly_to_ogr(proj_poly);
-
-			if(wkt_fh) {
-				char *wkt_out;
-				OGR_G_ExportToWkt(ogr_poly, &wkt_out);
-				fprintf(wkt_fh, "%s\n", wkt_out);
-			}
-
-			if(ogr_ds) {
-				OGRFeatureH ogr_feat = OGR_F_Create(OGR_L_GetLayerDefn(ogr_layer));
-				OGR_F_SetGeometry(ogr_feat, ogr_poly);
-				OGR_L_CreateFeature(ogr_layer, ogr_feat);
-				OGR_F_Destroy(ogr_feat);
-			}
-		}
-
-		if(wkt_fh) {
-			fclose(wkt_fh);
-		}
-		if(ogr_ds) {
-			OGR_DS_Destroy(ogr_ds);
 		}
 	}
 
+	int class_id;
+	for(class_id=0; class_id<256; class_id++) {
+		if(classify) {
+			if(!usage_array[class_id]) continue;
+			printf("\nTracing feature class %d\n", class_id);
+			mask = get_mask_for_8bit_raster(georef.w, georef.h,
+				raster, (unsigned char)class_id);
+		} else {
+			if(class_id != 0) continue;
+		}
+
+		if(do_invert) {
+			invert_mask(mask, georef.w, georef.h);
+		}
+
+		if(do_erosion) {
+			unsigned char *eroded_mask = erode_mask(mask, georef.w, georef.h);
+			free(mask);
+			mask = eroded_mask;
+		}
+
+		mpoly_t *bounds_poly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
+		*bounds_poly = calc_ring_from_mask(mask, georef.w, georef.h, dbuf, 
+			major_ring_only, no_donuts, min_ring_area, bevel_size);
+		free(mask);
+
+		if(mask_out_fn) {
+			mask_from_mpoly(bounds_poly, georef.w, georef.h, mask_out_fn);
+		}
+
+		if(reduction_tolerance > 0) {
+			*bounds_poly = compute_reduced_pointset(bounds_poly, reduction_tolerance);
+		}
+
+		int num_outer=0, num_inner=0, total_pts=0;
+		int r_idx;
+		for(r_idx=0; r_idx<bounds_poly->num_rings; r_idx++) {
+			if(bounds_poly->rings[r_idx].is_hole) num_inner++;
+			else num_outer++;
+			total_pts += bounds_poly->rings[r_idx].npts;
+		}
+		printf("Found %d outer rings and %d holes with a total of %d vertices.\n",
+			num_outer, num_inner, total_pts);
+
+		if(dbuf && dbuf->mode == PLOT_CONTOURS) {
+			debug_plot_rings(bounds_poly, dbuf);
+		}
+
+		if(do_geom_output) {
+			int num_shapes;
+			mpoly_t *shapes;
+			if(split_polys) {
+				split_mpoly_to_polys(bounds_poly, &num_shapes, &shapes);
+			} else {
+				num_shapes = 1;
+				shapes = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
+				shapes[0] = *bounds_poly;
+			}
+
+			int shape_idx;
+			for(shape_idx=0; shape_idx<num_shapes; shape_idx++) {
+				mpoly_t *poly_in = shapes+shape_idx;
+				mpoly_t *proj_poly;
+
+				if(out_cs == CS_XY) {
+					proj_poly = poly_in;
+				} else if(out_cs == CS_EN) {
+					proj_poly = mpoly_xy2en(&georef, poly_in);
+				} else if(out_cs == CS_LL) {
+					proj_poly = mpoly_xy2ll_with_interp(&georef, poly_in, llproj_toler);
+				} else {
+					fatal_error("bad val for out_cs");
+				}
+
+				OGRGeometryH ogr_poly = mpoly_to_ogr(proj_poly);
+
+				if(wkt_fh) {
+					char *wkt_out;
+					OGR_G_ExportToWkt(ogr_poly, &wkt_out);
+					fprintf(wkt_fh, "%s\n", wkt_out);
+				}
+
+				if(ogr_ds) {
+					OGRFeatureH ogr_feat = OGR_F_Create(OGR_L_GetLayerDefn(ogr_layer));
+					if(val_fld_idx >= 0) OGR_F_SetFieldInteger(ogr_feat, val_fld_idx, class_id);
+					OGR_F_SetGeometry(ogr_feat, ogr_poly);
+					OGR_L_CreateFeature(ogr_layer, ogr_feat);
+					OGR_F_Destroy(ogr_feat);
+				}
+			}
+		}
+	}
+
+	if(wkt_fh) fclose(wkt_fh);
+	if(ogr_ds) OGR_DS_Destroy(ogr_ds);
 	if(dbuf) write_plot(dbuf, debug_report);
 
 	CPLPopErrorHandler();

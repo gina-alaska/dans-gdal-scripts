@@ -58,8 +58,6 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 		if(VERBOSE) printf("band %d: block size = %d,%d  nodataval = %.15f\n",
 			band_idx, blocksize_x, blocksize_y, nodataval);
 
-		GDALTermProgress(0, "Reading", NULL);
-
 		double *buf = (double *)malloc_or_die(blocksize_x*blocksize_y*sizeof(double));
 		int boff_x, boff_y;
 		for(boff_y=0; boff_y<h; boff_y+=blocksize_y) {
@@ -93,11 +91,11 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 					unsigned char mask_bitp = 1 << (boff_x % 8);
 					unsigned char *mask_bytep = mask + mask_rowlen*y + boff_x/8;
 					for(i=0; i<bsize_x; i++) {
-						int is_dbuf_stride = is_dbuf_stride_y && ((i % dbuf->stride_x) == 0);
 						double val = *(p++);
 						if(fabs(val - nodataval) > ndv_tolerance) {
 							*mask_bytep |= mask_bitp;
 
+							int is_dbuf_stride = is_dbuf_stride_y && ((i % dbuf->stride_x) == 0);
 							if(is_dbuf_stride) {
 								int x = i + boff_x;
 								unsigned char db_v = 100 + (unsigned char)(val/2);
@@ -121,6 +119,104 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 	}
 
 	GDALTermProgress(1, "Reading", NULL);
+
+	return mask;
+}
+
+unsigned char *read_dataset_8bit(GDALDatasetH ds, int band_idx, unsigned char *usage_array, report_image_t *dbuf) {
+	int i, j;
+
+	for(i=0; i<256; i++) usage_array[i] = 0;
+
+	int w = GDALGetRasterXSize(ds);
+	int h = GDALGetRasterYSize(ds);
+	int band_count = GDALGetRasterCount(ds);
+	if(VERBOSE) printf("input is %d x %d x %d\n", w, h, band_count);
+
+	if(band_idx < 1 || band_idx > band_count) fatal_error("bandid out of range");
+
+	GDALRasterBandH band = GDALGetRasterBand(ds, band_idx);
+
+	int blocksize_x, blocksize_y;
+	GDALGetBlockSize(band, &blocksize_x, &blocksize_y);
+
+	if(VERBOSE) printf("band %d: block size = %d,%d\n",
+		band_idx, blocksize_x, blocksize_y);
+
+	unsigned char *outbuf = (unsigned char *)malloc_or_die(w*h);
+	unsigned char *inbuf = (unsigned char *)malloc_or_die(blocksize_x*blocksize_y);
+	int boff_x, boff_y;
+	for(boff_y=0; boff_y<h; boff_y+=blocksize_y) {
+		int bsize_y = blocksize_y;
+		if(bsize_y + boff_y > h) bsize_y = h - boff_y;
+		for(boff_x=0; boff_x<w; boff_x+=blocksize_x) {
+			int bsize_x = blocksize_x;
+			if(bsize_x + boff_x > w) bsize_x = w - boff_x;
+
+			double progress = 
+				((double)boff_y * (double)w +
+				(double)boff_x * (double)bsize_y) /
+				((double)w * (double)h);
+			GDALTermProgress(progress, "Reading", NULL);
+
+			GDALRasterIO(band, GF_Read, boff_x, boff_y, bsize_x, bsize_y, 
+				inbuf, bsize_x, bsize_y, GDT_Byte, 0, 0);
+
+			unsigned char *p_in = inbuf;
+			for(j=0; j<bsize_y; j++) {
+				int y = j + boff_y;
+				int is_dbuf_stride_y = dbuf && ((y % dbuf->stride_y) == 0);
+				unsigned char *p_out = outbuf + w*y + boff_x;
+				for(i=0; i<bsize_x; i++) {
+					unsigned char val = *(p_in++);
+					*(p_out++) = val;
+					usage_array[val] = 1;
+
+					int is_dbuf_stride = is_dbuf_stride_y && ((i % dbuf->stride_x) == 0);
+					if(is_dbuf_stride) {
+						int x = i + boff_x;
+						unsigned char db_v = 100 + (val/2);
+						if(db_v < 100) db_v = 100;
+						if(db_v > 254) db_v = 254;
+						unsigned char r = (unsigned char)(db_v*.75);
+						plot_point(dbuf, x, y, r, db_v, db_v);
+					}
+				}
+			}
+		}
+	}
+
+	free(inbuf);
+
+	GDALTermProgress(1, "Reading", NULL);
+
+	return outbuf;
+}
+
+unsigned char *get_mask_for_8bit_raster(int w, int h, unsigned char *raster, unsigned char wanted) {
+	int mask_rowlen = (w+7)/8;
+	if(VERBOSE) printf("mask array is %.1f megabytes\n", (double)mask_rowlen*h/1024.0/1024.0);
+	unsigned char *mask = (unsigned char *)malloc_or_die(mask_rowlen*h);
+	int i;
+	for(i=0; i<mask_rowlen*h; i++) mask[i] = 0;
+
+	int x, y;
+	for(y=0; y<h; y++) {
+		unsigned char mask_bitp = 1;
+		unsigned char *mask_bytep = mask + mask_rowlen*y;
+		unsigned char *p_in = raster + y*w;
+		for(x=0; x<w; x++) {
+			unsigned char val = *(p_in++);
+			if(val == wanted) {
+				*mask_bytep |= mask_bitp;
+			}
+			mask_bitp <<= 1;
+			if(!mask_bitp) {
+				mask_bitp = 1;
+				mask_bytep++;
+			}
+		}
+	}
 
 	return mask;
 }
