@@ -55,6 +55,7 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 		int blocksize_x, blocksize_y;
 		GDALGetBlockSize(band, &blocksize_x, &blocksize_y);
 
+		// gain speed in common 8-bit case
 		GDALDataType gdt = GDALGetRasterDataType(band);
 		int use_8bit = (gdt == GDT_Byte);
 
@@ -113,15 +114,16 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 					unsigned char mask_bitp = 1 << (boff_x % 8);
 					unsigned char *mask_bytep = mask + mask_rowlen*y + boff_x/8;
 					for(i=0; i<bsize_x; i++) {
-						unsigned char val_8bit;
-						double val_dbl;
+						int debug_color;
 						int is_ndv;
 						if(use_8bit) {
-							val_8bit = *(p_8bit++);
-							is_ndv = (val_8bit >= ndv_lo_8bit && val_8bit <= ndv_hi_8bit);
+							unsigned char val = *(p_8bit++);
+							is_ndv = (val >= ndv_lo_8bit && val <= ndv_hi_8bit);
+							debug_color = (int)val;
 						} else {
-							val_dbl = *(p_dbl++);
-							is_ndv = (val_dbl >= ndv_lo_dbl && val_dbl <= ndv_hi_dbl);
+							double val = *(p_dbl++);
+							is_ndv = (val >= ndv_lo_dbl && val <= ndv_hi_dbl);
+							debug_color = (int)val;
 						}
 						if(!is_ndv) {
 							*mask_bytep |= mask_bitp;
@@ -130,7 +132,7 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 							if(is_dbuf_stride) {
 								int x = i + boff_x;
 								int db_v = 100;
-								db_v += (use_8bit ? (int)val_8bit : (int)val_dbl) / 2;
+								db_v += debug_color / 2;
 								if(db_v < 100) db_v = 100;
 								if(db_v > 254) db_v = 254;
 								unsigned char r = (unsigned char)(db_v*.75);
@@ -171,6 +173,11 @@ unsigned char *read_dataset_8bit(GDALDatasetH ds, int band_idx, unsigned char *u
 
 	int blocksize_x, blocksize_y;
 	GDALGetBlockSize(band, &blocksize_x, &blocksize_y);
+
+	GDALDataType gdt = GDALGetRasterDataType(band);
+	if(gdt != GDT_Byte) {
+		printf("Warning: input is not of type Byte, there may be loss while downsampling!\n");
+	}
 
 	if(VERBOSE) printf("band %d: block size = %d,%d\n",
 		band_idx, blocksize_x, blocksize_y);

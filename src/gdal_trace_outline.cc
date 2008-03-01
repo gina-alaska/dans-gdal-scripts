@@ -270,11 +270,18 @@ int main(int argc, char **argv) {
 	unsigned char *raster = NULL;
 	unsigned char *mask = NULL;
 	unsigned char usage_array[256];
+	GDALColorTableH color_table = NULL;
 	if(classify) {
 		if(inspect_numbands != 1) {
 			fatal_error("only one band may be used in classify mode");
 		}
+
 		raster = read_dataset_8bit(ds, inspect_bandids[0], usage_array, dbuf);
+
+		GDALRasterBandH band = GDALGetRasterBand(ds, inspect_bandids[0]);
+		if(GDALGetRasterColorInterpretation(band) == GCI_PaletteIndex) {
+			color_table = GDALGetRasterColorTable(band);
+		}
 	} else {
 		mask = get_mask_for_dataset(ds, inspect_numbands, inspect_bandids,
 			num_ndv, ndv_list, ndv_tolerance, dbuf);
@@ -283,7 +290,8 @@ int main(int argc, char **argv) {
 	FILE *wkt_fh = NULL;
 	OGRDataSourceH ogr_ds = NULL;
 	OGRLayerH ogr_layer = NULL;
-	int val_fld_idx = -1;
+	int class_fld_idx = -1;
+	int color_fld_idx[4] = { -1, -1, -1, -1 };
 	if(do_geom_output) {
 		if(wkt_fn) {
 			wkt_fh = fopen(wkt_fn, "w");
@@ -313,11 +321,21 @@ int main(int argc, char **argv) {
 			if(!ogr_layer) fatal_error("cannot create OGR layer");
 
 			if(classify) {
-				OGRFieldDefnH val_fld = OGR_Fld_Create("value", OFTInteger);
-				OGR_Fld_SetWidth(val_fld, 4);
-				OGR_L_CreateField(ogr_layer, val_fld, TRUE);
+				OGRFieldDefnH fld = OGR_Fld_Create("value", OFTInteger);
+				OGR_Fld_SetWidth(fld, 4);
+				OGR_L_CreateField(ogr_layer, fld, TRUE);
+				class_fld_idx = OGR_FD_GetFieldIndex(OGR_L_GetLayerDefn(ogr_layer), "value");
 
-				val_fld_idx = OGR_FD_GetFieldIndex(OGR_L_GetLayerDefn(ogr_layer), "value");
+				if(color_table) {
+					char *names[4] = { "c1", "c2", "c3", "c4" };
+					int i;
+					for(i=0; i<4; i++) {
+						fld = OGR_Fld_Create(names[i], OFTInteger);
+						OGR_Fld_SetWidth(fld, 4);
+						OGR_L_CreateField(ogr_layer, fld, TRUE);
+						color_fld_idx[i] = OGR_FD_GetFieldIndex(OGR_L_GetLayerDefn(ogr_layer), names[i]);
+					}
+				}
 			}
 		}
 	}
@@ -326,9 +344,17 @@ int main(int argc, char **argv) {
 
 	int class_id;
 	for(class_id=0; class_id<256; class_id++) {
+		const GDALColorEntry *color = NULL;
 		if(classify) {
 			if(!usage_array[class_id]) continue;
 			printf("\nTracing feature class %d\n", class_id);
+
+			if(color_table) {
+				color = GDALGetColorEntry(color_table, class_id);
+				if(color) printf("  Color=%d,%d,%d,%d\n",
+					color->c1, color->c2, color->c3, color->c4);
+			}
+
 			mask = get_mask_for_8bit_raster(georef.w, georef.h,
 				raster, (unsigned char)class_id);
 		} else {
@@ -418,7 +444,13 @@ int main(int argc, char **argv) {
 
 				if(ogr_ds) {
 					OGRFeatureH ogr_feat = OGR_F_Create(OGR_L_GetLayerDefn(ogr_layer));
-					if(val_fld_idx >= 0) OGR_F_SetFieldInteger(ogr_feat, val_fld_idx, class_id);
+					if(class_fld_idx >= 0) OGR_F_SetFieldInteger(ogr_feat, class_fld_idx, class_id);
+					if(color) {
+						if(color_fld_idx[0] >= 0) OGR_F_SetFieldInteger(ogr_feat, color_fld_idx[0], color->c1);
+						if(color_fld_idx[1] >= 0) OGR_F_SetFieldInteger(ogr_feat, color_fld_idx[1], color->c2);
+						if(color_fld_idx[2] >= 0) OGR_F_SetFieldInteger(ogr_feat, color_fld_idx[2], color->c3);
+						if(color_fld_idx[3] >= 0) OGR_F_SetFieldInteger(ogr_feat, color_fld_idx[3], color->c4);
+					}
 					OGR_F_SetGeometryDirectly(ogr_feat, ogr_geom); // assumes ownership of geom
 					OGR_L_CreateFeature(ogr_layer, ogr_feat);
 					OGR_F_Destroy(ogr_feat);
