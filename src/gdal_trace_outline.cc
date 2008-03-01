@@ -349,8 +349,6 @@ int main(int argc, char **argv) {
 			major_ring_only, no_donuts, min_ring_area, bevel_size);
 		free(mask);
 
-		//free_mpoly(bounds_poly); continue; // FIXME
-
 		if(mask_out_fn) {
 			mask_from_mpoly(bounds_poly, georef.w, georef.h, mask_out_fn);
 		}
@@ -408,20 +406,22 @@ int main(int argc, char **argv) {
 					fatal_error("bad val for out_cs");
 				}
 
-				OGRGeometryH ogr_poly = mpoly_to_ogr(proj_poly);
+				OGRGeometryH ogr_geom = mpoly_to_ogr(proj_poly);
 
 				if(wkt_fh) {
 					char *wkt_out;
-					OGR_G_ExportToWkt(ogr_poly, &wkt_out);
+					OGR_G_ExportToWkt(ogr_geom, &wkt_out);
 					fprintf(wkt_fh, "%s\n", wkt_out);
 				}
 
 				if(ogr_ds) {
 					OGRFeatureH ogr_feat = OGR_F_Create(OGR_L_GetLayerDefn(ogr_layer));
 					if(val_fld_idx >= 0) OGR_F_SetFieldInteger(ogr_feat, val_fld_idx, class_id);
-					OGR_F_SetGeometry(ogr_feat, ogr_poly);
+					OGR_F_SetGeometryDirectly(ogr_feat, ogr_geom); // assumes ownership of geom
 					OGR_L_CreateFeature(ogr_layer, ogr_feat);
 					OGR_F_Destroy(ogr_feat);
+				} else {
+					OGR_G_DestroyGeometry(ogr_geom);
 				}
 
 				if(!proj_is_copy) free_mpoly(proj_poly);

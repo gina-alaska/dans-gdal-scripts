@@ -714,7 +714,20 @@ void line_line_intersection(
 	(*p_out).y = p1.y + ua*(p2.y-p1.y);
 }
 
-int polygon_contains(ring_t *c1, ring_t *c2) {
+double polygon_area(ring_t *c) {
+	double accum = 0;
+	int i;
+	for(i=0; i<c->npts; i++) {
+		double x0 = c->pts[i].x;
+		double y0 = c->pts[i].y;
+		double x1 = c->pts[(i+1)%c->npts].x;
+		double y1 = c->pts[(i+1)%c->npts].y;
+		accum += x0*y1 - x1*y0;
+	}
+	return fabs(accum) / 2.0;
+}
+
+inline int polygon_contains(ring_t *c1, ring_t *c2) {
 	// NOTE: by assumption, c1 and c2 don't cross
 
 	int c2npts = c2->npts;
@@ -757,59 +770,102 @@ int polygon_contains(ring_t *c1, ring_t *c2) {
 	return 1;
 }
 
-double polygon_area(ring_t *c) {
-	double accum = 0;
+typedef struct {
+	double min_x, max_x, min_y, max_y;
+} bbox_t;
+
+bbox_t *make_bbox(ring_t *ring) {
+	if(ring->npts == 0) return NULL;
+	bbox_t *bbox = (bbox_t *)malloc_or_die(sizeof(bbox_t));
+	bbox->min_x = bbox->max_x = ring->pts[0].x;
+	bbox->min_y = bbox->max_y = ring->pts[0].y;
 	int i;
-	for(i=0; i<c->npts; i++) {
-		double x0 = c->pts[i].x;
-		double y0 = c->pts[i].y;
-		double x1 = c->pts[(i+1)%c->npts].x;
-		double y1 = c->pts[(i+1)%c->npts].y;
-		accum += x0*y1 - x1*y0;
+	for(i=0; i<ring->npts; i++) {
+		vertex_t v = ring->pts[i];
+		if(v.x < bbox->min_x) bbox->min_x = v.x;
+		if(v.y < bbox->min_y) bbox->min_y = v.y;
+		if(v.x > bbox->max_x) bbox->max_x = v.x;
+		if(v.y > bbox->max_y) bbox->max_y = v.y;
 	}
-	return fabs(accum) / 2.0;
+	return bbox;
+}
+
+int polygon_contains_bbox(ring_t *r1, ring_t *r2, bbox_t **bbox1, bbox_t **bbox2) {
+	if(*bbox1 == NULL) *bbox1 = make_bbox(r1);
+	if(*bbox2 == NULL) *bbox2 = make_bbox(r2);
+	// empty ring
+	if(*bbox1 == NULL || *bbox2 == NULL) return 0;
+
+	if(
+		(*bbox1)->min_x > (*bbox2)->max_x ||
+		(*bbox1)->min_y > (*bbox2)->max_y ||
+		(*bbox2)->min_x > (*bbox1)->max_x ||
+		(*bbox2)->min_y > (*bbox1)->max_y
+	) return 0;
+
+	return polygon_contains(r1, r2);
 }
 
 void compute_containments(mpoly_t *mp) {
 	int i, j;
+	int nrings = mp->num_rings;
+
+	bbox_t **bboxes = (bbox_t **)malloc_or_die(sizeof(bbox_t *) * nrings);
+	for(i=0; i<nrings; i++) bboxes[i] = NULL;
 
 	unsigned char **containments = (unsigned char **)malloc_or_die(
-		sizeof(unsigned char *) * mp->num_rings);
-	for(i=0; i<mp->num_rings; i++) {
-		containments[i] = (unsigned char *)malloc_or_die(mp->num_rings);
-		for(j=0; j<mp->num_rings; j++) {
+		sizeof(unsigned char *) * nrings);
+	for(i=0; i<nrings; i++) {
+		containments[i] = (unsigned char *)malloc_or_die(nrings);
+		for(j=0; j<nrings; j++) {
 			if(i == j) {
 				containments[i][j] = 0;
 			} else {
-				containments[i][j] = polygon_contains(&mp->rings[i], &mp->rings[j]);
+				containments[i][j] = polygon_contains_bbox(
+					&mp->rings[i], &mp->rings[j],
+					bboxes+i, bboxes+j);
 				//printf("containtments[%d][%d] = %d\n", i, j, containments[i][j]);
 			}
 		}
 	}
+
+	for(i=0; i<nrings; i++) {
+		if(bboxes[i]) free(bboxes[i]);
+	}
+	free(bboxes);
+
+	long num_hits = 0;
+
 	int *containment_levels = (int *)malloc_or_die(
-		sizeof(int) * mp->num_rings);
-	int max_level = 0;
-	for(i=0; i<mp->num_rings; i++) {
+		sizeof(int) * nrings);
+	//int max_level = 0;
+	for(i=0; i<nrings; i++) {
 		containment_levels[i] = 0;
-		for(j=0; j<mp->num_rings; j++) {
-			if(containments[i][j] && containments[j][i]) {
-				fatal_error("topology error: %d and %d contain each other", i, j);
+		for(j=0; j<nrings; j++) {
+			if(containments[j][i]) {
+				containment_levels[i]++;
+				num_hits++;
+
+				if(containments[i][j]) {
+					fatal_error("topology error: %d and %d contain each other", i, j);
+				}
 			}
-			if(containments[j][i]) containment_levels[i]++;
 		}
 		if(VERBOSE) printf("containment_levels[%d] = %d\n", i, containment_levels[i]);
-		if(containment_levels[i] > max_level) max_level = containment_levels[i];
+		//if(containment_levels[i] > max_level) max_level = containment_levels[i];
 	}
 
-	for(i=0; i<mp->num_rings; i++) {
+	if(VERBOSE) printf("containment hits = %ld/%ld\n", num_hits, (long)nrings*(long)nrings);
+
+	for(i=0; i<nrings; i++) {
 		// only odd levels are holes
 		mp->rings[i].is_hole = containment_levels[i] % 2;
 	}
 
-	for(i=0; i<mp->num_rings; i++) {
+	for(i=0; i<nrings; i++) {
 		mp->rings[i].parent_id = -1;
 
-		for(j=0; j<mp->num_rings; j++) {
+		for(j=0; j<nrings; j++) {
 			if(
 				containments[j][i] &&
 				containment_levels[i] == containment_levels[j] + 1
@@ -818,6 +874,12 @@ void compute_containments(mpoly_t *mp) {
 			}
 		}
 	}
+
+	for(i=0; i<nrings; i++) {
+		free(containments[i]);
+	}
+	free(containments);
+	free(containment_levels);
 }
 
 void mask_from_mpoly(mpoly_t *mpoly, int w, int h, char *fn) {
