@@ -243,7 +243,7 @@ int main(int argc, char **argv) {
 	if(!ds) fatal_error("open failed");
 
 	if(!inspect_numbands) {
-		inspect_numbands = GDALGetRasterCount(ds);
+		inspect_numbands = classify ? 1 : GDALGetRasterCount(ds);
 		inspect_bandids = (int *)malloc_or_die(sizeof(int)*inspect_numbands);
 		int i;
 		for(i=0; i<inspect_numbands; i++) inspect_bandids[i] = i+1;
@@ -271,8 +271,10 @@ int main(int argc, char **argv) {
 	unsigned char *mask = NULL;
 	unsigned char usage_array[256];
 	if(classify) {
-		// FIXME - choose band_idx
-		raster = read_dataset_8bit(ds, 1, usage_array, dbuf);
+		if(inspect_numbands != 1) {
+			fatal_error("only one band may be used in classify mode");
+		}
+		raster = read_dataset_8bit(ds, inspect_bandids[0], usage_array, dbuf);
 	} else {
 		mask = get_mask_for_dataset(ds, inspect_numbands, inspect_bandids,
 			num_ndv, ndv_list, ndv_tolerance, dbuf);
@@ -326,7 +328,6 @@ int main(int argc, char **argv) {
 	for(class_id=0; class_id<256; class_id++) {
 		if(classify) {
 			if(!usage_array[class_id]) continue;
-			if(class_id<20 || class_id>45) continue; // FIXME
 			printf("\nTracing feature class %d\n", class_id);
 			mask = get_mask_for_8bit_raster(georef.w, georef.h,
 				raster, (unsigned char)class_id);

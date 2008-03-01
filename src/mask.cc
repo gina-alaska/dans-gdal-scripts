@@ -175,7 +175,7 @@ unsigned char *read_dataset_8bit(GDALDatasetH ds, int band_idx, unsigned char *u
 	if(VERBOSE) printf("band %d: block size = %d,%d\n",
 		band_idx, blocksize_x, blocksize_y);
 
-	printf("Reading image of size %d x %d\n", w, h);
+	printf("Reading one band of size %d x %d\n", w, h);
 
 	unsigned char *outbuf = (unsigned char *)malloc_or_die(w*h);
 	unsigned char *inbuf = (unsigned char *)malloc_or_die(blocksize_x*blocksize_y);
