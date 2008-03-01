@@ -326,6 +326,7 @@ int main(int argc, char **argv) {
 	for(class_id=0; class_id<256; class_id++) {
 		if(classify) {
 			if(!usage_array[class_id]) continue;
+			if(class_id<20 || class_id>45) continue; // FIXME
 			printf("\nTracing feature class %d\n", class_id);
 			mask = get_mask_for_8bit_raster(georef.w, georef.h,
 				raster, (unsigned char)class_id);
