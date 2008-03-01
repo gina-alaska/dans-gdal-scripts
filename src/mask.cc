@@ -55,12 +55,31 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 		int blocksize_x, blocksize_y;
 		GDALGetBlockSize(band, &blocksize_x, &blocksize_y);
 
-		double nodataval = ndv_list[bandlist_idx];
+		GDALDataType gdt = GDALGetRasterDataType(band);
+		int use_8bit = (gdt == GDT_Byte);
 
-		if(VERBOSE) printf("band %d: block size = %d,%d  nodataval = %.15f\n",
-			band_idx, blocksize_x, blocksize_y, nodataval);
+		if(VERBOSE) printf("band %d: block size = %d,%d, use_8bit=%d\n",
+			band_idx, blocksize_x, blocksize_y, use_8bit);
 
-		double *buf = (double *)malloc_or_die(blocksize_x*blocksize_y*sizeof(double));
+		double ndv_lo_dbl = ndv_list[bandlist_idx] - ndv_tolerance;
+		double ndv_hi_dbl = ndv_list[bandlist_idx] + ndv_tolerance;
+		unsigned char ndv_lo_8bit = (unsigned char)ceil (ndv_lo_dbl);
+		unsigned char ndv_hi_8bit = (unsigned char)floor(ndv_hi_dbl);
+
+		if(VERBOSE) {
+			if(use_8bit) {
+				printf("ndv_range = [%d,%d]\n", (int)ndv_lo_8bit, (int)ndv_hi_8bit);
+			} else {
+				printf("ndv_range = [%.15f,%.15f]\n", ndv_lo_dbl, ndv_hi_dbl);
+			}
+		}
+
+		void *block_buf;
+		if(use_8bit) {
+			block_buf = malloc_or_die(blocksize_x*blocksize_y);
+		} else {
+			block_buf = malloc_or_die(blocksize_x*blocksize_y*sizeof(double));
+		}
 		int boff_x, boff_y;
 		for(boff_y=0; boff_y<h; boff_y+=blocksize_y) {
 			int bsize_y = blocksize_y;
@@ -77,30 +96,41 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 				GDALTermProgress(progress, NULL, NULL);
 
 				GDALRasterIO(band, GF_Read, boff_x, boff_y, bsize_x, bsize_y, 
-					buf, bsize_x, bsize_y, GDT_Float64, 0, 0);
+					block_buf, bsize_x, bsize_y, 
+					use_8bit ? GDT_Byte : GDT_Float64,
+					0, 0);
 
-				/*
-				if(!boff_x && !boff_y) {
-					if(VERBOSE) printf("band %d: pixel[0] = %.15f\n", band_idx, buf[0]);
-					nodataval = buf[0];
+				double *p_dbl = NULL;
+				unsigned char *p_8bit = NULL;
+				if(use_8bit) {
+					p_8bit = (unsigned char *)block_buf;
+				} else {
+					p_dbl = (double *)block_buf;
 				}
-				*/
-
-				double *p = buf;
 				for(j=0; j<bsize_y; j++) {
 					int y = j + boff_y;
 					int is_dbuf_stride_y = dbuf && ((y % dbuf->stride_y) == 0);
 					unsigned char mask_bitp = 1 << (boff_x % 8);
 					unsigned char *mask_bytep = mask + mask_rowlen*y + boff_x/8;
 					for(i=0; i<bsize_x; i++) {
-						double val = *(p++);
-						if(fabs(val - nodataval) > ndv_tolerance) {
+						unsigned char val_8bit;
+						double val_dbl;
+						int is_ndv;
+						if(use_8bit) {
+							val_8bit = *(p_8bit++);
+							is_ndv = (val_8bit >= ndv_lo_8bit && val_8bit <= ndv_hi_8bit);
+						} else {
+							val_dbl = *(p_dbl++);
+							is_ndv = (val_dbl >= ndv_lo_dbl && val_dbl <= ndv_hi_dbl);
+						}
+						if(!is_ndv) {
 							*mask_bytep |= mask_bitp;
 
 							int is_dbuf_stride = is_dbuf_stride_y && ((i % dbuf->stride_x) == 0);
 							if(is_dbuf_stride) {
 								int x = i + boff_x;
-								unsigned char db_v = 100 + (unsigned char)(val/2);
+								int db_v = 100;
+								db_v += (use_8bit ? (int)val_8bit : (int)val_dbl) / 2;
 								if(db_v < 100) db_v = 100;
 								if(db_v > 254) db_v = 254;
 								unsigned char r = (unsigned char)(db_v*.75);
@@ -117,7 +147,7 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 			}
 		}
 
-		free(buf);
+		free(block_buf);
 	}
 
 	GDALTermProgress(1, NULL, NULL);
