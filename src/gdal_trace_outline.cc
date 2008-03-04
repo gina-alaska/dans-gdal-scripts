@@ -527,11 +527,16 @@ double min_ring_area, double bevel_size) {
 
 	if(VERBOSE) printf("finding rings: begin\n");
 
+	// up_row is previous row, down_row is current row
 	rowstat_t up_row, down_row;
 	down_row.num_transitions = 0; // prevent compiler warning;
 
+	// Openings and closings come in pairs having the same index.
+	// An opening/closing pair represents entering and then leaving
+	// a region of marked pixels in a given row.
 	up_row.openings        = (int *)malloc_or_die(sizeof(int) * (w+1)/2);
 	up_row.closings        = (int *)malloc_or_die(sizeof(int) * (w+1)/2);
+	// Descenders trace the border between marked/unmarked pixels.
 	up_row.descender_ids   = (int *)malloc_or_die(sizeof(int) * (w+1));
 	down_row.openings      = (int *)malloc_or_die(sizeof(int) * (w+1)/2);
 	down_row.closings      = (int *)malloc_or_die(sizeof(int) * (w+1)/2);
@@ -546,6 +551,7 @@ double min_ring_area, double bevel_size) {
 	for(y=0; y<=h; y++) {
 		if(show_progress) GDALTermProgress((double)y/(double)(h+1), NULL, NULL);
 		if(y) {
+			// the previous down_row becomes the new up_row
 			up_row.num_transitions = down_row.num_transitions;
 			memcpy(up_row.openings, down_row.openings, sizeof(int)*down_row.num_transitions);
 			memcpy(up_row.closings, down_row.closings, sizeof(int)*down_row.num_transitions);
@@ -555,8 +561,11 @@ double min_ring_area, double bevel_size) {
 		}
 
 		if(y==h) {
+			// This is below the last row of the image.
+			// This area is considered to be all unmarked pixels.
 			down_row.num_transitions = 0;
 		} else {
+			// Tabulate the opening/closing pairs for this row.
 			down_row.num_transitions = 0;
 
 			int mask_rowlen = (w+7)/8;
@@ -598,7 +607,7 @@ double min_ring_area, double bevel_size) {
 				(down_tid == down_row.num_transitions) ||
 				(up_tid < up_row.num_transitions && up_row.closings[up_tid] <= down_row.openings[down_tid])
 			) {
-				//      \----/ 
+				// Close off a pair of descenders:     \____/ 
 				if(dbuf && dbuf->mode == PLOT_DESCENDERS) {
 					for(x=up_row.openings[up_tid]; x<=up_row.closings[up_tid]; x++)
 						plot_point(dbuf, x, y, 255, 0, 0);
@@ -618,7 +627,7 @@ double min_ring_area, double bevel_size) {
 				(up_tid == up_row.num_transitions) ||
 				(down_tid < down_row.num_transitions && down_row.closings[down_tid] <= up_row.openings[up_tid])
 			) {
-				//      /----\  .
+				// Create a new pair of descenders:     /^^^^\  .
 				if(dbuf && dbuf->mode == PLOT_DESCENDERS) {
 					for(x=down_row.openings[down_tid]; x<=down_row.closings[down_tid]; x++)
 						plot_point(dbuf, x, y, 0, 255, 0);
@@ -630,6 +639,7 @@ double min_ring_area, double bevel_size) {
 				down_row.descender_ids[down_tid*2+1] = d+1;
 				down_tid++;
 			} else if(up_tid < up_row.num_transitions && down_tid < down_row.num_transitions) {
+				// Move descender to new location of boundary for this row
 				if(dbuf && dbuf->mode == PLOT_DESCENDERS) {
 					plot_point(dbuf, up_row.openings[up_tid], y, 255, 255, 0);
 					plot_point(dbuf, down_row.openings[down_tid], y, 255, 255, 0);
