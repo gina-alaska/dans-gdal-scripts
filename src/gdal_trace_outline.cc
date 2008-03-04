@@ -920,7 +920,25 @@ double min_ring_area, double bevel_size) {
 				break;
 			}
 		}
+
+		if(VERBOSE >= 2) {
+			printf("ring %d is_hole=%d parent_id=%d\n", r_idx, ring->is_hole, ring->parent_id);
+		}
 	}
+	for(r_idx=0; r_idx<mp.num_rings; r_idx++) {
+		ring_t *ring = mp.rings + r_idx;
+		if(ring->parent_id >= 0) {
+			ring_t *parent = mp.rings + ring->parent_id;
+			if(ring->is_hole == parent->is_hole) {
+				fatal_error("topology error in containment calculation");
+			}
+		} else {
+			if(ring->is_hole) {
+				fatal_error("topology error in containment calculation");
+			}
+		}
+	}
+	free(crossing_counts);
 #endif
 	//printf("computing containments: end\n");
 
