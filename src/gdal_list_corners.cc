@@ -39,13 +39,15 @@ void usage(char *cmdname) {
 	printf("\
 \n\
 Inspection:\n\
-  -inspect-rect4                  Attempt to find 4-sided bounding polygon\n\
-  -nodataval 'val [val ...]'      Specify value of no-data pixels\n\
-  -ndv-toler val                  Tolerance for deciding if a pixel\n\
-                                  matches nodataval\n\
-  -b band_id -b band_id ...       Bands to inspect (default is all bands)\n\
-  -skip-erosion                   Don't use erosion filter\n\
-  -report fn.ppm                  Output graphical report of bounds found\n\
+  -inspect-rect4              Attempt to find 4-sided bounding polygon\n\
+  -nodataval 'val [val ...]'  Specify value of no-data pixels\n\
+  -ndv-toler val              Tolerance for deciding if a pixel\n\
+                              matches nodataval\n\
+  -b band_id -b band_id ...   Bands to inspect (default is all bands)\n\
+  -erosion                    Erode pixels that don't have two consecutive\n\
+                              neighbors\n\
+  -report fn.ppm              Output graphical report of bounds found\n\
+  -mask-out fn.pbm            Output mask of bounding polygon in PBM format\n\
 \n\
 Misc:\n\
   -v                              Verbose\n\
@@ -70,9 +72,10 @@ int main(int argc, char **argv) {
 	double *ndv_list = NULL;
 	double ndv_tolerance = 0;
 	char *debug_report = NULL;
+	char *mask_out_fn = NULL;
 	int inspect_numbands = 0;
 	int *inspect_bandids = NULL;
-	int skip_erosion = 0;
+	int do_erosion = 0;
 
 	int i, j;
 
@@ -114,11 +117,14 @@ int main(int argc, char **argv) {
 				inspect_bandids = (int *)realloc_or_die(inspect_bandids,
 					sizeof(int)*(inspect_numbands+1));
 				inspect_bandids[inspect_numbands++] = bandid;
-			} else if(!strcmp(arg, "-skip-erosion")) {
-				skip_erosion++;
+			} else if(!strcmp(arg, "-erosion")) {
+				do_erosion++;
 			} else if(!strcmp(arg, "-report")) {
 				if(argp == argc) usage(argv[0]);
 				debug_report = argv[argp++];
+			} else if(!strcmp(arg, "-mask-out")) {
+				if(argp == argc) usage(argv[0]);
+				mask_out_fn = argv[argp++];
 			} else usage(argv[0]);
 		} else {
 			if(input_raster_fn) usage(argv[0]);
@@ -143,6 +149,15 @@ int main(int argc, char **argv) {
 		for(i=0; i<inspect_numbands; i++) inspect_bandids[i] = i+1;
 	}
 
+	if(!do_inspect) {
+		if(num_ndv)       fatal_error("-nodataval option can only be used with -inspect-rect4 option");
+		if(ndv_tolerance) fatal_error("-ndv-toler option can only be used with -inspect-rect4 option");
+		if(debug_report)  fatal_error("-report option can only be used with -inspect-rect4 option");
+		if(mask_out_fn)   fatal_error("-mask-out option can only be used with -inspect-rect4 option");
+		if(inspect_numbands) fatal_error("-b option can only be used with -inspect-rect4 option");
+		if(do_erosion)    fatal_error("-erosion option can only be used with -inspect-rect4 option");
+	}
+
 	CPLPushErrorHandler(CPLQuietErrorHandler);
 
 	georef_t georef = init_georef(&geo_opts, ds);
@@ -159,7 +174,8 @@ int main(int argc, char **argv) {
 
 		mask = get_mask_for_dataset(ds, inspect_numbands, inspect_bandids,
 			num_ndv, ndv_list, ndv_tolerance, dbuf);
-		if(!skip_erosion) {
+
+		if(do_erosion) {
 			unsigned char *eroded_mask = erode_mask(mask, georef.w, georef.h);
 			free(mask);
 			mask = eroded_mask;
@@ -239,29 +255,40 @@ int main(int argc, char **argv) {
 	if(inspect_rect4) {
 		ring_t rect4 = calc_rect4_from_mask(mask, georef.w, georef.h, dbuf);
 
-		if(rect4.npts == 4) {
-			char *labels[] = { "upper_left", "upper_right", "lower_right", "lower_left" };
-			if(georef.fwd_xform && georef.fwd_affine) {
-				fprintf(yaml_fh, "geometry_ll:\n  type: rectangle4\n");
-				for(i=0; i<4; i++) {
-					xy2ll(&georef, rect4.pts[i].x, rect4.pts[i].y, &lon, &lat);
-					fprintf(yaml_fh, "  %s_lon: %.15f\n", labels[i], lon);
-					fprintf(yaml_fh, "  %s_lat: %.15f\n", labels[i], lat);
-				}
-			}
-			if(georef.fwd_affine) {
-				fprintf(yaml_fh, "geometry_en:\n  type: rectangle4\n");
-				for(i=0; i<4; i++) {
-					xy2en(&georef, rect4.pts[i].x, rect4.pts[i].y, &east, &north);
-					fprintf(yaml_fh, "  %s_east: %.15f\n", labels[i], east);
-					fprintf(yaml_fh, "  %s_north: %.15f\n", labels[i], north);
-				}
-			}
-			fprintf(yaml_fh, "geometry_xy:\n  type: rectangle4\n");
+		if(rect4.npts != 4) {
+			fatal_error("could not find four-sided region");
+		}
+
+		if(mask_out_fn) {
+			mpoly_t *bpoly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
+			bpoly->num_rings = 1;
+			bpoly->rings = (ring_t *)malloc_or_die(sizeof(ring_t));
+			bpoly->rings[0] = rect4;
+
+			mask_from_mpoly(bpoly, georef.w, georef.h, mask_out_fn);
+		}
+
+		char *labels[] = { "upper_left", "upper_right", "lower_right", "lower_left" };
+		if(georef.fwd_xform && georef.fwd_affine) {
+			fprintf(yaml_fh, "geometry_ll:\n  type: rectangle4\n");
 			for(i=0; i<4; i++) {
-				fprintf(yaml_fh, "  %s_x: %.15f\n", labels[i], rect4.pts[i].x);
-				fprintf(yaml_fh, "  %s_y: %.15f\n", labels[i], rect4.pts[i].y);
+				xy2ll(&georef, rect4.pts[i].x, rect4.pts[i].y, &lon, &lat);
+				fprintf(yaml_fh, "  %s_lon: %.15f\n", labels[i], lon);
+				fprintf(yaml_fh, "  %s_lat: %.15f\n", labels[i], lat);
 			}
+		}
+		if(georef.fwd_affine) {
+			fprintf(yaml_fh, "geometry_en:\n  type: rectangle4\n");
+			for(i=0; i<4; i++) {
+				xy2en(&georef, rect4.pts[i].x, rect4.pts[i].y, &east, &north);
+				fprintf(yaml_fh, "  %s_east: %.15f\n", labels[i], east);
+				fprintf(yaml_fh, "  %s_north: %.15f\n", labels[i], north);
+			}
+		}
+		fprintf(yaml_fh, "geometry_xy:\n  type: rectangle4\n");
+		for(i=0; i<4; i++) {
+			fprintf(yaml_fh, "  %s_x: %.15f\n", labels[i], rect4.pts[i].x);
+			fprintf(yaml_fh, "  %s_y: %.15f\n", labels[i], rect4.pts[i].y);
 		}
 	} else {
 		char *e_labels[] = { "left", "mid", "right" };

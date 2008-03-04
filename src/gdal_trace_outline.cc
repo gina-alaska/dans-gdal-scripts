@@ -48,8 +48,8 @@ void usage(char *cmdname) {
 Behavior:\n\
   -classify                    Output a polygon for each value of an 8-bit band\n\
                                (default is to generate a single polygon that\n\
-							   surrounds all pixels that don't match\n\
-							   the no-data-value)\n\
+                               surrounds all pixels that don't match\n\
+                               the no-data-value)\n\
   -nodataval 'val [val ...]'   Specify value of no-data pixels\n\
   -ndv-toler val               Tolerance for deciding if a pixel\n\
                                matches nodataval\n\
@@ -201,8 +201,8 @@ int main(int argc, char **argv) {
 				char *endptr;
 				bevel_size = strtod(argv[argp++], &endptr);
 				if(*endptr) usage(argv[0]);
-				if(bevel_size < 0 || bevel_size > 1) fatal_error(
-					"-bevel-size must be between 0 and 1");
+				if(bevel_size < 0 || bevel_size >= 1) fatal_error(
+					"-bevel-size must be in the range 0 <= bevel < 1");
 			} else if(!strcmp(arg, "-llproj-toler")) {
 				if(argp == argc) usage(argv[0]);
 				char *endptr;

@@ -898,10 +898,12 @@ void mask_from_mpoly(mpoly_t *mpoly, int w, int h, char *fn) {
 				tmp=x0; x0=x1; x1=tmp; 
 				tmp=y0; y0=y1; y1=tmp; 
 			}
+			x0 += .5; x1 += .5;
+			y0 += .5; y1 += .5;
 			double alpha = (x1-x0) / (y1-y0);
-			for(y=(int)floor(y0+.5); y<(int)floor(y1+.5); y++) {
+			for(y=(int)floor(y0); y<(int)floor(y1); y++) {
 				if(y<0 || y>h-1) continue;
-				int x = (int)((x0+.5) + ((double)y - (y0+.5))*alpha);
+				int x = (int)floor(x0 + ((double)y - y0)*alpha);
 				row_crossings_t *r = rows+y;
 				if(r->num_crossings == r->array_size) {
 					r->array_size += 16;
