@@ -103,6 +103,45 @@ void insert_point_into_ring(ring_t *ring, int idx) {
 	ring->npts++;
 }
 
+typedef struct {
+	double min_x, max_x, min_y, max_y;
+	char empty;
+} bbox_t;
+
+bbox_t make_bbox(ring_t *ring) {
+	bbox_t bbox;
+
+	if(ring->npts == 0) {
+		bbox.min_x = bbox.max_x = 0;
+		bbox.min_y = bbox.max_y = 0;
+		bbox.empty = 1;
+	} else {
+		bbox.empty = 0;
+
+		bbox.min_x = bbox.max_x = ring->pts[0].x;
+		bbox.min_y = bbox.max_y = ring->pts[0].y;
+		int i;
+		for(i=0; i<ring->npts; i++) {
+			vertex_t v = ring->pts[i];
+			if(v.x < bbox.min_x) bbox.min_x = v.x;
+			if(v.y < bbox.min_y) bbox.min_y = v.y;
+			if(v.x > bbox.max_x) bbox.max_x = v.x;
+			if(v.y > bbox.max_y) bbox.max_y = v.y;
+		}
+	}
+	return bbox;
+}
+
+bbox_t *make_bboxes(mpoly_t *mp) {
+	int nrings = mp->num_rings;
+	bbox_t *bboxes = (bbox_t *)malloc_or_die(sizeof(bbox_t) * nrings);
+	int i;
+	for(i=0; i<nrings; i++) {
+		bboxes[i] = make_bbox(mp->rings + i);
+	}
+	return bboxes;
+}
+
 OGRGeometryH ring_to_ogr(ring_t *ring) {
 	OGRGeometryH r_out = OGR_G_CreateGeometry(wkbLinearRing);
 	int i;
@@ -551,36 +590,54 @@ mpoly_t reduction_to_mpoly(mpoly_t *in_mpoly, reduced_ring_t *reduced_rings) {
 }
 
 void fix_topology(mpoly_t *mpoly, reduced_ring_t *reduced_rings) {
-	int c1_idx, c2_idx;
+	int r1_idx, r2_idx;
 	int seg1_idx, seg2_idx;
 
+	printf("Analyzing topology: ");
+	fflush(stdout);
+
 	// clear problem flags
-	for(c1_idx=0; c1_idx < mpoly->num_rings; c1_idx++) {
-		reduced_ring_t *r1 = &reduced_rings[c1_idx];
+	for(r1_idx=0; r1_idx < mpoly->num_rings; r1_idx++) {
+		reduced_ring_t *r1 = &reduced_rings[r1_idx];
 		for(seg1_idx=0; seg1_idx < r1->num_segs; seg1_idx++) {
 			r1->segs[seg1_idx].is_problem = 0;
 		}
 	}
 
+	bbox_t *bboxes = make_bboxes(mpoly);
+
 	// flag segments that cross
 	int have_problems = 0;
-	for(c1_idx=0; c1_idx < mpoly->num_rings; c1_idx++) {
-		ring_t *c1 = &mpoly->rings[c1_idx];
-		reduced_ring_t *r1 = &reduced_rings[c1_idx];
-		for(c2_idx=0; c2_idx < mpoly->num_rings; c2_idx++) {
-			if(c2_idx > c1_idx) continue; // symmetry optimization
+	for(r1_idx=0; r1_idx < mpoly->num_rings; r1_idx++) {
+		GDALTermProgress(pow((double)r1_idx / (double)mpoly->num_rings, 2), NULL, NULL);
+		ring_t *c1 = &mpoly->rings[r1_idx];
+		reduced_ring_t *r1 = &reduced_rings[r1_idx];
+		bbox_t bbox1 = bboxes[r1_idx];
+		if(bbox1.empty) continue;
+		for(r2_idx=0; r2_idx < mpoly->num_rings; r2_idx++) {
+			if(r2_idx > r1_idx) continue; // symmetry optimization
 
-			ring_t *c2 = &mpoly->rings[c2_idx];
-			reduced_ring_t *r2 = &reduced_rings[c2_idx];
+			bbox_t bbox2 = bboxes[r2_idx];
+			if(bbox2.empty) continue;
+
+			if(
+				bbox1.min_x > bbox2.max_x ||
+				bbox1.min_y > bbox2.max_y ||
+				bbox2.min_x > bbox1.max_x ||
+				bbox2.min_y > bbox1.max_y
+			) continue;
+
+			ring_t *c2 = &mpoly->rings[r2_idx];
+			reduced_ring_t *r2 = &reduced_rings[r2_idx];
 
 			for(seg1_idx=0; seg1_idx < r1->num_segs; seg1_idx++) {
 				for(seg2_idx=0; seg2_idx < r2->num_segs; seg2_idx++) {
-					if(c2_idx == c1_idx && seg2_idx > seg1_idx) continue; // symmetry optimization
+					if(r2_idx == r1_idx && seg2_idx > seg1_idx) continue; // symmetry optimization
 
 					char crosses = segs_cross(c1, &r1->segs[seg1_idx], c2, &r2->segs[seg2_idx]);
 					if(crosses) {
 						//printf("found a crossing: %d,%d,%d,%d\n",
-						//	c1_idx, seg1_idx, c2_idx, seg2_idx);
+						//	r1_idx, seg1_idx, r2_idx, seg2_idx);
 						r1->segs[seg1_idx].is_problem = 1;
 						r2->segs[seg2_idx].is_problem = 1;
 						have_problems += 2;
@@ -589,6 +646,9 @@ void fix_topology(mpoly_t *mpoly, reduced_ring_t *reduced_rings) {
 			} // seg loop
 		} // ring loop
 	} // ring loop
+	GDALTermProgress(1, NULL, NULL);
+
+	free(bboxes);
 
 	if(have_problems) {
 		if(VERBOSE) printf("fixing %d crossed segments from reduction\n", have_problems/2);
@@ -599,8 +659,8 @@ void fix_topology(mpoly_t *mpoly, reduced_ring_t *reduced_rings) {
 		//printf("%d crossings to fix\n", have_problems/2);
 		did_something = 0;
 		// subdivide problem segments
-		for(c1_idx=0; c1_idx < mpoly->num_rings; c1_idx++) {
-			reduced_ring_t *r1 = &reduced_rings[c1_idx];
+		for(r1_idx=0; r1_idx < mpoly->num_rings; r1_idx++) {
+			reduced_ring_t *r1 = &reduced_rings[r1_idx];
 			int orig_num_segs = r1->num_segs; // this number will change as we go, so copy it
 			for(seg1_idx=0; seg1_idx < orig_num_segs; seg1_idx++) {
 				if(!r1->segs[seg1_idx].is_problem) continue;
@@ -622,20 +682,20 @@ void fix_topology(mpoly_t *mpoly, reduced_ring_t *reduced_rings) {
 
 		have_problems = 0;
 		// now test for resolved problems and new problems
-		for(c1_idx=0; c1_idx < mpoly->num_rings; c1_idx++) {
-			ring_t *c1 = &mpoly->rings[c1_idx];
-			reduced_ring_t *r1 = &reduced_rings[c1_idx];
+		for(r1_idx=0; r1_idx < mpoly->num_rings; r1_idx++) {
+			ring_t *c1 = &mpoly->rings[r1_idx];
+			reduced_ring_t *r1 = &reduced_rings[r1_idx];
 			for(seg1_idx=0; seg1_idx < r1->num_segs; seg1_idx++) {
 				if(!r1->segs[seg1_idx].is_problem) continue;
 				r1->segs[seg1_idx].is_problem = 0;
-				for(c2_idx=0; c2_idx < mpoly->num_rings; c2_idx++) {
-					ring_t *c2 = &mpoly->rings[c2_idx];
-					reduced_ring_t *r2 = &reduced_rings[c2_idx];
+				for(r2_idx=0; r2_idx < mpoly->num_rings; r2_idx++) {
+					ring_t *c2 = &mpoly->rings[r2_idx];
+					reduced_ring_t *r2 = &reduced_rings[r2_idx];
 					for(seg2_idx=0; seg2_idx < r2->num_segs; seg2_idx++) {
 						char crosses = segs_cross(c1, &r1->segs[seg1_idx], c2, &r2->segs[seg2_idx]);
 						if(crosses) {
 							//printf("found a crossing (still): %d,%d,%d,%d\n",
-							//	c1_idx, seg1_idx, c2_idx, seg2_idx);
+							//	r1_idx, seg1_idx, r2_idx, seg2_idx);
 							r1->segs[seg1_idx].is_problem = 1;
 							r2->segs[seg2_idx].is_problem = 1;
 							have_problems++;
@@ -770,66 +830,40 @@ inline int polygon_contains(ring_t *c1, ring_t *c2) {
 	return 1;
 }
 
-typedef struct {
-	int ready;
-	double min_x, max_x, min_y, max_y;
-} bbox_t;
-
-bbox_t make_bbox(ring_t *ring) {
-	bbox_t bbox;
-
-	if(ring->npts == 0) fatal_error("npts=0 in bbox compute");
-
-	bbox.min_x = bbox.max_x = ring->pts[0].x;
-	bbox.min_y = bbox.max_y = ring->pts[0].y;
-	int i;
-	for(i=0; i<ring->npts; i++) {
-		vertex_t v = ring->pts[i];
-		if(v.x < bbox.min_x) bbox.min_x = v.x;
-		if(v.y < bbox.min_y) bbox.min_y = v.y;
-		if(v.x > bbox.max_x) bbox.max_x = v.x;
-		if(v.y > bbox.max_y) bbox.max_y = v.y;
-	}
-	bbox.ready = 1;
-	return bbox;
-}
-
-inline int polygon_contains_bbox(ring_t *r1, ring_t *r2, bbox_t *bbox1, bbox_t *bbox2) {
-	if(!r1->npts || !r2->npts) return 0;
-
-	if(!bbox1->ready) *bbox1 = make_bbox(r1);
-	if(!bbox2->ready) *bbox2 = make_bbox(r2);
-
-	if(
-		bbox1->min_x > bbox2->max_x ||
-		bbox1->min_y > bbox2->max_y ||
-		bbox2->min_x > bbox1->max_x ||
-		bbox2->min_y > bbox1->max_y
-	) return 0;
-
-	return polygon_contains(r1, r2);
-}
-
 void compute_containments(mpoly_t *mp) {
 	int i;
 	int nrings = mp->num_rings;
 
-	bbox_t *bboxes = (bbox_t *)malloc_or_die(sizeof(bbox_t) * nrings);
-	for(i=0; i<nrings; i++) bboxes[i].ready = 0;
+	bbox_t *bboxes = make_bboxes(mp);
 
 	int **ancestors = (int **)malloc_or_die(sizeof(int *) * nrings);
 	int *num_ancestors = (int *)malloc_or_die(sizeof(int) * nrings);
 
 	long num_hits = 0;
 
+	printf("Computing containments: ");
 	for(i=0; i<nrings; i++) {
+		GDALTermProgress((double)i/(double)nrings, NULL, NULL);
+
+		bbox_t bbox1 = bboxes[i];
+		if(bbox1.empty) continue;
+
 		num_ancestors[i] = 0;
 		ancestors[i] = NULL;
+
 		int j;
 		for(j=0; j<nrings; j++) {
-			int contains = (i != j) && polygon_contains_bbox(
-				mp->rings + j, mp->rings + i, 
-				bboxes    + j, bboxes    + i);
+			bbox_t bbox2 = bboxes[j];
+			if(bbox2.empty) continue;
+			if(
+				bbox1.min_x > bbox2.max_x ||
+				bbox1.min_y > bbox2.max_y ||
+				bbox2.min_x > bbox1.max_x ||
+				bbox2.min_y > bbox1.max_y
+			) continue;
+
+			int contains = (i != j) && polygon_contains(
+				mp->rings + j, mp->rings + i);
 			if(contains) {
 				if(VERBOSE) printf("%d contains %d\n", j, i);
 				ancestors[i] = (int *)realloc_or_die(ancestors[i],
@@ -839,13 +873,16 @@ void compute_containments(mpoly_t *mp) {
 			}
 		}
 	}
+	GDALTermProgress(1, NULL, NULL);
 
 	free(bboxes);
 
 	if(VERBOSE) {
 		printf("containment hits = %ld/%ld\n", num_hits, (long)nrings*(long)nrings);
-		for(i=0; i<nrings; i++) {
-			printf("num_ancestors[%d] = %d\n", i, num_ancestors[i]);
+		if(VERBOSE >= 2) {
+			for(i=0; i<nrings; i++) {
+				printf("num_ancestors[%d] = %d\n", i, num_ancestors[i]);
+			}
 		}
 	}
 
@@ -978,7 +1015,7 @@ void pinch_self_intersections(mpoly_t *mp) {
 }
 */
 
-#define BORDER_TOUCH_HASH_SQRTSIZE 1000
+#define BORDER_TOUCH_HASH_SQRTSIZE 5000
 #define BORDER_TOUCH_HASH_SIZE (BORDER_TOUCH_HASH_SQRTSIZE*BORDER_TOUCH_HASH_SQRTSIZE)
 
 inline int get_touch_hash_key(vertex_t *v) {
@@ -1004,26 +1041,38 @@ char *mpoly_border_touch_create_hashtable(mpoly_t *mp) {
 	return table;
 }
 
-inline int mpoly_border_touches_point(char *table, mpoly_t *mp, int r1_idx, int v1_idx) {
+inline int mpoly_border_touches_point(char *table, mpoly_t *mp, int r1_idx, int v1_idx, bbox_t *bboxes) {
 	vertex_t *v1 = &mp->rings[r1_idx].pts[v1_idx];
+	double v1x = v1->x;
+	double v1y = v1->y;
 
 	int key = get_touch_hash_key(v1);
 	if(table[key] < 2) return 0;
 
-	//if(VERBOSE) printf("hash hit for %d,%d\n", r1_idx, v1_idx);
+	if(VERBOSE >= 2) printf("hash hit for %d,%d\n", r1_idx, v1_idx);
 
 	int r2_idx;
 	for(r2_idx=0; r2_idx<mp->num_rings; r2_idx++) {
 		ring_t *ring = &mp->rings[r2_idx];
+		if(ring->npts == 0) continue;
+
+		bbox_t *bbox = bboxes + r2_idx;
+		if(v1x < bbox->min_x || v1x > bbox->max_x) continue;
+		if(v1y < bbox->min_y || v1y > bbox->max_y) continue;
+
+		if(VERBOSE >= 2) printf("full search for %d,%d\n", r1_idx, v1_idx);
+
+		int r2npts = ring->npts;
+		vertex_t *v2 = ring->pts;
 		int v2_idx;
-		for(v2_idx=0; v2_idx<ring->npts; v2_idx++) {
-			vertex_t *v2 = &ring->pts[v2_idx];
+		for(v2_idx=0; v2_idx<r2npts; v2_idx++) {
 			int same = (r1_idx == r2_idx) && (v1_idx == v2_idx);
-			int touches = !same && (v1->x == v2->x) && (v1->y == v2->y);
-			if(touches) {
+			int touches = (v1x == v2->x) && (v1y == v2->y);
+			if(touches && !same) {
 				//if(VERBOSE) printf("touches for %d,%d vs. %d,%d\n", r1_idx, v1_idx, r2_idx, v2_idx);
 				return 1;
 			}
+			v2++;
 		}
 	}
 
@@ -1035,18 +1084,32 @@ inline int mpoly_border_touches_point(char *table, mpoly_t *mp, int r1_idx, int 
 // This function is only meant to be called on polygons
 // that have orthogonal sides on an integer lattice.
 void bevel_self_intersections(mpoly_t *mp, double amount) {
-	if(VERBOSE) printf("bevel with amount=%lf\n", amount);
-
 	char *table = mpoly_border_touch_create_hashtable(mp);
 
+	int total_pts = 0;
 	int r_idx;
+	for(r_idx=0; r_idx<mp->num_rings; r_idx++) {
+		ring_t *ring = &mp->rings[r_idx];
+		total_pts += ring->npts;
+	}
+
+	if(VERBOSE) printf("bevel with amount=%lf, total_pts=%d\n", amount, total_pts);
+
+	bbox_t *bboxes = (bbox_t *)malloc_or_die(sizeof(bbox_t) * mp->num_rings);
+	for(r_idx=0; r_idx<mp->num_rings; r_idx++) {
+		bboxes[r_idx] = make_bbox(mp->rings + r_idx);
+	}
+
+	printf("Beveling: ");
+	int done_pts = 0;
 	for(r_idx=0; r_idx<mp->num_rings; r_idx++) {
 		ring_t *ring = &mp->rings[r_idx];
 		int num_touch = 0;
 		char *touch_mask = NULL;
 		int v_idx;
 		for(v_idx=0; v_idx<ring->npts; v_idx++) {
-			int touches = mpoly_border_touches_point(table, mp, r_idx, v_idx);
+			GDALTermProgress((double)(done_pts*2+v_idx)/(double)(total_pts*2), NULL, NULL);
+			int touches = mpoly_border_touches_point(table, mp, r_idx, v_idx, bboxes);
 			if(touches) {
 				if(!touch_mask) {
 					touch_mask = (char *)malloc_or_die(ring->npts);
@@ -1057,11 +1120,12 @@ void bevel_self_intersections(mpoly_t *mp, double amount) {
 			}
 		}
 		if(num_touch) {
-			if(VERBOSE) printf("ring %d: num_touch=%d\n", r_idx, num_touch);
+			if(VERBOSE >= 2) printf("ring %d: num_touch=%d\n", r_idx, num_touch);
 			int new_numpts = ring->npts + num_touch;
 			vertex_t *new_pts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * new_numpts);
 			int vout_idx = 0;
 			for(v_idx=0; v_idx<ring->npts; v_idx++) {
+				GDALTermProgress((double)(done_pts*2+ring->npts+v_idx)/(double)(total_pts*2), NULL, NULL);
 				if(touch_mask[v_idx]) {
 					vertex_t this_v = ring->pts[v_idx];
 					vertex_t prev_v = ring->pts[(v_idx+ring->npts-1) % ring->npts];
@@ -1080,10 +1144,14 @@ void bevel_self_intersections(mpoly_t *mp, double amount) {
 			ring->npts = new_numpts;
 			ring->pts = new_pts;
 		}
+		done_pts += ring->npts;
 		if(touch_mask) free(touch_mask);
 	}
 
+	GDALTermProgress(1, NULL, NULL);
+
 	free(table);
+	free(bboxes);
 }
 
 mpoly_t *mpoly_xy2en(georef_t *georef, mpoly_t *xy_poly) {

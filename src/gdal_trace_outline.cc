@@ -516,7 +516,7 @@ int create_descender_pair(int *num_descenders, descender_t **descenders, int y, 
 	d1->pts = (int *)malloc_or_die(sizeof(int) * max_pts);
 	d2->pts = (int *)malloc_or_die(sizeof(int) * max_pts);
 	(*num_descenders) += 2;
-	if(VERBOSE) printf("num_descenders = %d (y=%d)\n", *num_descenders, y);
+	if(VERBOSE >= 2) printf("num_descenders = %d (y=%d)\n", *num_descenders, y);
 	return n;
 }
 
@@ -540,7 +540,11 @@ double min_ring_area, double bevel_size) {
 	int num_descenders = 0;
 	descender_t *descenders = NULL;
 
+	int show_progress = 1;
+	if(show_progress) printf("Tracing: ");
+
 	for(y=0; y<=h; y++) {
+		if(show_progress) GDALTermProgress((double)y/(double)(h+1), NULL, NULL);
 		if(y) {
 			up_row.num_transitions = down_row.num_transitions;
 			memcpy(up_row.openings, down_row.openings, sizeof(int)*down_row.num_transitions);
@@ -682,10 +686,11 @@ double min_ring_area, double bevel_size) {
 			}
 		}
 	}
+	if(show_progress) GDALTermProgress(1, NULL, NULL);
 
 	int i;
 
-	if(VERBOSE) {
+	if(VERBOSE >= 2) {
 		for(i=0; i<num_descenders; i++) printf("%d: top_link=%d bottom_link=%d\n",
 			i, descenders[i].top_linkage, descenders[i].bottom_linkage);
 	}
@@ -697,18 +702,20 @@ double min_ring_area, double bevel_size) {
 
 	unsigned char *used_desc = (unsigned char *)malloc_or_die(num_descenders);
 	for(i=0; i<num_descenders; i++) used_desc[i] = 0;
+	int num_desc_used = 0;
 
 	mpoly_t mp = empty_polygon();
 
+	if(show_progress) printf("Joining segments: ");
+	int start_d = 0;
 	for(;;) {
-		int start_d = -1;
-		for(i=0; i<num_descenders; i++) {
-			if(!used_desc[i]) {
-				start_d = i;
+		if(show_progress) GDALTermProgress((double)num_desc_used/(double)num_descenders, NULL, NULL);
+		for(; start_d<num_descenders; start_d++) {
+			if(!used_desc[start_d]) {
 				break;
 			}
 		}
-		if(start_d < 0) break;
+		if(start_d == num_descenders) break;
 		ring_t ring;
 		ring.npts = 0;
 		ring.pts = NULL;
@@ -717,10 +724,10 @@ double min_ring_area, double bevel_size) {
 
 		int cur_d = start_d;
 		do {
-			if(VERBOSE) printf("d:%d ", cur_d);
+			if(VERBOSE >= 2) printf("d:%d ", cur_d);
 			descender_t *d = descenders + cur_d;
 			if(used_desc[cur_d]) fatal_error("descender used twice");
-			used_desc[cur_d]++;
+			used_desc[cur_d]++; num_desc_used++;
 			int n = d->bottom_y - d->top_y + 1;
 			if(n <= 0) fatal_error("npts <= 0 in ring segment");
 			ring.pts = (vertex_t *)realloc_or_die(ring.pts, 
@@ -738,10 +745,10 @@ double min_ring_area, double bevel_size) {
 			cur_d = d->bottom_linkage;
 			if(cur_d < 0) fatal_error("uninitialized val in descender linkage");
 
-			if(VERBOSE) printf("u:%d ", cur_d);
+			if(VERBOSE >= 2) printf("u:%d ", cur_d);
 			d = descenders + cur_d;
 			if(used_desc[cur_d]) fatal_error("descender used twice");
-			used_desc[cur_d]++;
+			used_desc[cur_d]++; num_desc_used++;
 			n = d->bottom_y - d->top_y + 1;
 			if(n <= 0) fatal_error("npts <= 0 in ring segment");
 			ring.pts = (vertex_t *)realloc_or_die(ring.pts, 
@@ -759,13 +766,14 @@ double min_ring_area, double bevel_size) {
 			cur_d = d->top_linkage;
 			if(cur_d < 0) fatal_error("uninitialized val in descender linkage");
 		} while(cur_d != start_d);
-		if(VERBOSE) printf("\n");
+		if(VERBOSE >= 2) printf("\n");
 
-		if(VERBOSE) printf("ring %d: %d pts\n", mp.num_rings, ring.npts);
+		if(VERBOSE >= 2) printf("ring %d: %d pts\n", mp.num_rings, ring.npts);
 
 		mp.rings = (ring_t *)realloc_or_die(mp.rings, sizeof(ring_t)*(mp.num_rings+1));
 		mp.rings[mp.num_rings++] = ring;
 	}
+	if(show_progress) GDALTermProgress(1, NULL, NULL);
 
 	free(used_desc);
 	for(i=0; i<num_descenders; i++) {
@@ -774,6 +782,16 @@ double min_ring_area, double bevel_size) {
 	free(descenders);
 
 	if(VERBOSE) printf("finding rings: end\n");
+
+	if(VERBOSE) {
+		int total_pts = 0;
+		int r_idx;
+		for(r_idx=0; r_idx<mp.num_rings; r_idx++) {
+			total_pts += mp.rings[r_idx].npts;
+		}
+		printf("traced produced %d rings with a total of %d points\n",
+			mp.num_rings, total_pts);
+	}
 
 	if(bevel_size > 0) {
 		// the topology cannot be resolved by us or by geos/jump/postgis if
