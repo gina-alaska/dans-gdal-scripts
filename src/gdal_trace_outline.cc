@@ -493,6 +493,9 @@ typedef struct {
 	int *pts;
 	int top_linkage;
 	int bottom_linkage;
+	int *leftray_ids;
+	int leftray_count;
+	int ring_id;
 } descender_t;
 
 typedef struct {
@@ -502,7 +505,8 @@ typedef struct {
 	int *descender_ids;
 } rowstat_t;
 
-int create_descender_pair(int *num_descenders, descender_t **descenders, int y, int max_pts) {
+int create_descender_pair(int *num_descenders, descender_t **descenders, int y, int max_pts,
+int *leftray_ids, int leftray_count) {
 	int n = *num_descenders;
 	*descenders = (descender_t *)realloc_or_die(*descenders, sizeof(descender_t)*(n+2));
 	descender_t *d1 = (*descenders) + n;
@@ -515,6 +519,23 @@ int create_descender_pair(int *num_descenders, descender_t **descenders, int y, 
 	d2->bottom_linkage = -1;
 	d1->pts = (int *)malloc_or_die(sizeof(int) * max_pts);
 	d2->pts = (int *)malloc_or_die(sizeof(int) * max_pts);
+
+	// cast a ray to the left - this will be used to sort out containments
+	d1->leftray_count = leftray_count;
+	d2->leftray_count = leftray_count;
+	if(leftray_count) {
+		d1->leftray_ids = (int *)malloc_or_die(sizeof(int) * leftray_count);
+		memcpy(d1->leftray_ids, leftray_ids, sizeof(int) * leftray_count);
+		d2->leftray_ids = (int *)malloc_or_die(sizeof(int) * leftray_count);
+		memcpy(d2->leftray_ids, leftray_ids, sizeof(int) * leftray_count);
+	} else {
+		d1->leftray_ids = NULL;
+		d2->leftray_ids = NULL;
+	}
+
+	d1->ring_id = -1;
+	d2->ring_id = -1;
+
 	(*num_descenders) += 2;
 	if(VERBOSE >= 2) printf("num_descenders = %d (y=%d)\n", *num_descenders, y);
 	return n;
@@ -603,9 +624,12 @@ double min_ring_area, double bevel_size) {
 			//if(VERBOSE) printf("%d/%d:[%d,%d]  %d/%d:[%d,%d]\n",
 			//	up_tid, up_row.num_transitions, up_row.openings[up_tid], up_row.closings[up_tid],
 			//	down_tid, down_row.num_transitions, down_row.openings[down_tid], down_row.closings[down_tid]);
-			if(
-				(down_tid == down_row.num_transitions) ||
-				(up_tid < up_row.num_transitions && up_row.closings[up_tid] <= down_row.openings[down_tid])
+			//
+			if((up_tid < up_row.num_transitions) && // have more transitions in up row and...
+				// ran out of transitions in down row or...
+				(down_tid == down_row.num_transitions ||
+				// the down row opening does not touch the current up row transition
+				up_row.closings[up_tid] <= down_row.openings[down_tid])
 			) {
 				// Close off a pair of descenders:     \____/ 
 				if(dbuf && dbuf->mode == PLOT_DESCENDERS) {
@@ -623,27 +647,32 @@ double min_ring_area, double bevel_size) {
 				descenders[d2].pts = (int *)realloc_or_die(descenders[d2].pts,
 					sizeof(int) * (descenders[d2].bottom_y - descenders[d2].top_y + 1));
 				up_tid++;
-			} else if(
-				(up_tid == up_row.num_transitions) ||
-				(down_tid < down_row.num_transitions && down_row.closings[down_tid] <= up_row.openings[up_tid])
+			} else if((down_tid < down_row.num_transitions) && // have more transitions in down row and...
+				// ran out of transitions in up row or...
+				(up_tid == up_row.num_transitions ||
+				// the up row opening does not touch the current down row transition
+				down_row.closings[down_tid] <= up_row.openings[up_tid])
 			) {
 				// Create a new pair of descenders:     /^^^^\  .
 				if(dbuf && dbuf->mode == PLOT_DESCENDERS) {
 					for(x=down_row.openings[down_tid]; x<=down_row.closings[down_tid]; x++)
 						plot_point(dbuf, x, y, 0, 255, 0);
 				}
-				int d = create_descender_pair(&num_descenders, &descenders, y, h-y+1);
+				int d = create_descender_pair(&num_descenders, &descenders, y, h-y+1,
+					down_row.descender_ids, down_tid*2);
 				descenders[d  ].pts[0] = down_row.openings[down_tid];
 				descenders[d+1].pts[0] = down_row.closings[down_tid];
 				down_row.descender_ids[down_tid*2  ] = d;
 				down_row.descender_ids[down_tid*2+1] = d+1;
+
 				down_tid++;
 			} else if(up_tid < up_row.num_transitions && down_tid < down_row.num_transitions) {
-				// Move descender to new location of boundary for this row
 				if(dbuf && dbuf->mode == PLOT_DESCENDERS) {
 					plot_point(dbuf, up_row.openings[up_tid], y, 255, 255, 0);
 					plot_point(dbuf, down_row.openings[down_tid], y, 255, 255, 0);
 				}
+				// Link the current descender in the down row to the one in the up row
+				// and add the new boundary X value.
 				int dl = up_row.descender_ids[up_tid*2];
 //if(VERBOSE) printf("dl=%d\n", dl);
 				down_row.descender_ids[down_tid*2] = dl;
@@ -653,6 +682,7 @@ double min_ring_area, double bevel_size) {
 						(up_tid < up_row.num_transitions-1) &&
 						(up_row.openings[up_tid+1] < down_row.closings[down_tid])
 					) {
+						// Close off a pair of descenders:   | \____/ |
 						if(dbuf && dbuf->mode == PLOT_DESCENDERS) {
 							for(x=up_row.closings[up_tid]; x<=up_row.openings[up_tid+1]; x++)
 								plot_point(dbuf, x, y, 255, 0, 255);
@@ -672,11 +702,13 @@ double min_ring_area, double bevel_size) {
 						(down_tid < down_row.num_transitions-1) &&
 						(down_row.openings[down_tid+1] < up_row.closings[up_tid])
 					) {
+						// Create a new pair of descenders:   | /^^^^\ |
 						if(dbuf && dbuf->mode == PLOT_DESCENDERS) {
 							for(x=down_row.closings[down_tid]; x<=down_row.openings[down_tid+1]; x++)
 								plot_point(dbuf, x, y, 0, 255, 255);
 						}
-						int d = create_descender_pair(&num_descenders, &descenders, y, h-y+1);
+						int d = create_descender_pair(&num_descenders, &descenders, y, h-y+1,
+							down_row.descender_ids, down_tid*2+1);
 						descenders[d  ].pts[0] = down_row.closings[down_tid];
 						descenders[d+1].pts[0] = down_row.openings[down_tid+1];
 						down_row.descender_ids[down_tid*2+1] = d;
@@ -715,9 +747,11 @@ double min_ring_area, double bevel_size) {
 	int num_desc_used = 0;
 
 	mpoly_t mp = empty_polygon();
+	descender_t **representative_descenders = NULL;
 
 	if(show_progress) printf("Joining segments: ");
 	int start_d = 0;
+	int ring_id = 0;
 	for(;;) {
 		if(show_progress) GDALTermProgress((double)num_desc_used/(double)num_descenders, NULL, NULL);
 		for(; start_d<num_descenders; start_d++) {
@@ -731,13 +765,18 @@ double min_ring_area, double bevel_size) {
 		ring.pts = NULL;
 		// prevent compiler warning - these fields are filled in by compute_containments
 		ring.parent_id = ring.is_hole = 0;
+		descender_t *ring_representative_descender;
 
 		int cur_d = start_d;
 		do {
 			if(VERBOSE >= 2) printf("d:%d ", cur_d);
 			descender_t *d = descenders + cur_d;
+
 			if(used_desc[cur_d]) fatal_error("descender used twice");
 			used_desc[cur_d]++; num_desc_used++;
+			d->ring_id = ring_id;
+			ring_representative_descender = d;
+
 			int n = d->bottom_y - d->top_y + 1;
 			if(n <= 0) fatal_error("npts <= 0 in ring segment");
 			ring.pts = (vertex_t *)realloc_or_die(ring.pts, 
@@ -752,13 +791,17 @@ double min_ring_area, double bevel_size) {
 				}
 			}
 			ring.pts[ring.npts++] = (vertex_t){ d->pts[n-1], d->bottom_y+1 };
+
 			cur_d = d->bottom_linkage;
 			if(cur_d < 0) fatal_error("uninitialized val in descender linkage");
 
 			if(VERBOSE >= 2) printf("u:%d ", cur_d);
 			d = descenders + cur_d;
+
 			if(used_desc[cur_d]) fatal_error("descender used twice");
 			used_desc[cur_d]++; num_desc_used++;
+			d->ring_id = ring_id;
+
 			n = d->bottom_y - d->top_y + 1;
 			if(n <= 0) fatal_error("npts <= 0 in ring segment");
 			ring.pts = (vertex_t *)realloc_or_die(ring.pts, 
@@ -780,16 +823,14 @@ double min_ring_area, double bevel_size) {
 
 		if(VERBOSE >= 2) printf("ring %d: %d pts\n", mp.num_rings, ring.npts);
 
-		mp.rings = (ring_t *)realloc_or_die(mp.rings, sizeof(ring_t)*(mp.num_rings+1));
-		mp.rings[mp.num_rings++] = ring;
+		mp.rings = (ring_t *)realloc_or_die(mp.rings, sizeof(ring_t)*(ring_id+1));
+		mp.rings[ring_id] = ring;
+		representative_descenders = (descender_t **)realloc_or_die(
+			representative_descenders, sizeof(descender_t *)*(ring_id+1));
+		representative_descenders[ring_id] = ring_representative_descender;
+		mp.num_rings = ++ring_id;
 	}
 	if(show_progress) GDALTermProgress(1, NULL, NULL);
-
-	free(used_desc);
-	for(i=0; i<num_descenders; i++) {
-		free(descenders[i].pts);
-	}
-	free(descenders);
 
 	if(VERBOSE) printf("finding rings: end\n");
 
@@ -799,14 +840,8 @@ double min_ring_area, double bevel_size) {
 		for(r_idx=0; r_idx<mp.num_rings; r_idx++) {
 			total_pts += mp.rings[r_idx].npts;
 		}
-		printf("traced produced %d rings with a total of %d points\n",
+		printf("tracer produced %d rings with a total of %d points\n",
 			mp.num_rings, total_pts);
-	}
-
-	if(bevel_size > 0) {
-		// the topology cannot be resolved by us or by geos/jump/postgis if
-		// there are self-intersections
-		bevel_self_intersections(&mp, bevel_size);
 	}
 
 	if(min_ring_area > 0) {
@@ -848,10 +883,57 @@ double min_ring_area, double bevel_size) {
 	}
 
 	//printf("computing containments: begin\n");
+#if 1
+	printf("old containment method\n");
 	compute_containments(&mp);
+#else
+	printf("new containment method\n");
+	int *crossing_counts = (int *)malloc_or_die(sizeof(int) * mp.num_rings);
+	int r_idx;
+	for(r_idx=0; r_idx<mp.num_rings; r_idx++) {
+		ring_t *ring = mp.rings + r_idx;
+
+		int i;
+		for(i=0; i<mp.num_rings; i++) crossing_counts[i] = 0;
+		int total_crossings = 0;
+
+		descender_t *rep_desc = representative_descenders[r_idx];
+		int lr_idx;
+		for(lr_idx=0; lr_idx<rep_desc->leftray_count; lr_idx++) {
+			int d_idx = rep_desc->leftray_ids[lr_idx];
+			int d_ring_id = descenders[d_idx].ring_id;
+			if(d_ring_id != r_idx) {
+				crossing_counts[d_ring_id]++;
+				total_crossings++;
+			}
+		}
+
+		ring->is_hole = total_crossings % 2;
+		ring->parent_id = -1;
+
+		for(lr_idx=rep_desc->leftray_count-1; lr_idx>=0; lr_idx--) {
+			int d_idx = rep_desc->leftray_ids[lr_idx];
+			int d_ring_id = descenders[d_idx].ring_id;
+			int ncros = crossing_counts[d_ring_id];
+			if(ncros % 2) {
+				ring->parent_id = d_ring_id;
+				break;
+			}
+		}
+	}
+#endif
 	//printf("computing containments: end\n");
 
+	free(used_desc);
+	for(i=0; i<num_descenders; i++) {
+		free(descenders[i].pts);
+		free(descenders[i].leftray_ids);
+	}
+	free(descenders);
+
 	if(no_donuts) {
+		// we don't have to worry about remapping parent_id in this
+		// case because we only take rings with no parent
 		int out_idx = 0;
 		for(i=0; i<mp.num_rings; i++) {
 			if(mp.rings[i].parent_id < 0) {
@@ -860,6 +942,12 @@ double min_ring_area, double bevel_size) {
 		}
 		mp.num_rings = out_idx;
 		if(VERBOSE) printf("number of non-donut rings is %d", mp.num_rings);
+	}
+
+	if(bevel_size > 0) {
+		// the topology cannot be resolved by us or by geos/jump/postgis if
+		// there are self-intersections
+		bevel_self_intersections(&mp, bevel_size);
 	}
 
 	return mp;
