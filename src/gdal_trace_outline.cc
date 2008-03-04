@@ -97,6 +97,9 @@ gdal_trace_outline raster.tif -nodataval 0 -dp-toler 0 -out-cs ll -wkt-out outli
 Output ESRI Shapefile in projection of input image:\n\
 gdal_trace_outline raster.tif -nodataval 0 -erosion -out-cs en -ogr-out outline.shp\n\
 \n\
+Generate one shape for each value in input image:\n\
+gdal_trace_outline raster.tif -classify -out-cs en -ogr-out outline.shp\n\
+\n\
 ");
 	exit(1);
 }
