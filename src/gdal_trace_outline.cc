@@ -883,7 +883,7 @@ double min_ring_area, double bevel_size) {
 	}
 
 	//printf("computing containments: begin\n");
-#if 1
+#if 0
 	printf("old containment method\n");
 	compute_containments(&mp);
 #else
