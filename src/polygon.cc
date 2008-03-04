@@ -1119,6 +1119,7 @@ void bevel_self_intersections(mpoly_t *mp, double amount) {
 				num_touch++;
 			}
 		}
+		int old_npts = ring->npts;
 		if(num_touch) {
 			if(VERBOSE >= 2) printf("ring %d: num_touch=%d\n", r_idx, num_touch);
 			int new_numpts = ring->npts + num_touch;
@@ -1144,7 +1145,7 @@ void bevel_self_intersections(mpoly_t *mp, double amount) {
 			ring->npts = new_numpts;
 			ring->pts = new_pts;
 		}
-		done_pts += ring->npts;
+		done_pts += old_npts;
 		if(touch_mask) free(touch_mask);
 	}
 
