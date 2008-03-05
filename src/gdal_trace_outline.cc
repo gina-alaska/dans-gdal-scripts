@@ -523,12 +523,9 @@ int *leftray_ids, int leftray_count) {
 
 	// cast a ray to the left - this will be used to sort out containments
 	d1->leftray_count = leftray_count;
-	d2->leftray_count = leftray_count;
 	if(leftray_count) {
 		d1->leftray_ids = (int *)malloc_or_die(sizeof(int) * leftray_count);
 		memcpy(d1->leftray_ids, leftray_ids, sizeof(int) * leftray_count);
-		d2->leftray_ids = (int *)malloc_or_die(sizeof(int) * leftray_count);
-		memcpy(d2->leftray_ids, leftray_ids, sizeof(int) * leftray_count);
 		if(VERBOSE >= 3) {
 			int i;
 			printf("leftray is");
@@ -539,8 +536,9 @@ int *leftray_ids, int leftray_count) {
 		}
 	} else {
 		d1->leftray_ids = NULL;
-		d2->leftray_ids = NULL;
 	}
+	d2->leftray_count = -1;
+	d2->leftray_ids = NULL;
 
 	d1->ring_id = -1;
 	d2->ring_id = -1;
@@ -559,6 +557,46 @@ void close_descender_pair(descender_t *descenders, int d1, int d2, int y) {
 	descenders[d2].bottom_y = y-1;
 	descenders[d2].pts = (int *)realloc_or_die(descenders[d2].pts,
 		sizeof(int) * (descenders[d2].bottom_y - descenders[d2].top_y + 1));
+
+	int d_idx;
+	d_idx = d1;
+	do {
+		d_idx = descenders[d_idx].top_linkage;
+		d_idx = descenders[d_idx].bottom_linkage;
+	} while(d_idx>=0 && d_idx != d1);
+	if(d_idx == d1) {
+		//printf("ring closed\n");
+		int got_rep = 0;
+		d_idx = d1;
+		do {
+			descender_t *d = descenders + d_idx;
+			if(d->leftray_count >= 0) {
+				if(got_rep) {
+					if(d->leftray_ids) free(d->leftray_ids);
+					d->leftray_ids = NULL;
+					d->leftray_count = -1;
+				} else {
+					got_rep++;
+				}
+			}
+
+			d_idx = d->top_linkage;
+			d = descenders + d_idx;
+
+			if(d->leftray_count >= 0) {
+				if(got_rep) {
+					if(d->leftray_ids) free(d->leftray_ids);
+					d->leftray_ids = NULL;
+					d->leftray_count = -1;
+				} else {
+					got_rep++;
+				}
+			}
+
+			d_idx = d->bottom_linkage;
+		} while(d_idx>=0 && d_idx != d1);
+		if(!got_rep) fatal_error("no descenders in ring had leftray_ids");
+	}
 }
 
 mpoly_t calc_ring_from_mask(unsigned char *mask, int w, int h,
@@ -736,7 +774,7 @@ double min_ring_area, double bevel_size) {
 						int d = create_descender_pair(&num_descenders, &descenders, y, h-y+1,
 							down_row.descender_ids, down_tid*2+1);
 						if(VERBOSE >= 3) {
-							printf("opening pair %d,%d at %d-%d\n", d, d+1,
+							printf("opening inner pair %d,%d at %d-%d\n", d, d+1,
 								down_row.closings[down_tid], down_row.openings[down_tid+1]);
 						}
 						descenders[d  ].pts[0] = down_row.closings[down_tid];
@@ -803,11 +841,11 @@ double min_ring_area, double bevel_size) {
 		do {
 			if(VERBOSE >= 2) printf("d:%d ring=%d ", cur_d, ring_id);
 			descender_t *d = descenders + cur_d;
+			if(d->leftray_count >= 0) ring_representative_descender = d;
 
 			if(used_desc[cur_d]) fatal_error("descender used twice");
 			used_desc[cur_d]++; num_desc_used++;
 			d->ring_id = ring_id;
-			ring_representative_descender = d;
 
 			int n = d->bottom_y - d->top_y + 1;
 			if(n <= 0) fatal_error("npts <= 0 in ring segment");
@@ -829,6 +867,7 @@ double min_ring_area, double bevel_size) {
 
 			if(VERBOSE >= 2) printf("u:%d ", cur_d);
 			d = descenders + cur_d;
+			if(d->leftray_count >= 0) ring_representative_descender = d;
 
 			if(used_desc[cur_d]) fatal_error("descender used twice");
 			used_desc[cur_d]++; num_desc_used++;
@@ -861,6 +900,9 @@ double min_ring_area, double bevel_size) {
 			representative_descenders, sizeof(descender_t *)*(ring_id+1));
 		representative_descenders[ring_id] = ring_representative_descender;
 		mp.num_rings = ++ring_id;
+	}
+	for(i=0; i<num_descenders; i++) {
+		free(descenders[i].pts);
 	}
 	if(show_progress) GDALTermProgress(1, NULL, NULL);
 
@@ -919,18 +961,20 @@ double min_ring_area, double bevel_size) {
 	printf("old containment method\n");
 	compute_containments(&mp);
 #else
-	printf("new containment method\n");
+	if(show_progress) printf("Computing containments: ");
 	int *crossing_counts = (int *)malloc_or_die(sizeof(int) * mp.num_rings);
 	int r_idx;
+	for(r_idx=0; r_idx<mp.num_rings; r_idx++) crossing_counts[r_idx] = 0;
 	for(r_idx=0; r_idx<mp.num_rings; r_idx++) {
 		ring_t *ring = mp.rings + r_idx;
 
-		int i;
-		for(i=0; i<mp.num_rings; i++) crossing_counts[i] = 0;
+		if(show_progress) GDALTermProgress((double)r_idx/(double)mp.num_rings, NULL, NULL);
+
 		int total_crossings = 0;
 
 		if(VERBOSE >= 3) printf("ring %d: ", r_idx);
 		descender_t *rep_desc = representative_descenders[r_idx];
+		if(!rep_desc) fatal_error("no representative descender for ring %d\n", r_idx);
 		int lr_idx;
 		for(lr_idx=0; lr_idx<rep_desc->leftray_count; lr_idx++) {
 			int d_idx = rep_desc->leftray_ids[lr_idx];
@@ -956,6 +1000,13 @@ double min_ring_area, double bevel_size) {
 			}
 		}
 
+		// fast way to clear array
+		for(lr_idx=0; lr_idx<rep_desc->leftray_count; lr_idx++) {
+			int d_idx = rep_desc->leftray_ids[lr_idx];
+			int d_ring_id = descenders[d_idx].ring_id;
+			crossing_counts[d_ring_id] = 0;
+		}
+
 		if(VERBOSE >= 2) {
 			printf("ring %d is_hole=%d parent_id=%d\n", r_idx, ring->is_hole, ring->parent_id);
 		}
@@ -974,13 +1025,15 @@ double min_ring_area, double bevel_size) {
 		}
 	}
 	free(crossing_counts);
+	if(show_progress) GDALTermProgress(1, NULL, NULL);
 #endif
 	//printf("computing containments: end\n");
 
 	free(used_desc);
 	for(i=0; i<num_descenders; i++) {
-		free(descenders[i].pts);
-		free(descenders[i].leftray_ids);
+		if(descenders[i].leftray_ids) {
+			free(descenders[i].leftray_ids);
+		}
 	}
 	free(descenders);
 
