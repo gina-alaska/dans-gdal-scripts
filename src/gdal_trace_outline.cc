@@ -496,6 +496,8 @@ typedef struct {
 	int bottom_linkage;
 	int *leftray_ids;
 	int leftray_count;
+	int *lf_refer_ids;
+	int lf_refer_count;
 	int ring_id;
 } descender_t;
 
@@ -508,13 +510,14 @@ typedef struct {
 
 int create_descender_pair(int *num_descenders, descender_t **descenders, int y, int max_pts,
 int *leftray_ids, int leftray_count) {
-	int n = *num_descenders;
-	*descenders = (descender_t *)realloc_or_die(*descenders, sizeof(descender_t)*(n+2));
-	descender_t *d1 = (*descenders) + n;
-	descender_t *d2 = (*descenders) + n+1;
+	int d1_idx = *num_descenders;
+	int d2_idx = d1_idx+1;
+	*descenders = (descender_t *)realloc_or_die(*descenders, sizeof(descender_t)*(d2_idx+1));
+	descender_t *d1 = (*descenders) + d1_idx;
+	descender_t *d2 = (*descenders) + d2_idx;
 	d1->top_y = d2->top_y = y;
-	d1->top_linkage = n+1;
-	d2->top_linkage = n;
+	d1->top_linkage = d2_idx;
+	d2->top_linkage = d1_idx;
 	d1->bottom_y = d2->bottom_y = -1;
 	d1->bottom_linkage = -1;
 	d2->bottom_linkage = -1;
@@ -524,8 +527,6 @@ int *leftray_ids, int leftray_count) {
 	// cast a ray to the left - this will be used to sort out containments
 	d1->leftray_count = leftray_count;
 	if(leftray_count) {
-		d1->leftray_ids = (int *)malloc_or_die(sizeof(int) * leftray_count);
-		memcpy(d1->leftray_ids, leftray_ids, sizeof(int) * leftray_count);
 		if(VERBOSE >= 3) {
 			int i;
 			printf("leftray is");
@@ -534,21 +535,35 @@ int *leftray_ids, int leftray_count) {
 			}
 			printf("\n");
 		}
+		d1->leftray_ids = (int *)malloc_or_die(sizeof(int) * leftray_count);
+		memcpy(d1->leftray_ids, leftray_ids, sizeof(int) * leftray_count);
+		int i;
+		for(i=0; i<leftray_count; i++) {
+			descender_t *ref = (*descenders) + leftray_ids[i];
+			ref->lf_refer_ids = (int *)realloc_or_die(
+				ref->lf_refer_ids, sizeof(int) * (ref->lf_refer_count+1));
+			ref->lf_refer_ids[ref->lf_refer_count++] = d1_idx;
+		}
 	} else {
 		d1->leftray_ids = NULL;
 	}
 	d2->leftray_count = -1;
 	d2->leftray_ids = NULL;
 
+	d1->lf_refer_ids = NULL;
+	d1->lf_refer_count = 0;
+	d2->lf_refer_ids = NULL;
+	d2->lf_refer_count = 0;
+
 	d1->ring_id = -1;
 	d2->ring_id = -1;
 
 	(*num_descenders) += 2;
 	if(VERBOSE >= 2) printf("num_descenders = %d (y=%d)\n", *num_descenders, y);
-	return n;
+	return d1_idx;
 }
 
-void close_descender_pair(descender_t *descenders, int d1, int d2, int y) {
+void close_descender_pair(descender_t *descenders, int d1, int d2, int y, int *ring_id_p) {
 	descenders[d1].bottom_linkage = d2;
 	descenders[d1].bottom_y = y-1;
 	descenders[d1].pts = (int *)realloc_or_die(descenders[d1].pts,
@@ -564,39 +579,37 @@ void close_descender_pair(descender_t *descenders, int d1, int d2, int y) {
 		d_idx = descenders[d_idx].top_linkage;
 		d_idx = descenders[d_idx].bottom_linkage;
 	} while(d_idx>=0 && d_idx != d1);
-	if(d_idx == d1) {
-		//printf("ring closed\n");
-		int got_rep = 0;
-		d_idx = d1;
-		do {
-			descender_t *d = descenders + d_idx;
-			if(d->leftray_count >= 0) {
-				if(got_rep) {
-					if(d->leftray_ids) free(d->leftray_ids);
-					d->leftray_ids = NULL;
-					d->leftray_count = -1;
-				} else {
-					got_rep++;
-				}
-			}
 
+	// ring not closed yet - return
+	if(d_idx != d1) return;
+
+	int ring_id = (*ring_id_p)++;
+	if(VERBOSE >= 3) printf("ring closed: ring_id=%d\n", ring_id);
+	int got_rep = 0;
+	int flipflop = 1;
+	d_idx = d1;
+	do {
+		descender_t *d = descenders + d_idx;
+		if(d->leftray_count >= 0) {
+			if(got_rep) {
+				if(d->leftray_ids) free(d->leftray_ids);
+				d->leftray_ids = NULL;
+				d->leftray_count = -1;
+			} else {
+				got_rep++;
+			}
+		}
+
+		d->ring_id = ring_id;
+
+		if(flipflop) {
 			d_idx = d->top_linkage;
-			d = descenders + d_idx;
-
-			if(d->leftray_count >= 0) {
-				if(got_rep) {
-					if(d->leftray_ids) free(d->leftray_ids);
-					d->leftray_ids = NULL;
-					d->leftray_count = -1;
-				} else {
-					got_rep++;
-				}
-			}
-
+		} else {
 			d_idx = d->bottom_linkage;
-		} while(d_idx>=0 && d_idx != d1);
-		if(!got_rep) fatal_error("no descenders in ring had leftray_ids");
-	}
+		}
+		flipflop = !flipflop;
+	} while(d_idx>=0 && d_idx != d1);
+	if(!got_rep) fatal_error("no descenders in ring had leftray_ids");
 }
 
 mpoly_t calc_ring_from_mask(unsigned char *mask, int w, int h,
@@ -605,6 +618,8 @@ double min_ring_area, double bevel_size) {
 	int x, y;
 
 	if(VERBOSE) printf("finding rings: begin\n");
+
+	int num_rings = 0;
 
 	// up_row is previous row, down_row is current row
 	rowstat_t up_row, down_row;
@@ -711,7 +726,7 @@ double min_ring_area, double bevel_size) {
 				int d1 = up_row.descender_ids[up_tid*2];
 				int d2 = up_row.descender_ids[up_tid*2+1];
 				if(VERBOSE >= 3) printf("closing pair %d,%d\n", d1, d2);
-				close_descender_pair(descenders, d1, d2, y);
+				close_descender_pair(descenders, d1, d2, y, &num_rings);
 				up_tid++;
 			} else if((down_tid < down_row.num_transitions) && // have more transitions in down row and...
 				// ran out of transitions in up row or...
@@ -760,7 +775,7 @@ double min_ring_area, double bevel_size) {
 						int d1 = up_row.descender_ids[up_tid*2+1];
 						int d2 = up_row.descender_ids[up_tid*2+2];
 						if(VERBOSE >= 3) printf("closing inner pair %d,%d\n", d1, d2);
-						close_descender_pair(descenders, d1, d2, y);
+						close_descender_pair(descenders, d1, d2, y, &num_rings);
 						up_tid++;
 					} else if(
 						(down_tid < down_row.num_transitions-1) &&
