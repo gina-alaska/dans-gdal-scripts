@@ -350,6 +350,7 @@ int main(int argc, char **argv) {
 		const GDALColorEntry *color = NULL;
 		if(classify) {
 			if(!usage_array[class_id]) continue;
+if(class_id<100) continue;
 			printf("\nTracing feature class %d\n", class_id);
 
 			if(color_table) {
@@ -528,6 +529,14 @@ int *leftray_ids, int leftray_count) {
 		memcpy(d1->leftray_ids, leftray_ids, sizeof(int) * leftray_count);
 		d2->leftray_ids = (int *)malloc_or_die(sizeof(int) * leftray_count);
 		memcpy(d2->leftray_ids, leftray_ids, sizeof(int) * leftray_count);
+		if(VERBOSE >= 3) {
+			int i;
+			printf("leftray is");
+			for(i=0; i<leftray_count; i++) {
+				printf(" %d", leftray_ids[i]);
+			}
+			printf("\n");
+		}
 	} else {
 		d1->leftray_ids = NULL;
 		d2->leftray_ids = NULL;
@@ -539,6 +548,17 @@ int *leftray_ids, int leftray_count) {
 	(*num_descenders) += 2;
 	if(VERBOSE >= 2) printf("num_descenders = %d (y=%d)\n", *num_descenders, y);
 	return n;
+}
+
+void close_descender_pair(descender_t *descenders, int d1, int d2, int y) {
+	descenders[d1].bottom_linkage = d2;
+	descenders[d1].bottom_y = y-1;
+	descenders[d1].pts = (int *)realloc_or_die(descenders[d1].pts,
+		sizeof(int) * (descenders[d1].bottom_y - descenders[d1].top_y + 1));
+	descenders[d2].bottom_linkage = d1;
+	descenders[d2].bottom_y = y-1;
+	descenders[d2].pts = (int *)realloc_or_die(descenders[d2].pts,
+		sizeof(int) * (descenders[d2].bottom_y - descenders[d2].top_y + 1));
 }
 
 mpoly_t calc_ring_from_mask(unsigned char *mask, int w, int h,
@@ -619,6 +639,20 @@ double min_ring_area, double bevel_size) {
 			//if(VERBOSE) printf("\n");
 		}
 
+		if(VERBOSE >= 3) {
+			int i;
+			printf("\nup_row:");
+			for(i=0; i<up_row.num_transitions; i++) {
+				printf(" [%d-%d,%d-%d]", up_row.openings[i], up_row.closings[i], 
+					up_row.descender_ids[i*2], up_row.descender_ids[i*2+1]);
+			}
+			printf("\ndown_row:");
+			for(i=0; i<up_row.num_transitions; i++) {
+				printf(" [%d-%d]", down_row.openings[i], down_row.closings[i]);
+			}
+			printf("\n");
+		}
+
 		int up_tid=0, down_tid=0;
 		while(up_tid < up_row.num_transitions || down_tid < down_row.num_transitions) {
 			//if(VERBOSE) printf("%d/%d:[%d,%d]  %d/%d:[%d,%d]\n",
@@ -638,14 +672,8 @@ double min_ring_area, double bevel_size) {
 				}
 				int d1 = up_row.descender_ids[up_tid*2];
 				int d2 = up_row.descender_ids[up_tid*2+1];
-				descenders[d1].bottom_linkage = d2;
-				descenders[d1].bottom_y = y-1;
-				descenders[d1].pts = (int *)realloc_or_die(descenders[d1].pts,
-					sizeof(int) * (descenders[d1].bottom_y - descenders[d1].top_y + 1));
-				descenders[d2].bottom_linkage = d1;
-				descenders[d2].bottom_y = y-1;
-				descenders[d2].pts = (int *)realloc_or_die(descenders[d2].pts,
-					sizeof(int) * (descenders[d2].bottom_y - descenders[d2].top_y + 1));
+				if(VERBOSE >= 3) printf("closing pair %d,%d\n", d1, d2);
+				close_descender_pair(descenders, d1, d2, y);
 				up_tid++;
 			} else if((down_tid < down_row.num_transitions) && // have more transitions in down row and...
 				// ran out of transitions in up row or...
@@ -660,6 +688,10 @@ double min_ring_area, double bevel_size) {
 				}
 				int d = create_descender_pair(&num_descenders, &descenders, y, h-y+1,
 					down_row.descender_ids, down_tid*2);
+				if(VERBOSE >= 3) {
+					printf("opening pair %d,%d at %d-%d\n", d, d+1,
+						down_row.openings[down_tid], down_row.closings[down_tid]);
+				}
 				descenders[d  ].pts[0] = down_row.openings[down_tid];
 				descenders[d+1].pts[0] = down_row.closings[down_tid];
 				down_row.descender_ids[down_tid*2  ] = d;
@@ -671,7 +703,7 @@ double min_ring_area, double bevel_size) {
 					plot_point(dbuf, up_row.openings[up_tid], y, 255, 255, 0);
 					plot_point(dbuf, down_row.openings[down_tid], y, 255, 255, 0);
 				}
-				// Link the current descender in the down row to the one in the up row
+				// Link the opening descender in the down row to the one in the up row
 				// and add the new boundary X value.
 				int dl = up_row.descender_ids[up_tid*2];
 //if(VERBOSE) printf("dl=%d\n", dl);
@@ -689,14 +721,8 @@ double min_ring_area, double bevel_size) {
 						}
 						int d1 = up_row.descender_ids[up_tid*2+1];
 						int d2 = up_row.descender_ids[up_tid*2+2];
-						descenders[d1].bottom_linkage = d2;
-						descenders[d1].bottom_y = y-1;
-						descenders[d1].pts = (int *)realloc_or_die(descenders[d1].pts,
-							sizeof(int) * (descenders[d1].bottom_y - descenders[d1].top_y + 1));
-						descenders[d2].bottom_linkage = d1;
-						descenders[d2].bottom_y = y-1;
-						descenders[d2].pts = (int *)realloc_or_die(descenders[d2].pts,
-							sizeof(int) * (descenders[d2].bottom_y - descenders[d2].top_y + 1));
+						if(VERBOSE >= 3) printf("closing inner pair %d,%d\n", d1, d2);
+						close_descender_pair(descenders, d1, d2, y);
 						up_tid++;
 					} else if(
 						(down_tid < down_row.num_transitions-1) &&
@@ -709,6 +735,10 @@ double min_ring_area, double bevel_size) {
 						}
 						int d = create_descender_pair(&num_descenders, &descenders, y, h-y+1,
 							down_row.descender_ids, down_tid*2+1);
+						if(VERBOSE >= 3) {
+							printf("opening pair %d,%d at %d-%d\n", d, d+1,
+								down_row.closings[down_tid], down_row.openings[down_tid+1]);
+						}
 						descenders[d  ].pts[0] = down_row.closings[down_tid];
 						descenders[d+1].pts[0] = down_row.openings[down_tid+1];
 						down_row.descender_ids[down_tid*2+1] = d;
@@ -720,6 +750,8 @@ double min_ring_area, double bevel_size) {
 					plot_point(dbuf, up_row.closings[up_tid], y, 255, 255, 0);
 					plot_point(dbuf, down_row.closings[down_tid], y, 255, 255, 0);
 				}
+				// Link the closing descender in the down row to the one in the up row
+				// and add the new boundary X value.
 				int dr = up_row.descender_ids[up_tid*2+1];
 				down_row.descender_ids[down_tid*2+1] = dr;
 				descenders[dr].pts[y-descenders[dr].top_y] = down_row.closings[down_tid];
@@ -769,7 +801,7 @@ double min_ring_area, double bevel_size) {
 
 		int cur_d = start_d;
 		do {
-			if(VERBOSE >= 2) printf("d:%d ", cur_d);
+			if(VERBOSE >= 2) printf("d:%d ring=%d ", cur_d, ring_id);
 			descender_t *d = descenders + cur_d;
 
 			if(used_desc[cur_d]) fatal_error("descender used twice");
@@ -897,16 +929,19 @@ double min_ring_area, double bevel_size) {
 		for(i=0; i<mp.num_rings; i++) crossing_counts[i] = 0;
 		int total_crossings = 0;
 
+		if(VERBOSE >= 3) printf("ring %d: ", r_idx);
 		descender_t *rep_desc = representative_descenders[r_idx];
 		int lr_idx;
 		for(lr_idx=0; lr_idx<rep_desc->leftray_count; lr_idx++) {
 			int d_idx = rep_desc->leftray_ids[lr_idx];
 			int d_ring_id = descenders[d_idx].ring_id;
+			if(VERBOSE >= 3) printf(" [d=%d,r=%d]", d_idx, d_ring_id);
 			if(d_ring_id != r_idx) {
 				crossing_counts[d_ring_id]++;
 				total_crossings++;
 			}
 		}
+		if(VERBOSE >= 3) printf("\n");
 
 		ring->is_hole = total_crossings % 2;
 		ring->parent_id = -1;
