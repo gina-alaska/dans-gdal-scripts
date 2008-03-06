@@ -30,6 +30,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "georef.h"
 #include "mask.h"
 
+#define DIR_UP 0
+#define DIR_RT 1
+#define DIR_DN 2
+#define DIR_LF 3
+
 typedef struct {
 	int x, y;
 } intvert_t;
@@ -46,17 +51,6 @@ typedef struct {
 } row_crossings_t;
 
 typedef int pixquad_t;
-
-int dbg_idx = 0;
-static void debug_write_mask(unsigned char *mask, int w, int h) {
-	char fn[1000];
-	sprintf(fn, "zz-debug-%04d.pbm", dbg_idx++);
-	FILE *fh = fopen(fn, "w");
-	if(!fh) fatal_error("cannot open %s", fn);
-	int mask_rowlen = (w+7)/8;
-	fwrite(mask, mask_rowlen*h, 1, fh);
-	fclose(fh);
-}
 
 static intring_t *make_enclosing_ring(int w, int h) {
 	intring_t *ring = (intring_t *)malloc_or_die(sizeof(intring_t));
@@ -143,10 +137,10 @@ static pixquad_t get_quad(unsigned char *mask, int w, int h, int x, int y, int s
 	// 0 1
 	// 3 2
 	int quad =
-		(get_pixel(mask, w, h, x  , y  )     ) +
-		(get_pixel(mask, w, h, x+1, y  ) << 1) +
-		(get_pixel(mask, w, h, x+1, y+1) << 2) +
-		(get_pixel(mask, w, h, x  , y+1) << 3);
+		(get_pixel(mask, w, h, x-1, y-1)     ) +
+		(get_pixel(mask, w, h, x  , y-1) << 1) +
+		(get_pixel(mask, w, h, x  , y  ) << 2) +
+		(get_pixel(mask, w, h, x-1, y  ) << 3);
 	if(!select_color) quad ^= 0xf;
 	return quad;
 }
@@ -158,10 +152,20 @@ static pixquad_t rotate_quad(pixquad_t q, int dir) {
 	return q;
 }
 
-#define DIR_UP 0
-#define DIR_RT 1
-#define DIR_DN 2
-#define DIR_LF 3
+int dbg_idx = 0;
+static void debug_write_mask(unsigned char *mask, int w, int h) {
+	char fn[1000];
+	sprintf(fn, "zz-debug-%04d.pgm", dbg_idx++);
+	FILE *fh = fopen(fn, "w");
+	if(!fh) fatal_error("cannot open %s", fn);
+	fprintf(fh, "P5\n%d %d\n255\n", w, h);
+	for(int y=0; y<w; y++)
+	for(int x=0; x<w; x++) {
+		unsigned char pix = get_pixel(mask, w, h, x, y) ? 255 : 0;
+		fwrite(&pix, 1, 1, fh);
+	}
+	fclose(fh);
+}
 
 static intring_t *trace_single_mpoly(unsigned char *mask, int w, int h, int initial_x, int initial_y, int select_color) {
 	printf("trace_single_mpoly enter (%d,%d)\n", initial_x, initial_y);
@@ -224,8 +228,10 @@ static intring_t *trace_single_mpoly(unsigned char *mask, int w, int h, int init
 }
 
 static void recursive_trace(unsigned char *mask, int w, int h,
-intring_t *bounds, int select_color) {
-	printf("recursive_trace enter\n");
+intring_t *bounds, int depth) {
+	printf("recursive_trace enter: depth=%d\n", depth);
+
+	int select_color = (depth & 1) ? 0 : 1;
 
 	if(!bounds) {
 		bounds = make_enclosing_ring(w, h);
@@ -240,20 +246,20 @@ intring_t *bounds, int select_color) {
 	}
 
 	row_crossings_t *crossings = get_row_crossings(bounds, bound_top, bound_bottom-bound_top);
-	for(int y=bound_top; y<bound_bottom-1; y++) {
-		row_crossings_t *c0 = crossings + (y-bound_top);
-		row_crossings_t *c1 = crossings + (y-bound_top+1);
+	for(int y=bound_top+1; y<bound_bottom; y++) {
+		row_crossings_t *c0 = crossings + (y-bound_top-1);
+		row_crossings_t *c1 = crossings + (y-bound_top);
 		for(int x=0; x<w; x++) {
+			if(!is_inside_crossings(c0, x-1)) continue;
+			if(!is_inside_crossings(c1, x-1)) continue;
 			if(!is_inside_crossings(c0, x)) continue;
 			if(!is_inside_crossings(c1, x)) continue;
-			if(!is_inside_crossings(c0, x+1)) continue;
-			if(!is_inside_crossings(c1, x+1)) continue;
 
 			pixquad_t quad = get_quad(mask, w, h, x, y, select_color);
 			if(quad == 0 || quad == 0xf) continue;
 
 			intring_t *ring = trace_single_mpoly(mask, w, h, x, y, select_color);
-			recursive_trace(mask, w, h, ring, !select_color);
+			recursive_trace(mask, w, h, ring, depth+1);
 		}
 	}
 
@@ -261,7 +267,7 @@ intring_t *bounds, int select_color) {
 		row_crossings_t *c = crossings + (y-bound_top);
 		for(int x=0; x<w; x++) {
 			if(!is_inside_crossings(c, x)) continue;
-			set_pixel(mask, w, h, x, y, !select_color);
+			set_pixel(mask, w, h, x, y, select_color);
 		}
 	}
 
@@ -271,7 +277,8 @@ intring_t *bounds, int select_color) {
 mpoly_t *calc_ring_from_mask(unsigned char *mask, int w, int h,
 report_image_t *dbuf, int major_ring_only, int no_donuts, 
 double min_ring_area, double bevel_size) {
-	recursive_trace(mask, w, h, NULL, 1);
+	debug_write_mask(mask, w, h);
+	recursive_trace(mask, w, h, NULL, 0);
 	fatal_error("OK");
 	return NULL;
 }
