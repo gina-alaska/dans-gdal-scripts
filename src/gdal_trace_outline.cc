@@ -488,6 +488,8 @@ if(class_id<100) continue;
 	return 0;
 }
 
+#if 0
+
 typedef struct {
 	int top_y;
 	int bottom_y;
@@ -1073,3 +1075,4 @@ double min_ring_area, double bevel_size) {
 
 	return mp;
 }
+#endif
