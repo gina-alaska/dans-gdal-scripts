@@ -238,8 +238,8 @@ static ring_t ring_int2dbl(intring_t *in) {
 	return out;
 }
 
-static mpoly_t recursive_trace(unsigned char *mask, int w, int h,
-intring_t *bounds, int depth, int *ring_id) {
+static void recursive_trace(unsigned char *mask, int w, int h,
+intring_t *bounds, int depth, mpoly_t *out_poly, int parent_id) {
 	//printf("recursive_trace enter: depth=%d\n", depth);
 
 	int select_color = (depth & 1) ? 0 : 1;
@@ -255,10 +255,6 @@ intring_t *bounds, int depth, int *ring_id) {
 		if(v.y < bound_top) bound_top = v.y;
 		if(v.y > bound_bottom) bound_bottom = v.y;
 	}
-
-	mpoly_t out_poly;
-	out_poly.num_rings = 0;
-	out_poly.rings = NULL;
 
 	row_crossings_t *crossings = get_row_crossings(bounds, bound_top, bound_bottom-bound_top);
 	for(int y=bound_top+1; y<bound_bottom; y++) {
@@ -276,24 +272,18 @@ intring_t *bounds, int depth, int *ring_id) {
 			if(quad == 0 || quad == 0xf) continue;
 
 			intring_t outer_ring = trace_single_mpoly(mask, w, h, x, y, select_color);
-			mpoly_t new_rings = recursive_trace(mask, w, h, &outer_ring, depth+1, ring_id);
-
-			out_poly.rings = (ring_t *)realloc_or_die(out_poly.rings,
-				sizeof(ring_t) * (out_poly.num_rings + 1 + new_rings.num_rings));
 
 			ring_t r = ring_int2dbl(&outer_ring);
-			r.parent_id = -1;
+			r.parent_id = parent_id;
 			r.is_hole = depth % 2;
-			out_poly.rings[out_poly.num_rings++] = r;
-			int outer_id = (*ring_id)++;
-			free(outer_ring.pts);
+			out_poly->rings = (ring_t *)realloc_or_die(out_poly->rings,
+				sizeof(ring_t) * (out_poly->num_rings + 1));
+			int outer_ring_id = (out_poly->num_rings++);
+			out_poly->rings[outer_ring_id] = r;
 
-			for(int i=0; i<new_rings.num_rings; i++) {
-				r = new_rings.rings[i];
-				r.parent_id = outer_id;
-				out_poly.rings[out_poly.num_rings++] = r;
-			}
-			free(new_rings.rings);
+			recursive_trace(mask, w, h, &outer_ring, depth+1, out_poly, outer_ring_id);
+
+			free(outer_ring.pts);
 		}
 	}
 
@@ -308,8 +298,6 @@ intring_t *bounds, int depth, int *ring_id) {
 	free(crossings);
 
 	//debug_write_mask(mask, w, h);
-	//
-	return out_poly;
 }
 
 mpoly_t *calc_ring_from_mask(unsigned char *mask, int w, int h,
@@ -317,7 +305,11 @@ report_image_t *dbuf, int major_ring_only, int no_donuts,
 double min_ring_area, double bevel_size) {
 	//debug_write_mask(mask, w, h);
 	mpoly_t *out_poly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
-	int ring_id = 0;
-	*out_poly = recursive_trace(mask, w, h, NULL, 0, &ring_id);
+
+	out_poly->num_rings = 0;
+	out_poly->rings = NULL;
+
+	recursive_trace(mask, w, h, NULL, 0, out_poly, -1);
+	printf("nr=%d\n", out_poly->num_rings);
 	return out_poly;
 }

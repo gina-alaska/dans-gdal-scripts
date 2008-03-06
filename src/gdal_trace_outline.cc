@@ -104,7 +104,7 @@ gdal_trace_outline raster.tif -classify -out-cs en -ogr-out outline.shp\n\
 	exit(1);
 }
 
-mpoly_t calc_ring_from_mask(unsigned char *mask, int w, int h,
+mpoly_t *calc_ring_from_mask(unsigned char *mask, int w, int h,
 	report_image_t *dbuf, int major_ring_only, int no_donuts,
 	double min_ring_area, double bevel_size);
 
@@ -376,8 +376,7 @@ if(class_id<100) continue;
 			mask = eroded_mask;
 		}
 
-		mpoly_t *bounds_poly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
-		*bounds_poly = calc_ring_from_mask(mask, georef.w, georef.h, dbuf, 
+		mpoly_t *bounds_poly = calc_ring_from_mask(mask, georef.w, georef.h, dbuf, 
 			major_ring_only, no_donuts, min_ring_area, bevel_size);
 		free(mask);
 
