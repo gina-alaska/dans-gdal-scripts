@@ -167,12 +167,12 @@ static void debug_write_mask(unsigned char *mask, int w, int h) {
 	fclose(fh);
 }
 
-static intring_t *trace_single_mpoly(unsigned char *mask, int w, int h, int initial_x, int initial_y, int select_color) {
+static intring_t trace_single_mpoly(unsigned char *mask, int w, int h, int initial_x, int initial_y, int select_color) {
 	//printf("trace_single_mpoly enter (%d,%d)\n", initial_x, initial_y);
 
-	intring_t *ring = (intring_t *)malloc_or_die(sizeof(intring_t));
-	ring->npts = 0;
-	ring->pts = NULL;
+	intring_t ring;
+	ring.npts = 0;
+	ring.pts = NULL;
 	int ringbuf_size = 0;
 
 	int x = initial_x;
@@ -187,15 +187,15 @@ static intring_t *trace_single_mpoly(unsigned char *mask, int w, int h, int init
 	for(;;) {
 		//printf("xy=(%d,%d)\n", x, y);
 
-		if(ring->npts == ringbuf_size) {
+		if(ring.npts == ringbuf_size) {
 			if(ringbuf_size) ringbuf_size *= 2;
 			else ringbuf_size = 4;
-			ring->pts = (intvert_t *)realloc_or_die(ring->pts, 
+			ring.pts = (intvert_t *)realloc_or_die(ring.pts, 
 				sizeof(intvert_t *) * ringbuf_size);
 		}
-		ring->pts[ring->npts].x = x;
-		ring->pts[ring->npts].y = y;
-		ring->npts++;
+		ring.pts[ring.npts].x = x;
+		ring.pts[ring.npts].y = y;
+		ring.npts++;
 
 		switch(dir) {
 			case DIR_UP: y -= 1; break;
@@ -219,16 +219,27 @@ static intring_t *trace_single_mpoly(unsigned char *mask, int w, int h, int init
 		dir = (dir + rot + 4) % 4;
 	}
 
-	if(ringbuf_size > ring->npts) {
-		ring->pts = (intvert_t *)realloc_or_die(ring->pts, 
-			sizeof(intvert_t *) * ring->npts);
+	if(ringbuf_size > ring.npts) {
+		ring.pts = (intvert_t *)realloc_or_die(ring.pts, 
+			sizeof(intvert_t *) * ring.npts);
 	}
 
 	return ring;
 }
 
-static void recursive_trace(unsigned char *mask, int w, int h,
-intring_t *bounds, int depth) {
+static ring_t ring_int2dbl(intring_t *in) {
+	ring_t out;
+	out.npts = in->npts;
+	out.pts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * in->npts);
+	for(int i=0; i<in->npts; i++) {
+		out.pts[i].x = in->pts[i].x;
+		out.pts[i].y = in->pts[i].y;
+	}
+	return out;
+}
+
+static mpoly_t recursive_trace(unsigned char *mask, int w, int h,
+intring_t *bounds, int depth, int *ring_id) {
 	//printf("recursive_trace enter: depth=%d\n", depth);
 
 	int select_color = (depth & 1) ? 0 : 1;
@@ -245,6 +256,10 @@ intring_t *bounds, int depth) {
 		if(v.y > bound_bottom) bound_bottom = v.y;
 	}
 
+	mpoly_t out_poly;
+	out_poly.num_rings = 0;
+	out_poly.rings = NULL;
+
 	row_crossings_t *crossings = get_row_crossings(bounds, bound_top, bound_bottom-bound_top);
 	for(int y=bound_top+1; y<bound_bottom; y++) {
 		if(!depth && !(y%1000)) printf("y=%d\n", y);
@@ -260,8 +275,25 @@ intring_t *bounds, int depth) {
 			pixquad_t quad = get_quad(mask, w, h, x, y, select_color);
 			if(quad == 0 || quad == 0xf) continue;
 
-			intring_t *ring = trace_single_mpoly(mask, w, h, x, y, select_color);
-			recursive_trace(mask, w, h, ring, depth+1);
+			intring_t outer_ring = trace_single_mpoly(mask, w, h, x, y, select_color);
+			mpoly_t new_rings = recursive_trace(mask, w, h, &outer_ring, depth+1, ring_id);
+
+			out_poly.rings = (ring_t *)realloc_or_die(out_poly.rings,
+				sizeof(ring_t) * (out_poly.num_rings + 1 + new_rings.num_rings));
+
+			ring_t r = ring_int2dbl(&outer_ring);
+			r.parent_id = -1;
+			r.is_hole = depth % 2;
+			out_poly.rings[out_poly.num_rings++] = r;
+			int outer_id = (*ring_id)++;
+			free(outer_ring.pts);
+
+			for(int i=0; i<new_rings.num_rings; i++) {
+				r = new_rings.rings[i];
+				r.parent_id = outer_id;
+				out_poly.rings[out_poly.num_rings++] = r;
+			}
+			free(new_rings.rings);
 		}
 	}
 
@@ -271,16 +303,21 @@ intring_t *bounds, int depth) {
 			if(!is_inside_crossings(c, x)) continue;
 			set_pixel(mask, w, h, x, y, select_color);
 		}
+		free(c->crossings);
 	}
+	free(crossings);
 
 	//debug_write_mask(mask, w, h);
+	//
+	return out_poly;
 }
 
 mpoly_t *calc_ring_from_mask(unsigned char *mask, int w, int h,
 report_image_t *dbuf, int major_ring_only, int no_donuts, 
 double min_ring_area, double bevel_size) {
 	//debug_write_mask(mask, w, h);
-	recursive_trace(mask, w, h, NULL, 0);
-	fatal_error("OK");
-	return NULL;
+	mpoly_t *out_poly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
+	int ring_id = 0;
+	*out_poly = recursive_trace(mask, w, h, NULL, 0, &ring_id);
+	return out_poly;
 }
