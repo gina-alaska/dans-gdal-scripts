@@ -67,7 +67,7 @@ static intring_t *make_enclosing_ring(int w, int h) {
 	return ring;
 }
 
-static row_crossings_t *get_row_crossings(intring_t *ring, int min_y, int num_rows) {
+static inline row_crossings_t *get_row_crossings(intring_t *ring, int min_y, int num_rows) {
 	row_crossings_t *rows = (row_crossings_t *)malloc_or_die(sizeof(row_crossings_t) * num_rows);
 
 	for(int i=0; i<num_rows; i++) {
@@ -104,7 +104,7 @@ static row_crossings_t *get_row_crossings(intring_t *ring, int min_y, int num_ro
 	return rows;
 }
 
-static int is_inside_crossings(row_crossings_t *c, int x) {
+static inline int is_inside_crossings(row_crossings_t *c, int x) {
 	int inside = 0;
 	for(int i=0; i<c->num_crossings; i++) {
 		if(x >= c->crossings[i]) inside = !inside;
@@ -112,7 +112,7 @@ static int is_inside_crossings(row_crossings_t *c, int x) {
 	return inside;
 }
 
-static int get_pixel(unsigned char *mask, int w, int h, int x, int y) {
+static inline int get_pixel(unsigned char *mask, int w, int h, int x, int y) {
 	if(x<0 || x>=w || y<0 || y>=h) return 0;
 	int mask_rowlen = (w+7)/8;
 	unsigned char mask_bitp = 1 << (x % 8);
@@ -121,7 +121,7 @@ static int get_pixel(unsigned char *mask, int w, int h, int x, int y) {
 	return val ? 1 : 0;
 }
 
-static void set_pixel(unsigned char *mask, int w, int h, int x, int y, int color) {
+static inline void set_pixel(unsigned char *mask, int w, int h, int x, int y, int color) {
 	if(x<0 || x>=w || y<0 || y>=h) return;
 	int mask_rowlen = (w+7)/8;
 	unsigned char mask_bitp = 1 << (x % 8);
@@ -133,7 +133,7 @@ static void set_pixel(unsigned char *mask, int w, int h, int x, int y, int color
 	}
 }
 
-static pixquad_t get_quad(unsigned char *mask, int w, int h, int x, int y, int select_color) {
+static inline pixquad_t get_quad(unsigned char *mask, int w, int h, int x, int y, int select_color) {
 	// 0 1
 	// 3 2
 	int quad =
@@ -145,7 +145,7 @@ static pixquad_t get_quad(unsigned char *mask, int w, int h, int x, int y, int s
 	return quad;
 }
 
-static pixquad_t rotate_quad(pixquad_t q, int dir) {
+static inline pixquad_t rotate_quad(pixquad_t q, int dir) {
 	while(dir--) {
 		q = (q>>1) + ((q&1)<<3);
 	}
@@ -168,7 +168,7 @@ static void debug_write_mask(unsigned char *mask, int w, int h) {
 }
 
 static intring_t *trace_single_mpoly(unsigned char *mask, int w, int h, int initial_x, int initial_y, int select_color) {
-	printf("trace_single_mpoly enter (%d,%d)\n", initial_x, initial_y);
+	//printf("trace_single_mpoly enter (%d,%d)\n", initial_x, initial_y);
 
 	intring_t *ring = (intring_t *)malloc_or_die(sizeof(intring_t));
 	ring->npts = 0;
@@ -229,7 +229,7 @@ static intring_t *trace_single_mpoly(unsigned char *mask, int w, int h, int init
 
 static void recursive_trace(unsigned char *mask, int w, int h,
 intring_t *bounds, int depth) {
-	printf("recursive_trace enter: depth=%d\n", depth);
+	//printf("recursive_trace enter: depth=%d\n", depth);
 
 	int select_color = (depth & 1) ? 0 : 1;
 
@@ -247,6 +247,8 @@ intring_t *bounds, int depth) {
 
 	row_crossings_t *crossings = get_row_crossings(bounds, bound_top, bound_bottom-bound_top);
 	for(int y=bound_top+1; y<bound_bottom; y++) {
+		if(!depth && !(y%1000)) printf("y=%d\n", y);
+
 		row_crossings_t *c0 = crossings + (y-bound_top-1);
 		row_crossings_t *c1 = crossings + (y-bound_top);
 		for(int x=0; x<w; x++) {
@@ -271,13 +273,13 @@ intring_t *bounds, int depth) {
 		}
 	}
 
-	debug_write_mask(mask, w, h);
+	//debug_write_mask(mask, w, h);
 }
 
 mpoly_t *calc_ring_from_mask(unsigned char *mask, int w, int h,
 report_image_t *dbuf, int major_ring_only, int no_donuts, 
 double min_ring_area, double bevel_size) {
-	debug_write_mask(mask, w, h);
+	//debug_write_mask(mask, w, h);
 	recursive_trace(mask, w, h, NULL, 0);
 	fatal_error("OK");
 	return NULL;
