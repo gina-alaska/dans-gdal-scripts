@@ -87,7 +87,7 @@ static inline row_crossings_t *get_row_crossings(intring_t *ring, int min_y, int
 			tmp=x0; x0=x1; x1=tmp; 
 			tmp=y0; y0=y1; y1=tmp; 
 		}
-		if(x0 != x1) fatal_error("segment was not horizontal or vertical");
+		if(x0 != x1) fatal_error("segment was not horizontal or vertical (%d,%d;%d,%d)", x0, y0, x1, y1);
 		for(int y=y0; y<y1; y++) {
 			int row = y - min_y;
 			if(row<0 || row>num_rows-1) continue;
@@ -171,9 +171,11 @@ static intring_t trace_single_mpoly(unsigned char *mask, int w, int h, int initi
 	//printf("trace_single_mpoly enter (%d,%d)\n", initial_x, initial_y);
 
 	intring_t ring;
-	ring.npts = 0;
-	ring.pts = NULL;
-	int ringbuf_size = 0;
+	int ringbuf_size = 4;
+	ring.pts = (intvert_t *)malloc_or_die(sizeof(intvert_t *) * ringbuf_size);
+	ring.pts[0].x = initial_x;
+	ring.pts[0].y = initial_y;
+	ring.npts = 1;
 
 	int x = initial_x;
 	int y = initial_y;
@@ -186,16 +188,6 @@ static intring_t trace_single_mpoly(unsigned char *mask, int w, int h, int initi
 	if(dir == 4) fatal_error("couldn't choose a starting direction (q=%d)", quad);
 	for(;;) {
 		//printf("xy=(%d,%d)\n", x, y);
-
-		if(ring.npts == ringbuf_size) {
-			if(ringbuf_size) ringbuf_size *= 2;
-			else ringbuf_size = 4;
-			ring.pts = (intvert_t *)realloc_or_die(ring.pts, 
-				sizeof(intvert_t *) * ringbuf_size);
-		}
-		ring.pts[ring.npts].x = x;
-		ring.pts[ring.npts].y = y;
-		ring.npts++;
 
 		switch(dir) {
 			case DIR_UP: y -= 1; break;
@@ -217,6 +209,18 @@ static intring_t trace_single_mpoly(unsigned char *mask, int w, int h, int initi
 			default: fatal_error("not possible");
 		}
 		dir = (dir + rot + 4) % 4;
+
+		if(rot) {
+			if(ring.npts == ringbuf_size) {
+				if(ringbuf_size) ringbuf_size *= 2;
+				else ringbuf_size = 4;
+				ring.pts = (intvert_t *)realloc_or_die(ring.pts, 
+					sizeof(intvert_t *) * ringbuf_size);
+			}
+			ring.pts[ring.npts].x = x;
+			ring.pts[ring.npts].y = y;
+			ring.npts++;
+		}
 	}
 
 	if(ringbuf_size > ring.npts) {
@@ -244,8 +248,10 @@ intring_t *bounds, int depth, mpoly_t *out_poly, int parent_id) {
 
 	int select_color = (depth & 1) ? 0 : 1;
 
+	int must_free_bounds = 0;
 	if(!bounds) {
 		bounds = make_enclosing_ring(w, h);
+		must_free_bounds = 1;
 	}
 
 	int bound_top, bound_bottom;
@@ -293,17 +299,23 @@ intring_t *bounds, int depth, mpoly_t *out_poly, int parent_id) {
 			if(!is_inside_crossings(c, x)) continue;
 			set_pixel(mask, w, h, x, y, select_color);
 		}
-		free(c->crossings);
+		if(c->crossings) free(c->crossings);
 	}
 	free(crossings);
 
-	//debug_write_mask(mask, w, h);
+	if(must_free_bounds) {
+		free(bounds->pts);
+		free(bounds);
+	}
+
+	if(VERBOSE >= 4) debug_write_mask(mask, w, h);
 }
 
 mpoly_t *calc_ring_from_mask(unsigned char *mask, int w, int h,
 report_image_t *dbuf, int major_ring_only, int no_donuts, 
 double min_ring_area, double bevel_size) {
-	//debug_write_mask(mask, w, h);
+	if(VERBOSE >= 4) debug_write_mask(mask, w, h);
+
 	mpoly_t *out_poly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
 
 	out_poly->num_rings = 0;
