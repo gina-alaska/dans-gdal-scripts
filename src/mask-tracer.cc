@@ -395,12 +395,11 @@ intring_t *bounds, int depth, mpoly_t *out_poly, int parent_id) {
 	if(VERBOSE >= 4) debug_write_mask(mask, w, h);
 }
 
-mpoly_t *calc_ring_from_mask(unsigned char *mask_1bit, int w, int h,
-report_image_t *dbuf, int major_ring_only, int no_donuts, 
-double min_ring_area, double bevel_size) {
+mpoly_t trace_mask(unsigned char *mask_1bit, int w, int h) {
 	if(VERBOSE >= 4) debug_write_mask(mask_1bit, w, h);
 
 	unsigned char *mask_8bit = (unsigned char *)malloc_or_die((w+2)*(h+2));
+	// FIXME - only need to clear borders
 	memset(mask_8bit, 0, (w+2)*(h+2));
 	for(int y=0; y<h; y++) {
 		int mask_rowlen = (w+7)/8;
@@ -417,13 +416,13 @@ double min_ring_area, double bevel_size) {
 		}
 	}
 
-	mpoly_t *out_poly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
+	mpoly_t out_poly;
 
-	out_poly->num_rings = 0;
-	out_poly->rings = NULL;
+	out_poly.num_rings = 0;
+	out_poly.rings = NULL;
 
-	recursive_trace(mask_8bit, w, h, NULL, 0, out_poly, -1);
-	printf("nr=%d\n", out_poly->num_rings);
+	recursive_trace(mask_8bit, w, h, NULL, 0, &out_poly, -1);
+	printf("nr=%d\n", out_poly.num_rings);
 
 	free(mask_8bit);
 

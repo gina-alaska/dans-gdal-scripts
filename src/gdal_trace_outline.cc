@@ -104,7 +104,9 @@ gdal_trace_outline raster.tif -classify -out-cs en -ogr-out outline.shp\n\
 	exit(1);
 }
 
-mpoly_t *calc_ring_from_mask(unsigned char *mask, int w, int h,
+mpoly_t trace_mask(unsigned char *mask_1bit, int w, int h); // FIXME - to *.h
+
+mpoly_t calc_ring_from_mask(unsigned char *mask, int w, int h,
 	report_image_t *dbuf, int major_ring_only, int no_donuts,
 	double min_ring_area, double bevel_size);
 
@@ -376,45 +378,45 @@ if(class_id<100) continue;
 			mask = eroded_mask;
 		}
 
-		mpoly_t *bounds_poly = calc_ring_from_mask(mask, georef.w, georef.h, dbuf, 
+		mpoly_t bounds_poly = calc_ring_from_mask(mask, georef.w, georef.h, dbuf, 
 			major_ring_only, no_donuts, min_ring_area, bevel_size);
 		free(mask);
 
 		if(mask_out_fn) {
-			mask_from_mpoly(bounds_poly, georef.w, georef.h, mask_out_fn);
+			mask_from_mpoly(&bounds_poly, georef.w, georef.h, mask_out_fn);
 		}
 
 		if(reduction_tolerance > 0) {
-			mpoly_t reduced_poly = compute_reduced_pointset(bounds_poly, reduction_tolerance);
-			free_mpoly(bounds_poly);
-			*bounds_poly = reduced_poly;
+			mpoly_t reduced_poly = compute_reduced_pointset(&bounds_poly, reduction_tolerance);
+			free_mpoly(&bounds_poly);
+			bounds_poly = reduced_poly;
 		}
 
 		int num_outer=0, num_inner=0, total_pts=0;
 		int r_idx;
-		for(r_idx=0; r_idx<bounds_poly->num_rings; r_idx++) {
-			if(bounds_poly->rings[r_idx].is_hole) num_inner++;
+		for(r_idx=0; r_idx<bounds_poly.num_rings; r_idx++) {
+			if(bounds_poly.rings[r_idx].is_hole) num_inner++;
 			else num_outer++;
-			total_pts += bounds_poly->rings[r_idx].npts;
+			total_pts += bounds_poly.rings[r_idx].npts;
 		}
 		printf("Found %d outer rings and %d holes with a total of %d vertices.\n",
 			num_outer, num_inner, total_pts);
 
 		if(dbuf && dbuf->mode == PLOT_CONTOURS) {
-			debug_plot_rings(bounds_poly, dbuf);
+			debug_plot_rings(&bounds_poly, dbuf);
 		}
 
-		if(do_geom_output && bounds_poly->num_rings) {
+		if(do_geom_output && bounds_poly.num_rings) {
 			int num_shapes;
 			mpoly_t *shapes;
 			int shape_is_copy;
 			if(split_polys) {
-				split_mpoly_to_polys(bounds_poly, &num_shapes, &shapes);
+				split_mpoly_to_polys(&bounds_poly, &num_shapes, &shapes);
 				shape_is_copy = 0;
 			} else {
 				num_shapes = 1;
 				shapes = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
-				shapes[0] = *bounds_poly;
+				shapes[0] = bounds_poly;
 				shape_is_copy = 1;
 			}
 
@@ -468,7 +470,7 @@ if(class_id<100) continue;
 			}
 		}
 
-		free_mpoly(bounds_poly);
+		free_mpoly(&bounds_poly);
 	}
 
 	printf("\n");
@@ -485,4 +487,92 @@ if(class_id<100) continue;
 	CPLPopErrorHandler();
 
 	return 0;
+}
+
+mpoly_t calc_ring_from_mask(unsigned char *mask, int w, int h,
+report_image_t *dbuf, int major_ring_only, int no_donuts, 
+double min_ring_area, double bevel_size) {
+	mpoly_t mp = trace_mask(mask, w, h);
+
+	if(VERBOSE) {
+		int total_pts = 0;
+		for(int r_idx=0; r_idx<mp.num_rings; r_idx++) {
+			total_pts += mp.rings[r_idx].npts;
+		}
+		printf("tracer produced %d rings with a total of %d points\n",
+			mp.num_rings, total_pts);
+	}
+
+	if(min_ring_area > 0) {
+		if(VERBOSE) printf("removing small rings...\n");
+
+		ring_t *filtered_rings = (ring_t *)malloc_or_die(sizeof(ring_t) * mp.num_rings);
+		int *parent_map = (int *)malloc_or_die(sizeof(int) * mp.num_rings);
+		for(int i=0; i<mp.num_rings; i++) {
+			parent_map[i] = -1;
+		}
+		int num_filtered_rings = 0;
+		for(int i=0; i<mp.num_rings; i++) {
+			double area = polygon_area(mp.rings+i);
+			if(VERBOSE) if(area > 10) printf("ring %d has area %.15f\n", i, area);
+			if(area >= min_ring_area) {
+				parent_map[i] = num_filtered_rings;
+				filtered_rings[num_filtered_rings++] = mp.rings[i];
+			} else {
+				free_ring(mp.rings + i);
+			}
+		}
+		for(int i=0; i<num_filtered_rings; i++) {
+			int old_parent = filtered_rings[i].parent_id;
+			if(old_parent >= 0) {
+				int new_parent = parent_map[old_parent];
+				if(new_parent < 0) fatal_error("took a ring but not its parent");
+				filtered_rings[i].parent_id = new_parent;
+			}
+		}
+		printf("filtered by area %d => %d rings\n",
+			mp.num_rings, num_filtered_rings);
+
+		free(mp.rings);
+		mp.rings = filtered_rings;
+		mp.num_rings = num_filtered_rings;
+	}
+
+	if(major_ring_only) {
+		double biggest_area = 0;
+		int best_idx = 0;
+		for(int i=0; i<mp.num_rings; i++) {
+			double area = polygon_area(mp.rings+i);
+			if(area > biggest_area) {
+				biggest_area = area;
+				best_idx = i;
+			}
+		}
+		if(VERBOSE) printf("major ring was %d with %d pts, %.1f area\n",
+			best_idx, mp.rings[best_idx].npts, biggest_area);
+		mp.rings = mp.rings+best_idx;
+		mp.num_rings = 1;
+		if(mp.rings[0].parent_id >= 0) fatal_error("largest ring should not have a parent");
+	}
+
+	if(no_donuts) {
+		// we don't have to worry about remapping parent_id in this
+		// case because we only take rings with no parent
+		int out_idx = 0;
+		for(int i=0; i<mp.num_rings; i++) {
+			if(mp.rings[i].parent_id < 0) {
+				mp.rings[out_idx++] = mp.rings[i];
+			}
+		}
+		mp.num_rings = out_idx;
+		if(VERBOSE) printf("number of non-donut rings is %d", mp.num_rings);
+	}
+
+	if(bevel_size > 0) {
+		// the topology cannot be resolved by us or by geos/jump/postgis if
+		// there are self-intersections
+		bevel_self_intersections(&mp, bevel_size);
+	}
+
+	return mp;
 }

@@ -524,7 +524,7 @@ mpoly_t reduction_to_mpoly(mpoly_t *in_mpoly, reduced_ring_t *reduced_rings) {
 		ring_t *c_in = &in_mpoly->rings[c_idx];
 		reduced_ring_t *r_in = &reduced_rings[c_idx];
 
-		if(VERBOSE) printf("ring %d: %d => %d pts\n", c_idx, c_in->npts, r_in->num_segs);
+		if(VERBOSE >= 2) printf("ring %d: %d => %d pts\n", c_idx, c_in->npts, r_in->num_segs);
 		total_npts_in += c_in->npts;
 
 		if(r_in->num_segs > 2) {
