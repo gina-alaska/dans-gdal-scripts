@@ -67,7 +67,7 @@ static intring_t *make_enclosing_ring(int w, int h) {
 	return ring;
 }
 
-static inline row_crossings_t *get_row_crossings(intring_t *ring, int min_y, int num_rows) {
+static row_crossings_t *get_row_crossings(intring_t *ring, int min_y, int num_rows) {
 	row_crossings_t *rows = (row_crossings_t *)malloc_or_die(sizeof(row_crossings_t) * num_rows);
 
 	for(int i=0; i<num_rows; i++) {
@@ -104,7 +104,7 @@ static inline row_crossings_t *get_row_crossings(intring_t *ring, int min_y, int
 	return rows;
 }
 
-static inline int is_inside_crossings(row_crossings_t *c, int x) {
+static int is_inside_crossings(row_crossings_t *c, int x) {
 	int inside = 0;
 	for(int i=0; i<c->num_crossings; i++) {
 		if(x >= c->crossings[i]) inside = !inside;
@@ -112,7 +112,7 @@ static inline int is_inside_crossings(row_crossings_t *c, int x) {
 	return inside;
 }
 
-static inline int get_pixel(unsigned char *mask, int w, int h, int x, int y) {
+static int get_pixel(unsigned char *mask, int w, int h, int x, int y) {
 	if(x<0 || x>=w || y<0 || y>=h) return 0;
 	int mask_rowlen = (w+7)/8;
 	unsigned char mask_bitp = 1 << (x % 8);
@@ -121,7 +121,7 @@ static inline int get_pixel(unsigned char *mask, int w, int h, int x, int y) {
 	return val ? 1 : 0;
 }
 
-static inline void set_pixel(unsigned char *mask, int w, int h, int x, int y, int color) {
+static void set_pixel(unsigned char *mask, int w, int h, int x, int y, int color) {
 	if(x<0 || x>=w || y<0 || y>=h) return;
 	int mask_rowlen = (w+7)/8;
 	unsigned char mask_bitp = 1 << (x % 8);
@@ -133,7 +133,7 @@ static inline void set_pixel(unsigned char *mask, int w, int h, int x, int y, in
 	}
 }
 
-static inline pixquad_t get_quad(unsigned char *mask, int w, int h, int x, int y, int select_color) {
+static pixquad_t get_quad(unsigned char *mask, int w, int h, int x, int y, int select_color) {
 	// 0 1
 	// 3 2
 	int quad =
@@ -145,7 +145,7 @@ static inline pixquad_t get_quad(unsigned char *mask, int w, int h, int x, int y
 	return quad;
 }
 
-static inline pixquad_t rotate_quad(pixquad_t q, int dir) {
+static pixquad_t rotate_quad(pixquad_t q, int dir) {
 	while(dir--) {
 		q = (q>>1) + ((q&1)<<3);
 	}
@@ -254,10 +254,14 @@ intring_t *bounds, int depth, mpoly_t *out_poly, int parent_id) {
 		must_free_bounds = 1;
 	}
 
+	int bound_left, bound_right;
 	int bound_top, bound_bottom;
+	bound_left = bound_right = bounds->pts[0].x;
 	bound_top = bound_bottom = bounds->pts[0].y;
 	for(int v_idx=0; v_idx<bounds->npts; v_idx++) {
 		intvert_t v = bounds->pts[v_idx];
+		if(v.x < bound_left) bound_left = v.x;
+		if(v.x > bound_right) bound_right = v.x;
 		if(v.y < bound_top) bound_top = v.y;
 		if(v.y > bound_bottom) bound_bottom = v.y;
 	}
@@ -268,36 +272,48 @@ intring_t *bounds, int depth, mpoly_t *out_poly, int parent_id) {
 
 		row_crossings_t *c0 = crossings + (y-bound_top-1);
 		row_crossings_t *c1 = crossings + (y-bound_top);
-		for(int x=0; x<w; x++) {
-			if(!is_inside_crossings(c0, x-1)) continue;
-			if(!is_inside_crossings(c1, x-1)) continue;
-			if(!is_inside_crossings(c0, x)) continue;
-			if(!is_inside_crossings(c1, x)) continue;
+		int prev_inside_c0 = is_inside_crossings(c0, bound_left-1);
+		int prev_inside_c1 = is_inside_crossings(c1, bound_left-1);
+		for(int x=bound_left; x<=bound_right; x++) {
+			int this_inside_c0 = is_inside_crossings(c0, x);
+			int this_inside_c1 = is_inside_crossings(c1, x);
+			int good_quad = prev_inside_c0 && prev_inside_c1 && this_inside_c0 && this_inside_c1;
+			prev_inside_c0 = this_inside_c0;
+			prev_inside_c1 = this_inside_c1;
 
-			pixquad_t quad = get_quad(mask, w, h, x, y, select_color);
-			if(quad == 0 || quad == 0xf) continue;
+			int is_seed;
+			if(good_quad) {
+				pixquad_t quad = get_quad(mask, w, h, x, y, select_color);
+				is_seed = (quad != 0 && quad != 0xf);
+			} else {
+				is_seed = 0;
+			}
 
-			intring_t outer_ring = trace_single_mpoly(mask, w, h, x, y, select_color);
+			if(is_seed) {
+				intring_t outer_ring = trace_single_mpoly(mask, w, h, x, y, select_color);
 
-			ring_t r = ring_int2dbl(&outer_ring);
-			r.parent_id = parent_id;
-			r.is_hole = depth % 2;
-			out_poly->rings = (ring_t *)realloc_or_die(out_poly->rings,
-				sizeof(ring_t) * (out_poly->num_rings + 1));
-			int outer_ring_id = (out_poly->num_rings++);
-			out_poly->rings[outer_ring_id] = r;
+				ring_t r = ring_int2dbl(&outer_ring);
+				r.parent_id = parent_id;
+				r.is_hole = depth % 2;
+				out_poly->rings = (ring_t *)realloc_or_die(out_poly->rings,
+					sizeof(ring_t) * (out_poly->num_rings + 1));
+				int outer_ring_id = (out_poly->num_rings++);
+				out_poly->rings[outer_ring_id] = r;
 
-			recursive_trace(mask, w, h, &outer_ring, depth+1, out_poly, outer_ring_id);
+				recursive_trace(mask, w, h, &outer_ring, depth+1, out_poly, outer_ring_id);
 
-			free(outer_ring.pts);
+				free(outer_ring.pts);
+			}
 		}
 	}
 
 	for(int y=bound_top; y<bound_bottom; y++) {
 		row_crossings_t *c = crossings + (y-bound_top);
-		for(int x=0; x<w; x++) {
-			if(!is_inside_crossings(c, x)) continue;
-			set_pixel(mask, w, h, x, y, select_color);
+		if(depth>0) {
+			for(int x=bound_left; x<=bound_right; x++) {
+				if(!is_inside_crossings(c, x)) continue;
+				set_pixel(mask, w, h, x, y, select_color);
+			}
 		}
 		if(c->crossings) free(c->crossings);
 	}
