@@ -351,8 +351,12 @@ intring_t *bounds, int depth, mpoly_t *out_poly, int parent_id) {
 					intring_t outer_ring = trace_single_mpoly(mask, w, h, x, y, select_color);
 
 					ring_t r = ring_int2dbl(&outer_ring);
+
 					r.parent_id = parent_id;
 					r.is_hole = depth % 2;
+					//r.parent_id = -1;
+					//r.is_hole = 0;
+
 					out_poly->rings = (ring_t *)realloc_or_die(out_poly->rings,
 						sizeof(ring_t) * (out_poly->num_rings + 1));
 					int outer_ring_id = (out_poly->num_rings++);

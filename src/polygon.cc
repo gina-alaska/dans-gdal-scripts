@@ -612,20 +612,20 @@ void fix_topology(mpoly_t *mpoly, reduced_ring_t *reduced_rings) {
 		GDALTermProgress(pow((double)r1_idx / (double)mpoly->num_rings, 2), NULL, NULL);
 		ring_t *c1 = &mpoly->rings[r1_idx];
 		reduced_ring_t *r1 = &reduced_rings[r1_idx];
-		bbox_t bbox1 = bboxes[r1_idx];
-		if(bbox1.empty) continue;
+		//bbox_t bbox1 = bboxes[r1_idx];
+		//if(bbox1.empty) continue;
 		for(r2_idx=0; r2_idx < mpoly->num_rings; r2_idx++) {
 			if(r2_idx > r1_idx) continue; // symmetry optimization
 
-			bbox_t bbox2 = bboxes[r2_idx];
-			if(bbox2.empty) continue;
+			//bbox_t bbox2 = bboxes[r2_idx];
+			//if(bbox2.empty) continue;
 
-			if(
-				bbox1.min_x > bbox2.max_x ||
-				bbox1.min_y > bbox2.max_y ||
-				bbox2.min_x > bbox1.max_x ||
-				bbox2.min_y > bbox1.max_y
-			) continue;
+			//if(
+			//	bbox1.min_x > bbox2.max_x ||
+			//	bbox1.min_y > bbox2.max_y ||
+			//	bbox2.min_x > bbox1.max_x ||
+			//	bbox2.min_y > bbox1.max_y
+			//) continue;
 
 			ring_t *c2 = &mpoly->rings[r2_idx];
 			reduced_ring_t *r2 = &reduced_rings[r2_idx];
@@ -694,8 +694,18 @@ void fix_topology(mpoly_t *mpoly, reduced_ring_t *reduced_rings) {
 					for(seg2_idx=0; seg2_idx < r2->num_segs; seg2_idx++) {
 						char crosses = segs_cross(c1, &r1->segs[seg1_idx], c2, &r2->segs[seg2_idx]);
 						if(crosses) {
-							//printf("found a crossing (still): %d,%d,%d,%d\n",
-							//	r1_idx, seg1_idx, r2_idx, seg2_idx);
+							if(VERBOSE) {
+								printf("found a crossing (still): %d,%d,%d,%d (%f,%f)-(%f,%f) (%f,%f)-(%f,%f)\n",
+									r1_idx, seg1_idx, r2_idx, seg2_idx,
+									c1->pts[r1->segs[seg1_idx].begin].x,
+									c1->pts[r1->segs[seg1_idx].begin].y,
+									c1->pts[r1->segs[seg1_idx].end].x,
+									c1->pts[r1->segs[seg1_idx].end].y,
+									c2->pts[r2->segs[seg2_idx].begin].x,
+									c2->pts[r2->segs[seg2_idx].begin].y,
+									c2->pts[r2->segs[seg2_idx].end].x,
+									c2->pts[r2->segs[seg2_idx].end].y);
+							}
 							r1->segs[seg1_idx].is_problem = 1;
 							r2->segs[seg2_idx].is_problem = 1;
 							have_problems++;
