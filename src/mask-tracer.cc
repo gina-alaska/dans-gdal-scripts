@@ -127,6 +127,53 @@ static row_crossings_t *get_row_crossings(intring_t *ring, int min_y, int num_ro
 	return rows;
 }
 
+static void crossings_intersection(row_crossings_t *out, row_crossings_t *in1, row_crossings_t *in2) {
+	out->num_crossings = 0;
+	int *c1 = in1->crossings;
+	int  n1 = in1->num_crossings;
+	int *c2 = in2->crossings;
+	int  n2 = in2->num_crossings;
+	int p1=0, p2=0;
+	while(p1<n1 && p2<n2) {
+		int open, close;
+		if(c1[p1] > c2[p2]) {
+			if(c1[p1] >= c2[p2+1]) {
+				p2 += 2;
+				continue;
+			}
+			open = c1[p1];
+			if(c1[p1+1] < c2[p2+1]) {
+				close = c1[p1+1];
+				p1 += 2;
+			} else {
+				close = c2[p2+1];
+				p2 += 2;
+			}
+		} else {
+			if(c2[p2] >= c1[p1+1]) {
+				p1 += 2;
+				continue;
+			}
+			open = c2[p2];
+			if(c2[p2+1] < c1[p1+1]) {
+				close = c2[p2+1];
+				p2 += 2;
+			} else {
+				close = c1[p1+1];
+				p1 += 2;
+			}
+		}
+		if(out->array_size < out->num_crossings+2) {
+			out->array_size += 16;
+			out->crossings = (int *)realloc_or_die(out->crossings,
+				sizeof(int) * out->array_size);
+		}
+		out->crossings[out->num_crossings++] = open;
+		out->crossings[out->num_crossings++] = close;
+	}
+}
+
+/*
 static int is_inside_crossings(row_crossings_t *c, int x) {
 	int inside = 0;
 	for(int i=0; i<c->num_crossings; i++) {
@@ -134,13 +181,14 @@ static int is_inside_crossings(row_crossings_t *c, int x) {
 	}
 	return inside;
 }
+*/
 
 static pixquad_t get_quad(unsigned char *mask, int w, int h, int x, int y, int select_color) {
 	// 1 2
 	// 8 4
 	unsigned char *uprow = mask + (y  )*(w+2);
 	unsigned char *dnrow = mask + (y+1)*(w+2);
-	int quad =
+	pixquad_t quad =
 		(uprow[x  ]     ) + // y-1, x-1
 		(uprow[x+1] << 1) + // y-1, x
 		(dnrow[x+1] << 2) + // y  , x
@@ -268,45 +316,56 @@ intring_t *bounds, int depth, mpoly_t *out_poly, int parent_id) {
 	}
 
 	row_crossings_t *crossings = get_row_crossings(bounds, bound_top, bound_bottom-bound_top);
+
+	row_crossings_t cross_both;
+	cross_both.array_size = 0;
+	cross_both.crossings = NULL;
+
 	for(int y=bound_top+1; y<bound_bottom; y++) {
 		if(!depth && !(y%1000)) printf("y=%d\n", y);
 
-		row_crossings_t *c0 = crossings + (y-bound_top-1);
-		row_crossings_t *c1 = crossings + (y-bound_top);
-		int prev_inside_c0 = is_inside_crossings(c0, bound_left-1);
-		int prev_inside_c1 = is_inside_crossings(c1, bound_left-1);
-		for(int x=bound_left; x<=bound_right; x++) {
-			int this_inside_c0 = is_inside_crossings(c0, x);
-			int this_inside_c1 = is_inside_crossings(c1, x);
-			int good_quad = prev_inside_c0 && prev_inside_c1 && this_inside_c0 && this_inside_c1;
-			prev_inside_c0 = this_inside_c0;
-			prev_inside_c1 = this_inside_c1;
+		unsigned char *uprow = mask + (y  )*(w+2);
+		unsigned char *dnrow = mask + (y+1)*(w+2);
 
-			int is_seed;
-			if(good_quad) {
-				pixquad_t quad = get_quad(mask, w, h, x, y, select_color);
-				is_seed = (quad != 0 && quad != 0xf);
-			} else {
-				is_seed = 0;
-			}
+		// make sure (y-1,y)*(x-1,x) in bounds
+		crossings_intersection(&cross_both, 
+			crossings + (y-bound_top-1),
+			crossings + (y-bound_top));
+		for(int cidx=0; cidx<cross_both.num_crossings/2; cidx++) {
+			// make sure (y-1,y)*(x-1,x) in bounds
+			int from = 1+cross_both.crossings[cidx*2  ];
+			int to   =   cross_both.crossings[cidx*2+1];
+			for(int x=from; x<to; x++) {
+				//pixquad_t quad = get_quad(mask, w, h, x, y, select_color);
+				pixquad_t quad =
+					(uprow[x  ]     ) + // y-1, x-1
+					(uprow[x+1] << 1) + // y-1, x
+					(dnrow[x+1] << 2) + // y  , x
+					(dnrow[x  ] << 3);  // y  , x-1
+				// not needed in this case
+				//if(!select_color) quad ^= 0xf;
 
-			if(is_seed) {
-				intring_t outer_ring = trace_single_mpoly(mask, w, h, x, y, select_color);
+				int is_seed = (quad != 0 && quad != 0xf);
 
-				ring_t r = ring_int2dbl(&outer_ring);
-				r.parent_id = parent_id;
-				r.is_hole = depth % 2;
-				out_poly->rings = (ring_t *)realloc_or_die(out_poly->rings,
-					sizeof(ring_t) * (out_poly->num_rings + 1));
-				int outer_ring_id = (out_poly->num_rings++);
-				out_poly->rings[outer_ring_id] = r;
+				if(is_seed) {
+					intring_t outer_ring = trace_single_mpoly(mask, w, h, x, y, select_color);
 
-				recursive_trace(mask, w, h, &outer_ring, depth+1, out_poly, outer_ring_id);
+					ring_t r = ring_int2dbl(&outer_ring);
+					r.parent_id = parent_id;
+					r.is_hole = depth % 2;
+					out_poly->rings = (ring_t *)realloc_or_die(out_poly->rings,
+						sizeof(ring_t) * (out_poly->num_rings + 1));
+					int outer_ring_id = (out_poly->num_rings++);
+					out_poly->rings[outer_ring_id] = r;
 
-				free(outer_ring.pts);
-			}
+					recursive_trace(mask, w, h, &outer_ring, depth+1, out_poly, outer_ring_id);
+
+					free(outer_ring.pts);
+				}
+			} 
 		}
 	}
+	if(cross_both.crossings != NULL) free(cross_both.crossings);
 
 	for(int y=bound_top; y<bound_bottom; y++) {
 		row_crossings_t *r = crossings + (y-bound_top);
@@ -316,7 +375,7 @@ intring_t *bounds, int depth, mpoly_t *out_poly, int parent_id) {
 				int from = r->crossings[cidx*2  ];
 				int to   = r->crossings[cidx*2+1];
 				for(int x=from; x<to; x++) {
-					maskrow[x+1] = select_color ? 1 : 0;
+					maskrow[x+1] = select_color;
 				}
 			}
 		}
@@ -364,7 +423,7 @@ double min_ring_area, double bevel_size) {
 
 	free(mask_8bit);
 
-	fatal_error("OK");
+	//fatal_error("OK");
 
 	return out_poly;
 }
