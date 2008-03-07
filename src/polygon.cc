@@ -612,20 +612,20 @@ void fix_topology(mpoly_t *mpoly, reduced_ring_t *reduced_rings) {
 		GDALTermProgress(pow((double)r1_idx / (double)mpoly->num_rings, 2), NULL, NULL);
 		ring_t *c1 = &mpoly->rings[r1_idx];
 		reduced_ring_t *r1 = &reduced_rings[r1_idx];
-		//bbox_t bbox1 = bboxes[r1_idx];
-		//if(bbox1.empty) continue;
+		bbox_t bbox1 = bboxes[r1_idx];
+		if(bbox1.empty) continue;
 		for(r2_idx=0; r2_idx < mpoly->num_rings; r2_idx++) {
 			if(r2_idx > r1_idx) continue; // symmetry optimization
 
-			//bbox_t bbox2 = bboxes[r2_idx];
-			//if(bbox2.empty) continue;
+			bbox_t bbox2 = bboxes[r2_idx];
+			if(bbox2.empty) continue;
 
-			//if(
-			//	bbox1.min_x > bbox2.max_x ||
-			//	bbox1.min_y > bbox2.max_y ||
-			//	bbox2.min_x > bbox1.max_x ||
-			//	bbox2.min_y > bbox1.max_y
-			//) continue;
+			if(
+				bbox1.min_x > bbox2.max_x ||
+				bbox1.min_y > bbox2.max_y ||
+				bbox2.min_x > bbox1.max_x ||
+				bbox2.min_y > bbox1.max_y
+			) continue;
 
 			ring_t *c2 = &mpoly->rings[r2_idx];
 			reduced_ring_t *r2 = &reduced_rings[r2_idx];
@@ -840,6 +840,7 @@ inline int polygon_contains(ring_t *c1, ring_t *c2) {
 	return 1;
 }
 
+/*
 void compute_containments(mpoly_t *mp) {
 	int i;
 	int nrings = mp->num_rings;
@@ -919,6 +920,7 @@ void compute_containments(mpoly_t *mp) {
 	free(ancestors);
 	free(num_ancestors);
 }
+*/
 
 void mask_from_mpoly(mpoly_t *mpoly, int w, int h, char *fn) {
 	int i, j, y;

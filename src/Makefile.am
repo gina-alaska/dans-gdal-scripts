@@ -1,5 +1,5 @@
-AM_CFLAGS   = -Wall -g -pg -O2 @GDAL_CFLAGS@
-AM_CXXFLAGS = -Wall -g -pg -O2 @GDAL_CFLAGS@
+AM_CFLAGS   = -Wall -g -O2 @GDAL_CFLAGS@
+AM_CXXFLAGS = -Wall -g -O2 @GDAL_CFLAGS@
 LIBS = @GDAL_LIBS@
 
 bin_PROGRAMS = gdal_raw2geotiff gdal_dem2rgb gdal_list_corners gdal_trace_outline gdal_contrast_stretch gdal_landsat_pansharp gdal_merge_simple gdal_merge_vrt
