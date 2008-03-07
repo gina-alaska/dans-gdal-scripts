@@ -155,11 +155,24 @@ OGRGeometryH ring_to_ogr(ring_t *ring) {
 OGRGeometryH mpoly_to_ogr(mpoly_t *mpoly_in) {
 	int num_rings_in = mpoly_in->num_rings;
 
-	int outer_idx;
+	int *num_holes = (int *)malloc_or_die(sizeof(int) * num_rings_in);
+	int **holes = (int **)malloc_or_die(sizeof(int *) * num_rings_in);
+	for(int outer_idx=0; outer_idx<num_rings_in; outer_idx++) {
+		num_holes[outer_idx] = 0;
+		holes[outer_idx] = NULL;
+	}
+
 	int num_geom_out = 0;
-	for(outer_idx=0; outer_idx<num_rings_in; outer_idx++) {
+	for(int outer_idx=0; outer_idx<num_rings_in; outer_idx++) {
 		ring_t *ring = mpoly_in->rings + outer_idx;
-		if(!ring->is_hole) num_geom_out++;
+		if(ring->is_hole) {
+			int parent = ring->parent_id;
+			holes[parent] = (int *)realloc_or_die(holes[parent],
+				sizeof(int) * (num_holes[parent]+1));
+			holes[parent][num_holes[parent]++] = outer_idx;
+		} else {
+			num_geom_out++;
+		}
 	}
 
 	int use_multi = num_geom_out > 1;
@@ -167,27 +180,20 @@ OGRGeometryH mpoly_to_ogr(mpoly_t *mpoly_in) {
 	OGRGeometryH geom_out = OGR_G_CreateGeometry(
 		use_multi ? wkbMultiPolygon : wkbPolygon);
 
-	for(outer_idx=0; outer_idx<num_rings_in; outer_idx++) {
+	for(int outer_idx=0; outer_idx<num_rings_in; outer_idx++) {
 		ring_t *ring = mpoly_in->rings + outer_idx;
 		if(ring->is_hole) continue;
-
-		int inner_idx;
-		int num_holes = 0;
-		for(inner_idx=0; inner_idx<num_rings_in; inner_idx++) {
-			ring_t *hole = mpoly_in->rings + inner_idx;
-			if(hole->parent_id == outer_idx) num_holes++;
-		}
 
 		OGRGeometryH poly_out = use_multi ? OGR_G_CreateGeometry(wkbPolygon) : geom_out;
 		OGR_G_AddGeometry(poly_out, ring_to_ogr(ring));
 
-		for(inner_idx=0; inner_idx<num_rings_in; inner_idx++) {
-			ring_t *hole = mpoly_in->rings + inner_idx;
-			if(hole->parent_id != outer_idx) continue;
+		for(int hole_idx=0; hole_idx<num_holes[outer_idx]; hole_idx++) {
+			ring_t *hole = mpoly_in->rings + holes[outer_idx][hole_idx];
+			if(hole->parent_id != outer_idx) fatal_error("could not sort out holes");
 			OGR_G_AddGeometry(poly_out, ring_to_ogr(hole));
 		}
 
-		if(OGR_G_GetGeometryCount(poly_out) != num_holes+1) {
+		if(OGR_G_GetGeometryCount(poly_out) != num_holes[outer_idx]+1) {
 			fatal_error("GeometryCount != num_holes+1 (%d vs. %d)", 
 				OGR_G_GetGeometryCount(poly_out), num_holes+1);
 		}
