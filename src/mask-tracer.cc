@@ -67,6 +67,12 @@ static intring_t *make_enclosing_ring(int w, int h) {
 	return ring;
 }
 
+static int intcompare(const void *ap, const void *bp) {
+	int a = *((int *)ap);
+	int b = *((int *)bp);
+	return (a<b) ? -1 : (a>b) ? 1 : 0;
+}
+
 static row_crossings_t *get_row_crossings(intring_t *ring, int min_y, int num_rows) {
 	row_crossings_t *rows = (row_crossings_t *)malloc_or_die(sizeof(row_crossings_t) * num_rows);
 
@@ -101,6 +107,23 @@ static row_crossings_t *get_row_crossings(intring_t *ring, int min_y, int num_ro
 		}
 	}
 
+	for(int row=0; row<num_rows; row++) {
+		row_crossings_t *r = rows+row;
+		int *c = r->crossings;
+		if(r->num_crossings == 2) {
+			if(c[0] > c[1]) {
+				int tmp = c[0];
+				c[0] = c[1];
+				c[1] = tmp;
+			}
+		} else {
+			if(r->num_crossings % 2) {
+				fatal_error("should not have an odd number of crossings");
+			}
+			qsort(c, r->num_crossings, sizeof(int), intcompare);
+		}
+	}
+
 	return rows;
 }
 
@@ -112,35 +135,16 @@ static int is_inside_crossings(row_crossings_t *c, int x) {
 	return inside;
 }
 
-static int get_pixel(unsigned char *mask, int w, int h, int x, int y) {
-	if(x<0 || x>=w || y<0 || y>=h) return 0;
-	int mask_rowlen = (w+7)/8;
-	unsigned char mask_bitp = 1 << (x % 8);
-	unsigned char *mask_bytep = mask + mask_rowlen*y + x/8;
-	int val = *mask_bytep & mask_bitp;
-	return val ? 1 : 0;
-}
-
-static void set_pixel(unsigned char *mask, int w, int h, int x, int y, int color) {
-	if(x<0 || x>=w || y<0 || y>=h) return;
-	int mask_rowlen = (w+7)/8;
-	unsigned char mask_bitp = 1 << (x % 8);
-	unsigned char *mask_bytep = mask + mask_rowlen*y + x/8;
-	if(color) {
-		*mask_bytep |= mask_bitp;
-	} else {
-		*mask_bytep &= ~mask_bitp;
-	}
-}
-
 static pixquad_t get_quad(unsigned char *mask, int w, int h, int x, int y, int select_color) {
-	// 0 1
-	// 3 2
+	// 1 2
+	// 8 4
+	unsigned char *uprow = mask + (y  )*(w+2);
+	unsigned char *dnrow = mask + (y+1)*(w+2);
 	int quad =
-		(get_pixel(mask, w, h, x-1, y-1)     ) +
-		(get_pixel(mask, w, h, x  , y-1) << 1) +
-		(get_pixel(mask, w, h, x  , y  ) << 2) +
-		(get_pixel(mask, w, h, x-1, y  ) << 3);
+		(uprow[x  ]     ) + // y-1, x-1
+		(uprow[x+1] << 1) + // y-1, x
+		(dnrow[x+1] << 2) + // y  , x
+		(dnrow[x  ] << 3);  // y  , x-1
 	if(!select_color) quad ^= 0xf;
 	return quad;
 }
@@ -160,10 +164,7 @@ static void debug_write_mask(unsigned char *mask, int w, int h) {
 	if(!fh) fatal_error("cannot open %s", fn);
 	fprintf(fh, "P5\n%d %d\n255\n", w, h);
 	for(int y=0; y<w; y++)
-	for(int x=0; x<w; x++) {
-		unsigned char pix = get_pixel(mask, w, h, x, y) ? 255 : 0;
-		fwrite(&pix, 1, 1, fh);
-	}
+		fwrite(mask+(w+2)*(y+1)+1, w, 1, fh);
 	fclose(fh);
 }
 
@@ -308,14 +309,18 @@ intring_t *bounds, int depth, mpoly_t *out_poly, int parent_id) {
 	}
 
 	for(int y=bound_top; y<bound_bottom; y++) {
-		row_crossings_t *c = crossings + (y-bound_top);
+		row_crossings_t *r = crossings + (y-bound_top);
 		if(depth>0) {
-			for(int x=bound_left; x<=bound_right; x++) {
-				if(!is_inside_crossings(c, x)) continue;
-				set_pixel(mask, w, h, x, y, select_color);
+			unsigned char *maskrow = mask + (y+1)*(w+2);
+			for(int cidx=0; cidx<r->num_crossings/2; cidx++) {
+				int from = r->crossings[cidx*2  ];
+				int to   = r->crossings[cidx*2+1];
+				for(int x=from; x<to; x++) {
+					maskrow[x+1] = select_color ? 1 : 0;
+				}
 			}
 		}
-		if(c->crossings) free(c->crossings);
+		if(r->crossings) free(r->crossings);
 	}
 	free(crossings);
 
@@ -327,17 +332,39 @@ intring_t *bounds, int depth, mpoly_t *out_poly, int parent_id) {
 	if(VERBOSE >= 4) debug_write_mask(mask, w, h);
 }
 
-mpoly_t *calc_ring_from_mask(unsigned char *mask, int w, int h,
+mpoly_t *calc_ring_from_mask(unsigned char *mask_1bit, int w, int h,
 report_image_t *dbuf, int major_ring_only, int no_donuts, 
 double min_ring_area, double bevel_size) {
-	if(VERBOSE >= 4) debug_write_mask(mask, w, h);
+	if(VERBOSE >= 4) debug_write_mask(mask_1bit, w, h);
+
+	unsigned char *mask_8bit = (unsigned char *)malloc_or_die((w+2)*(h+2));
+	memset(mask_8bit, 0, (w+2)*(h+2));
+	for(int y=0; y<h; y++) {
+		int mask_rowlen = (w+7)/8;
+		unsigned char mask_bitp = 1;
+		unsigned char *mask_bytep = mask_1bit + mask_rowlen*y;
+		unsigned char *outp = mask_8bit + (y+1)*(w+2) + 1;
+		for(int x=0; x<w; x++) {
+			*(outp++) = (*mask_bytep & mask_bitp) ? 1 : 0;
+			mask_bitp <<= 1;
+			if(!mask_bitp) {
+				mask_bitp = 1;
+				mask_bytep++;
+			}
+		}
+	}
 
 	mpoly_t *out_poly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
 
 	out_poly->num_rings = 0;
 	out_poly->rings = NULL;
 
-	recursive_trace(mask, w, h, NULL, 0, out_poly, -1);
+	recursive_trace(mask_8bit, w, h, NULL, 0, out_poly, -1);
 	printf("nr=%d\n", out_poly->num_rings);
+
+	free(mask_8bit);
+
+	fatal_error("OK");
+
 	return out_poly;
 }
