@@ -38,11 +38,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 #define MAX(a,b) ((a)>(b)?(a):(b))
 
-#ifdef SGN
-#undef SGN
-#endif
-#define SGN(a) ((a)<0?-1:(a)>0?1:0)
-
 #define EPSILON 10E-10
 
 typedef struct {
@@ -102,11 +97,6 @@ void insert_point_into_ring(ring_t *ring, int idx) {
 	memmove(ring->pts + idx + 1, ring->pts + idx, sizeof(vertex_t) * (ring->npts - idx));
 	ring->npts++;
 }
-
-typedef struct {
-	double min_x, max_x, min_y, max_y;
-	char empty;
-} bbox_t;
 
 bbox_t make_bbox(ring_t *ring) {
 	bbox_t bbox;
@@ -195,7 +185,7 @@ OGRGeometryH mpoly_to_ogr(mpoly_t *mpoly_in) {
 
 		if(OGR_G_GetGeometryCount(poly_out) != num_holes[outer_idx]+1) {
 			fatal_error("GeometryCount != num_holes+1 (%d vs. %d)", 
-				OGR_G_GetGeometryCount(poly_out), num_holes+1);
+				OGR_G_GetGeometryCount(poly_out), num_holes[outer_idx]+1);
 		}
 
 		if(use_multi) OGR_G_AddGeometry(geom_out, poly_out);
@@ -206,43 +196,59 @@ OGRGeometryH mpoly_to_ogr(mpoly_t *mpoly_in) {
 			OGR_G_GetGeometryCount(geom_out), num_geom_out);
 	}
 
+	for(int i=0; i<num_rings_in; i++) {
+		if(holes[i]) free(holes[i]);
+	}
+	free(holes);
+	free(num_holes);
+
 	return geom_out;
 }
 
 void split_mpoly_to_polys(mpoly_t *mpoly_in, int *num_polys, mpoly_t **polys) {
 	int num_rings_in = mpoly_in->num_rings;
 
-	int outer_idx;
+	int *num_holes = (int *)malloc_or_die(sizeof(int) * num_rings_in);
+	int **holes = (int **)malloc_or_die(sizeof(int *) * num_rings_in);
+	for(int outer_idx=0; outer_idx<num_rings_in; outer_idx++) {
+		num_holes[outer_idx] = 0;
+		holes[outer_idx] = NULL;
+	}
+
 	int num_geom_out = 0;
-	for(outer_idx=0; outer_idx<num_rings_in; outer_idx++) {
+	for(int outer_idx=0; outer_idx<num_rings_in; outer_idx++) {
 		ring_t *ring = mpoly_in->rings + outer_idx;
-		if(!ring->is_hole) num_geom_out++;
+		if(ring->is_hole) {
+			int parent = ring->parent_id;
+			holes[parent] = (int *)realloc_or_die(holes[parent],
+				sizeof(int) * (num_holes[parent]+1));
+			holes[parent][num_holes[parent]++] = outer_idx;
+		} else {
+			num_geom_out++;
+		}
 	}
 
 	*num_polys = num_geom_out;
 	*polys = (mpoly_t *)malloc_or_die(sizeof(mpoly_t) * num_geom_out);
 	int poly_out_idx = 0;
 
-	for(outer_idx=0; outer_idx<num_rings_in; outer_idx++) {
+	for(int outer_idx=0; outer_idx<num_rings_in; outer_idx++) {
 		ring_t *ring = mpoly_in->rings + outer_idx;
 		if(ring->is_hole) continue;
 
-		int inner_idx;
-		int num_holes = 0;
-		for(inner_idx=0; inner_idx<num_rings_in; inner_idx++) {
-			ring_t *hole = mpoly_in->rings + inner_idx;
-			if(hole->parent_id == outer_idx) num_holes++;
-		}
-
 		mpoly_t out_poly;
-		out_poly.num_rings = num_holes+1;
+		out_poly.num_rings = num_holes[outer_idx]+1;
 		out_poly.rings = (ring_t *)malloc_or_die(sizeof(ring_t) * out_poly.num_rings);
 		int ring_out_idx = 0;
-		out_poly.rings[ring_out_idx++] = duplicate_ring(ring);
 
-		for(inner_idx=0; inner_idx<num_rings_in; inner_idx++) {
-			ring_t *hole = mpoly_in->rings + inner_idx;
-			if(hole->parent_id != outer_idx) continue;
+		ring_t dup_ring = duplicate_ring(ring);
+		dup_ring.parent_id = -1;
+		out_poly.rings[ring_out_idx++] = dup_ring;
+
+		for(int hole_idx=0; hole_idx<num_holes[outer_idx]; hole_idx++) {
+			ring_t *hole = mpoly_in->rings + holes[outer_idx][hole_idx];
+			if(hole->parent_id != outer_idx) fatal_error("could not sort out holes");
+
 			ring_t dup_ring = duplicate_ring(hole);
 			dup_ring.parent_id = 0;
 			out_poly.rings[ring_out_idx++] = dup_ring;
@@ -250,6 +256,12 @@ void split_mpoly_to_polys(mpoly_t *mpoly_in, int *num_polys, mpoly_t **polys) {
 
 		(*polys)[poly_out_idx++] = out_poly;
 	}
+
+	for(int i=0; i<num_rings_in; i++) {
+		if(holes[i]) free(holes[i]);
+	}
+	free(holes);
+	free(num_holes);
 }
 
 /*
@@ -999,178 +1011,6 @@ void mask_from_mpoly(mpoly_t *mpoly, int w, int h, char *fn) {
 	fclose(fout);
 
 	printf("mask draw: done\n");
-}
-
-/*
-void pinch_self_intersections(mpoly_t *mp) {
-	int r_idx;
-	for(r_idx=0; r_idx<mp->num_rings; r_idx++) {
-		ring_t *ring = &mp->rings[r_idx];
-		int v1in_idx, v1out_idx, v2_idx;
-		for(v1in_idx=0, v1out_idx=0; v1in_idx<ring->npts; v1in_idx++) {
-			vertex_t *v1 = &ring->pts[v1in_idx];
-			for(v2_idx=0; v2_idx<v1out_idx; v2_idx++) {
-				vertex_t *v2 = &ring->pts[v2_idx];
-				int touches = (v1->x == v2->x) && (v1->y == v2->y);
-				if(touches) {
-					fprintf("touch at ring %d vert %d vs %d : xy=(%f,%f)\n", r_idx, v1out_idx, v2_idx, v1->x, v1->y);
-					mp->rings = (ring_t *)realloc_or_die(mp->rings, sizeof(ring_t)*(mp->num_rings+1));
-					ring = &mp->rings[r_idx]; // must recompute this since location of mp->rings changed
-					ring_t *newring = &mp->rings[mp->num_rings++];
-					newring->npts = v1out_idx - v2_idx;
-					newring->pts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * newring->npts);
-					memcpy(newring->pts, ring->pts+v2_idx, sizeof(vertex_t) * newring->npts);
-					v1out_idx = v2_idx;
-				}
-			}
-			if(v1out_idx != v1in_idx) {
-				ring->pts[v1out_idx] = *v1;
-			}
-			v1out_idx++;
-		}
-		ring->npts = v1out_idx;
-	}
-}
-*/
-
-#define BORDER_TOUCH_HASH_SQRTSIZE 5000
-#define BORDER_TOUCH_HASH_SIZE (BORDER_TOUCH_HASH_SQRTSIZE*BORDER_TOUCH_HASH_SQRTSIZE)
-
-inline int get_touch_hash_key(vertex_t *v) {
-	int key = (int)(v->x + v->y * (double)BORDER_TOUCH_HASH_SQRTSIZE);
-	key = ((key % BORDER_TOUCH_HASH_SIZE) + BORDER_TOUCH_HASH_SIZE) % BORDER_TOUCH_HASH_SIZE;
-	if(key<0 || key>=BORDER_TOUCH_HASH_SIZE) fatal_error("hash key out of range");
-	return key;
-}
-
-char *mpoly_border_touch_create_hashtable(mpoly_t *mp) {
-	char *table = (char *)malloc_or_die(BORDER_TOUCH_HASH_SIZE);
-	memset(table, 0, BORDER_TOUCH_HASH_SIZE);
-	int r_idx;
-	for(r_idx=0; r_idx<mp->num_rings; r_idx++) {
-		ring_t *ring = &mp->rings[r_idx];
-		int v_idx;
-		for(v_idx=0; v_idx<ring->npts; v_idx++) {
-			vertex_t *v = &ring->pts[v_idx];
-			int key = get_touch_hash_key(v);
-			if(table[key] < 2) table[key]++;
-		}
-	}
-	return table;
-}
-
-inline int mpoly_border_touches_point(char *table, mpoly_t *mp, int r1_idx, int v1_idx, bbox_t *bboxes) {
-	vertex_t *v1 = &mp->rings[r1_idx].pts[v1_idx];
-	double v1x = v1->x;
-	double v1y = v1->y;
-
-	int key = get_touch_hash_key(v1);
-	if(table[key] < 2) return 0;
-
-	if(VERBOSE >= 2) printf("hash hit for %d,%d\n", r1_idx, v1_idx);
-
-	int r2_idx;
-	for(r2_idx=0; r2_idx<mp->num_rings; r2_idx++) {
-		ring_t *ring = &mp->rings[r2_idx];
-		if(ring->npts == 0) continue;
-
-		bbox_t *bbox = bboxes + r2_idx;
-		if(v1x < bbox->min_x || v1x > bbox->max_x) continue;
-		if(v1y < bbox->min_y || v1y > bbox->max_y) continue;
-
-		if(VERBOSE >= 2) printf("full search for %d,%d\n", r1_idx, v1_idx);
-
-		int r2npts = ring->npts;
-		vertex_t *v2 = ring->pts;
-		int v2_idx;
-		for(v2_idx=0; v2_idx<r2npts; v2_idx++) {
-			int same = (r1_idx == r2_idx) && (v1_idx == v2_idx);
-			int touches = (v1x == v2->x) && (v1y == v2->y);
-			if(touches && !same) {
-				//if(VERBOSE) printf("touches for %d,%d vs. %d,%d\n", r1_idx, v1_idx, r2_idx, v2_idx);
-				return 1;
-			}
-			v2++;
-		}
-	}
-
-	//if(VERBOSE) printf("no touch for %d,%d\n", r1_idx, v1_idx);
-
-	return 0;
-}
-
-// This function is only meant to be called on polygons
-// that have orthogonal sides on an integer lattice.
-void bevel_self_intersections(mpoly_t *mp, double amount) {
-	char *table = mpoly_border_touch_create_hashtable(mp);
-
-	int total_pts = 0;
-	int r_idx;
-	for(r_idx=0; r_idx<mp->num_rings; r_idx++) {
-		ring_t *ring = &mp->rings[r_idx];
-		total_pts += ring->npts;
-	}
-
-	if(VERBOSE) printf("bevel with amount=%lf, total_pts=%d\n", amount, total_pts);
-
-	bbox_t *bboxes = (bbox_t *)malloc_or_die(sizeof(bbox_t) * mp->num_rings);
-	for(r_idx=0; r_idx<mp->num_rings; r_idx++) {
-		bboxes[r_idx] = make_bbox(mp->rings + r_idx);
-	}
-
-	printf("Beveling: ");
-	int done_pts = 0;
-	for(r_idx=0; r_idx<mp->num_rings; r_idx++) {
-		ring_t *ring = &mp->rings[r_idx];
-		int num_touch = 0;
-		char *touch_mask = NULL;
-		int v_idx;
-		for(v_idx=0; v_idx<ring->npts; v_idx++) {
-			GDALTermProgress((double)(done_pts*2+v_idx)/(double)(total_pts*2), NULL, NULL);
-			int touches = mpoly_border_touches_point(table, mp, r_idx, v_idx, bboxes);
-			if(touches) {
-				if(!touch_mask) {
-					touch_mask = (char *)malloc_or_die(ring->npts);
-					memset(touch_mask, 0, ring->npts);
-				}
-				touch_mask[v_idx] = 1;
-				num_touch++;
-			}
-		}
-		int old_npts = ring->npts;
-		if(num_touch) {
-			if(VERBOSE >= 2) printf("ring %d: num_touch=%d\n", r_idx, num_touch);
-			int new_numpts = ring->npts + num_touch;
-			vertex_t *new_pts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * new_numpts);
-			int vout_idx = 0;
-			for(v_idx=0; v_idx<ring->npts; v_idx++) {
-				GDALTermProgress((double)(done_pts*2+ring->npts+v_idx)/(double)(total_pts*2), NULL, NULL);
-				if(touch_mask[v_idx]) {
-					vertex_t this_v = ring->pts[v_idx];
-					vertex_t prev_v = ring->pts[(v_idx+ring->npts-1) % ring->npts];
-					vertex_t next_v = ring->pts[(v_idx+1) % ring->npts];
-					double sx_prev = SGN(prev_v.x - this_v.x);
-					double sy_prev = SGN(prev_v.y - this_v.y);
-					double sx_next = SGN(next_v.x - this_v.x);
-					double sy_next = SGN(next_v.y - this_v.y);
-					new_pts[vout_idx++] = (vertex_t){ this_v.x + sx_prev*amount, this_v.y + sy_prev*amount };
-					new_pts[vout_idx++] = (vertex_t){ this_v.x + sx_next*amount, this_v.y + sy_next*amount };
-				} else {
-					new_pts[vout_idx++] = ring->pts[v_idx];
-				}
-			}
-			if(vout_idx != new_numpts) fatal_error("wrong number of points in beveled ring");
-			ring->npts = new_numpts;
-			ring->pts = new_pts;
-		}
-		done_pts += old_npts;
-		if(touch_mask) free(touch_mask);
-	}
-
-	GDALTermProgress(1, NULL, NULL);
-
-	free(table);
-	free(bboxes);
 }
 
 mpoly_t *mpoly_xy2en(georef_t *georef, mpoly_t *xy_poly) {

@@ -47,12 +47,18 @@ typedef struct {
 	ring_t *rings;
 } mpoly_t;
 
+typedef struct {
+	double min_x, max_x, min_y, max_y;
+	char empty;
+} bbox_t;
+
 
 mpoly_t empty_polygon();
 ring_t duplicate_ring(ring_t *in_ring);
 void free_ring(ring_t *ring);
 void free_mpoly(mpoly_t *mpoly);
 void insert_point_into_ring(ring_t *ring, int idx);
+bbox_t make_bbox(ring_t *ring);
 OGRGeometryH mpoly_to_ogr(mpoly_t *mpoly_in);
 void split_mpoly_to_polys(mpoly_t *mpoly, int *num_polys, mpoly_t **polys);
 mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance);
