@@ -43,18 +43,31 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define SGN(a) ((a)<0?-1:(a)>0?1:0)
 
 typedef struct {
-	double x, y;
-	int ring_idx, vert_idx;
+	ring_t *ring;
+	int vert_idx;
 } vertsort_entry;
 
-static int compare_verts(const void *ap, const void *bp) {
+static int compare_coords(const void *ap, const void *bp) {
 	vertsort_entry *a = (vertsort_entry *)ap;
 	vertsort_entry *b = (vertsort_entry *)bp;
+	vertex_t *va = a->ring->pts + a->vert_idx;
+	vertex_t *vb = b->ring->pts + b->vert_idx;
 	return 
-		a->x < b->x ? -1 :
-		a->x > b->x ?  1 :
-		a->y < b->y ? -1 :
-		a->y > b->y ?  1 :
+		va->x < vb->x ? -1 :
+		va->x > vb->x ?  1 :
+		va->y < vb->y ? -1 :
+		va->y > vb->y ?  1 :
+		0;
+}
+
+static int compare_rings(const void *ap, const void *bp) {
+	vertsort_entry *a = (vertsort_entry *)ap;
+	vertsort_entry *b = (vertsort_entry *)bp;
+	return
+		a->ring < b->ring ? -1 :
+		a->ring > b->ring ?  1 :
+		a->vert_idx < b->vert_idx ? -1 :
+		a->vert_idx > b->vert_idx ?  1 :
 		0;
 }
 
@@ -66,8 +79,8 @@ void bevel_self_intersections(mpoly_t *mp, double amount) {
 		total_pts += mp->rings[i].npts;
 	}
 
-	printf("allocating %d megs for beveler\n",
-		(int)(total_pts*sizeof(vertsort_entry)) >> 20);
+	printf("allocating %zd megs for beveler\n",
+		(total_pts*sizeof(vertsort_entry)) >> 20);
 	vertsort_entry *entries = (vertsort_entry *)malloc_or_die(
 		sizeof(vertsort_entry) * total_pts);
 	int entry_idx = 0;
@@ -75,15 +88,13 @@ void bevel_self_intersections(mpoly_t *mp, double amount) {
 		ring_t *ring = mp->rings + r_idx;
 		for(int v_idx=0; v_idx<ring->npts; v_idx++) {
 			vertsort_entry *entry = entries + (entry_idx++);
-			entry->x = ring->pts[v_idx].x;
-			entry->y = ring->pts[v_idx].y;
-			entry->ring_idx = r_idx;
+			entry->ring = ring;
 			entry->vert_idx = v_idx;
 		}
 	}
 
 	printf("qsort\n");
-	qsort(entries, total_pts, sizeof(vertsort_entry), compare_verts);
+	qsort(entries, total_pts, sizeof(vertsort_entry), compare_coords);
 
 	printf("collecting\n");
 	int total_num_touch = 0;
@@ -92,9 +103,11 @@ void bevel_self_intersections(mpoly_t *mp, double amount) {
 		//printf("%lf %lf %d %d\n",
 		//	entries[i].x, entries[i].y,
 		//	entries[i].ring_idx, entries[i].vert_idx);
+		vertex_t *va = entries[i  ].ring->pts + entries[i  ].vert_idx;
+		vertex_t *vb = entries[i+1].ring->pts + entries[i+1].vert_idx;
 		if(
-			entries[i].x == entries[i+1].x &&
-			entries[i].y == entries[i+1].y
+			va->x == vb->x &&
+			va->y == vb->y
 		) {
 			if(prev_was_same) {
 				fatal_error("should not have triple intersections in beveler");
@@ -107,55 +120,76 @@ void bevel_self_intersections(mpoly_t *mp, double amount) {
 	}
 
 	printf("found %d self-intersections\n", total_num_touch);
-	if(!total_num_touch) return;
-
-	entries = (vertsort_entry *)realloc_or_die(entries, sizeof(vertsort_entry) * total_num_touch);
-	int *ring_num_touch = (int *)malloc_or_die(sizeof(int) * mp->num_rings);
-	for(int i=0; i<mp->num_rings; i++) ring_num_touch[i] = 0;
-	for(int i=0; i<total_num_touch; i++) {
-		ring_num_touch[entries[i].ring_idx]++;
+	if(!total_num_touch) {
+		free(entries);
+		return;
 	}
 
-	for(int r_idx=0; r_idx<mp->num_rings; r_idx++) {
-		if(!ring_num_touch[r_idx]) continue;
-		ring_t *ring = mp->rings + r_idx;
+	// decrease memory usage
+	entries = (vertsort_entry *)realloc_or_die(entries, sizeof(vertsort_entry) * total_num_touch);
+	qsort(entries, total_num_touch, sizeof(vertsort_entry), compare_rings);
 
-		if(VERBOSE >= 2) printf("ring %d: num_touch=%d\n", r_idx, ring_num_touch[r_idx]);
+	printf("shaving corners\n");
 
-		char *touch_mask = (char *)malloc_or_die(ring->npts);
-		memset(touch_mask, 0, ring->npts);
-		for(int i=0; i<total_num_touch; i++) {
-			if(entries[i].ring_idx == r_idx) {
-				touch_mask[entries[i].vert_idx] = 1;
-			}
+	for(entry_idx=0; entry_idx<total_num_touch; ) {
+		ring_t *ring = entries[entry_idx].ring;
+		int ring_num_touch = 0;
+		while(entries[entry_idx+ring_num_touch].ring == ring) {
+			ring_num_touch++;
 		}
 
-		int new_numpts = ring->npts + ring_num_touch[r_idx];
+		if(VERBOSE >= 2) printf("ring %zd: num_touch=%d\n", ring - mp->rings, ring_num_touch);
+
+		int new_numpts = ring->npts + ring_num_touch;
 		vertex_t *new_pts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * new_numpts);
+
+		int vin_idx = 0;
 		int vout_idx = 0;
-		for(int v_idx=0; v_idx<ring->npts; v_idx++) {
-			if(touch_mask[v_idx]) {
-				vertex_t this_v = ring->pts[v_idx];
-				vertex_t prev_v = ring->pts[(v_idx+ring->npts-1) % ring->npts];
-				vertex_t next_v = ring->pts[(v_idx+1) % ring->npts];
-				double sx_prev = SGN(prev_v.x - this_v.x);
-				double sy_prev = SGN(prev_v.y - this_v.y);
-				double sx_next = SGN(next_v.x - this_v.x);
-				double sy_next = SGN(next_v.y - this_v.y);
-				new_pts[vout_idx++] = (vertex_t){ this_v.x + sx_prev*amount, this_v.y + sy_prev*amount };
-				new_pts[vout_idx++] = (vertex_t){ this_v.x + sx_next*amount, this_v.y + sy_next*amount };
-			} else {
-				new_pts[vout_idx++] = ring->pts[v_idx];
+		for(int subent=0; subent<ring_num_touch; subent++) {
+			int touch_vidx = entries[entry_idx+subent].vert_idx;
+			if(VERBOSE >= 2) printf("touch at %d\n", touch_vidx);
+			int numcp = touch_vidx - vin_idx;
+			if(numcp < 0) {
+				fatal_error("verts out of sequence");
+			} else if(numcp > 0) {
+				memcpy(new_pts+vout_idx, ring->pts+vin_idx, numcp*sizeof(vertex_t));
+				vout_idx += numcp;
+				vin_idx += numcp;
 			}
+
+			if(vin_idx != touch_vidx) {
+				fatal_error("didn't copy the right amount of points");
+			}
+
+			vertex_t this_v = ring->pts[vin_idx];
+			vertex_t prev_v = ring->pts[(vin_idx+ring->npts-1) % ring->npts];
+			vertex_t next_v = ring->pts[(vin_idx+1) % ring->npts];
+			double sx_prev = SGN(prev_v.x - this_v.x);
+			double sy_prev = SGN(prev_v.y - this_v.y);
+			double sx_next = SGN(next_v.x - this_v.x);
+			double sy_next = SGN(next_v.y - this_v.y);
+			new_pts[vout_idx++] = (vertex_t){ this_v.x + sx_prev*amount, this_v.y + sy_prev*amount };
+			new_pts[vout_idx++] = (vertex_t){ this_v.x + sx_next*amount, this_v.y + sy_next*amount };
+			vin_idx++;
 		}
-		if(vout_idx != new_numpts) fatal_error("wrong number of points in beveled ring");
+
+		if(vin_idx < ring->npts) {
+			int numcp = ring->npts - vin_idx;
+			memcpy(new_pts+vout_idx, ring->pts+vin_idx, numcp*sizeof(vertex_t));
+			vout_idx += numcp;
+			vin_idx += numcp;
+		}
+
+		if(vout_idx != new_numpts) {
+			fatal_error("wrong number of points in beveled ring (%d vs. %d)", vout_idx, new_numpts);
+		}
 		free(ring->pts);
 		ring->npts = new_numpts;
 		ring->pts = new_pts;
-		free(touch_mask);
+
+		entry_idx += ring_num_touch;
 	}
 
-	free(ring_num_touch);
 	free(entries);
 
 	printf("beveler finish\n");

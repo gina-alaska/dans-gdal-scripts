@@ -1,3 +1,4 @@
+#!/bin/sh -x
 #./gdal_trace_outline testcase.tif  -nodataval 255 -out-cs xy -wkt-out good-tc1.wkt -split-polys -dp-toler 0
 #./gdal_trace_outline testcase2.tif -nodataval 255 -out-cs xy -wkt-out good-tc2.wkt -split-polys -dp-toler 0
 #./gdal_trace_outline testcase3.tif -nodataval 255 -out-cs xy -wkt-out good-tc3.wkt -split-polys -dp-toler 0
