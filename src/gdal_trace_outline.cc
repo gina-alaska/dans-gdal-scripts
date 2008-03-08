@@ -372,7 +372,7 @@ int main(int argc, char **argv) {
 		if(classify) {
 			if(!usage_array[class_id]) continue;
 if(class_id<100) continue;
-			printf("\nTracing feature class %d\n", class_id);
+			printf("\nFeature class %d\n", class_id);
 
 			if(color_table) {
 				color = GDALGetColorEntry(color_table, class_id);
@@ -384,7 +384,6 @@ if(class_id<100) continue;
 				raster, (unsigned char)class_id);
 		} else {
 			if(class_id != 0) continue;
-			printf("\nTracing data pixels\n");
 		}
 
 		if(do_invert) {
@@ -426,6 +425,8 @@ if(class_id<100) continue;
 		}
 
 		if(do_geom_output && bounds_poly.num_rings) {
+			printf("Writing output\n");
+
 			int num_shapes;
 			mpoly_t *shapes;
 			int shape_is_copy;

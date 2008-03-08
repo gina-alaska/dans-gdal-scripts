@@ -321,8 +321,15 @@ intring_t *bounds, int depth, mpoly_t *out_poly, int parent_id) {
 	cross_both.array_size = 0;
 	cross_both.crossings = NULL;
 
+	if(!depth) {
+		printf("Tracing: ");
+		GDALTermProgress(0, NULL, NULL);
+	}
+
 	for(int y=bound_top+1; y<bound_bottom; y++) {
-		if(!depth && !(y%1000)) printf("y=%d\n", y);
+		if(!depth) {
+			GDALTermProgress((double)y/(double)(bound_bottom-bound_top-1), NULL, NULL);
+		}
 
 		unsigned char *uprow = mask + (y  )*(w+2);
 		unsigned char *dnrow = mask + (y+1)*(w+2);
@@ -393,6 +400,10 @@ intring_t *bounds, int depth, mpoly_t *out_poly, int parent_id) {
 	}
 
 	if(VERBOSE >= 4) debug_write_mask(mask, w, h);
+
+	if(!depth) {
+		GDALTermProgress(1, NULL, NULL);
+	}
 }
 
 mpoly_t trace_mask(unsigned char *mask_1bit, int w, int h) {
@@ -422,7 +433,7 @@ mpoly_t trace_mask(unsigned char *mask_1bit, int w, int h) {
 	out_poly.rings = NULL;
 
 	recursive_trace(mask_8bit, w, h, NULL, 0, &out_poly, -1);
-	printf("nr=%d\n", out_poly.num_rings);
+	printf("Trace found %d rings.\n", out_poly.num_rings);
 
 	free(mask_8bit);
 

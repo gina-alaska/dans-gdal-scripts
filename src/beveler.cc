@@ -74,12 +74,19 @@ static int compare_rings(const void *ap, const void *bp) {
 // This function is only meant to be called on polygons
 // that have orthogonal sides on an integer lattice.
 void bevel_self_intersections(mpoly_t *mp, double amount) {
+	if(VERBOSE) {
+		printf("Beveling\n");
+	} else {
+		printf("Beveling: ");
+		GDALTermProgress(0, NULL, NULL);
+	}
+
 	int total_pts = 0;
 	for(int i=0; i<mp->num_rings; i++) {
 		total_pts += mp->rings[i].npts;
 	}
 
-	printf("allocating %zd megs for beveler\n",
+	if(VERBOSE) printf("allocating %zd megs for beveler\n",
 		(total_pts*sizeof(vertsort_entry)) >> 20);
 	vertsort_entry *entries = (vertsort_entry *)malloc_or_die(
 		sizeof(vertsort_entry) * total_pts);
@@ -93,10 +100,11 @@ void bevel_self_intersections(mpoly_t *mp, double amount) {
 		}
 	}
 
-	printf("qsort\n");
+	if(VERBOSE) printf("finding self-intersections\n");
+	GDALTermProgress(0.1, NULL, NULL);
 	qsort(entries, total_pts, sizeof(vertsort_entry), compare_coords);
+	GDALTermProgress(0.8, NULL, NULL);
 
-	printf("collecting\n");
 	int total_num_touch = 0;
 	int prev_was_same = 0;
 	for(int i=0; i<total_pts-1; i++) {
@@ -119,7 +127,7 @@ void bevel_self_intersections(mpoly_t *mp, double amount) {
 		}
 	}
 
-	printf("found %d self-intersections\n", total_num_touch);
+	if(VERBOSE) printf("found %d self-intersections\n", total_num_touch);
 	if(!total_num_touch) {
 		free(entries);
 		return;
@@ -129,7 +137,7 @@ void bevel_self_intersections(mpoly_t *mp, double amount) {
 	entries = (vertsort_entry *)realloc_or_die(entries, sizeof(vertsort_entry) * total_num_touch);
 	qsort(entries, total_num_touch, sizeof(vertsort_entry), compare_rings);
 
-	printf("shaving corners\n");
+	if(VERBOSE) printf("shaving corners\n");
 
 	for(entry_idx=0; entry_idx<total_num_touch; ) {
 		ring_t *ring = entries[entry_idx].ring;
@@ -192,5 +200,6 @@ void bevel_self_intersections(mpoly_t *mp, double amount) {
 
 	free(entries);
 
-	printf("beveler finish\n");
+	GDALTermProgress(1, NULL, NULL);
+	if(VERBOSE) printf("beveler finish\n");
 }
