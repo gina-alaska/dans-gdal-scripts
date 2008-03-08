@@ -31,6 +31,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "mask.h"
 
 #include <ogrsf_frmts.h>
+#include <cpl_string.h>
+#include <cpl_conv.h>
+#include <cpl_port.h>
+
+#ifdef CPL_MSB 
+#define WKB_BYTE_ORDER wkbNDR
+#else
+#define WKB_BYTE_ORDER wkbXDR
+#endif
 
 #define CS_UNKNOWN 0
 #define CS_XY 1
@@ -78,6 +87,7 @@ Output:\n\
                                using '-out-cs ll'\n\
                                (in pixels, default is 0.2)\n\
   -wkt-out fn.wkt              Output bounds in WKT format\n\
+  -wkb-out fn.wkb              Output bounds in WKB format\n\
   -ogr-out fn.shp              Output bounds using an OGR format\n\
   -ogr-fmt                     OGR format to use (default is 'ESRI Shapefile')\n\
   -split-polys                 Output several polygons rather than one\n\
@@ -122,6 +132,7 @@ int main(int argc, char **argv) {
 	int split_polys = 0;
 	int out_cs = CS_UNKNOWN;
 	char *wkt_fn = NULL;
+	char *wkb_fn = NULL;
 	char *ogr_fn = NULL;
 	char *ogr_fmt = NULL;
 	char *mask_out_fn = NULL;
@@ -171,6 +182,9 @@ int main(int argc, char **argv) {
 			} else if(!strcmp(arg, "-wkt-out")) {
 				if(argp == argc) usage(argv[0]);
 				wkt_fn = argv[argp++];
+			} else if(!strcmp(arg, "-wkb-out")) {
+				if(argp == argc) usage(argv[0]);
+				wkb_fn = argv[argp++];
 			} else if(!strcmp(arg, "-ogr-out")) {
 				if(argp == argc) usage(argv[0]);
 				ogr_fn = argv[argp++];
@@ -227,7 +241,7 @@ int main(int argc, char **argv) {
 
 	if(!input_raster_fn) fatal_error("must specify filename of image");
 
-	int do_geom_output = wkt_fn || ogr_fn;
+	int do_geom_output = wkb_fn || wkt_fn || ogr_fn;
 	if(do_geom_output && (out_cs == CS_UNKNOWN)) 
 		fatal_error("must specify output coordinate system with -out-cs option");
 
@@ -293,6 +307,7 @@ int main(int argc, char **argv) {
 	}
 
 	FILE *wkt_fh = NULL;
+	FILE *wkb_fh = NULL;
 	OGRDataSourceH ogr_ds = NULL;
 	OGRLayerH ogr_layer = NULL;
 	int class_fld_idx = -1;
@@ -301,6 +316,10 @@ int main(int argc, char **argv) {
 		if(wkt_fn) {
 			wkt_fh = fopen(wkt_fn, "w");
 			if(!wkt_fh) fatal_error("cannot open output file for WKT");
+		}
+		if(wkb_fn) {
+			wkb_fh = fopen(wkb_fn, "w");
+			if(!wkb_fh) fatal_error("cannot open output file for WKB");
 		}
 
 		if(ogr_fn) {
@@ -446,6 +465,14 @@ if(class_id<100) continue;
 					OGR_G_ExportToWkt(ogr_geom, &wkt_out);
 					fprintf(wkt_fh, "%s\n", wkt_out);
 				}
+				if(wkb_fh) {
+					int wkb_size = OGR_G_WkbSize(ogr_geom);
+					printf("WKB size = %d\n", wkb_size);
+					unsigned char *wkb_out = (unsigned char *)malloc_or_die(wkb_size);
+					OGR_G_ExportToWkb(ogr_geom, WKB_BYTE_ORDER, wkb_out);
+					fwrite(wkb_out, wkb_size, 1, wkb_fh);
+					free(wkb_out);
+				}
 
 				if(ogr_ds) {
 					OGRFeatureH ogr_feat = OGR_F_Create(OGR_L_GetLayerDefn(ogr_layer));
@@ -476,6 +503,7 @@ if(class_id<100) continue;
 	printf("\n");
 
 	if(wkt_fh) fclose(wkt_fh);
+	if(wkb_fh) fclose(wkb_fh);
 	if(ogr_ds) OGR_DS_Destroy(ogr_ds);
 	if(dbuf) write_plot(dbuf, debug_report);
 
