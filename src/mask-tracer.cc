@@ -198,10 +198,7 @@ static pixquad_t get_quad(unsigned char *mask, int w, int h, int x, int y, int s
 }
 
 static pixquad_t rotate_quad(pixquad_t q, int dir) {
-	while(dir--) {
-		q = (q>>1) + ((q&1)<<3);
-	}
-	return q;
+	return ((q + (q<<4)) >> dir) & 0xf;
 }
 
 int dbg_idx = 0;
