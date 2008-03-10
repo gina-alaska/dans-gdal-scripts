@@ -36,15 +36,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define DIR_LF 3
 
 typedef struct {
-	int x, y;
-} intvert_t;
-
-typedef struct {
-	int npts;
-	intvert_t *pts;
-} intring_t;
-
-typedef struct {
 	int num_crossings;
 	int array_size;
 	int *crossings;
@@ -52,10 +43,22 @@ typedef struct {
 
 typedef int pixquad_t;
 
-static intring_t *make_enclosing_ring(int w, int h) {
-	intring_t *ring = (intring_t *)malloc_or_die(sizeof(intring_t));
+int dbg_idx = 0;
+static void debug_write_mask(unsigned char *mask, int w, int h) {
+	char fn[1000];
+	sprintf(fn, "zz-debug-%04d.pgm", dbg_idx++);
+	FILE *fh = fopen(fn, "w");
+	if(!fh) fatal_error("cannot open %s", fn);
+	fprintf(fh, "P5\n%d %d\n255\n", w, h);
+	for(int y=0; y<w; y++)
+		fwrite(mask+(w+2)*(y+1)+1, w, 1, fh);
+	fclose(fh);
+}
+
+static ring_t *make_enclosing_ring(int w, int h) {
+	ring_t *ring = (ring_t *)malloc_or_die(sizeof(ring_t));
 	ring->npts = 4;
-	ring->pts = (intvert_t *)malloc_or_die(sizeof(intvert_t *) * ring->npts);
+	ring->pts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * ring->npts);
 	ring->pts[0].x = -1;
 	ring->pts[0].y = -1;
 	ring->pts[1].x = w;
@@ -73,7 +76,7 @@ static int intcompare(const void *ap, const void *bp) {
 	return (a<b) ? -1 : (a>b) ? 1 : 0;
 }
 
-static row_crossings_t *get_row_crossings(intring_t *ring, int min_y, int num_rows) {
+static row_crossings_t *get_row_crossings(ring_t *ring, int min_y, int num_rows) {
 	row_crossings_t *rows = (row_crossings_t *)malloc_or_die(sizeof(row_crossings_t) * num_rows);
 
 	for(int i=0; i<num_rows; i++) {
@@ -83,10 +86,10 @@ static row_crossings_t *get_row_crossings(intring_t *ring, int min_y, int num_ro
 	}
 
 	for(int v_idx=0; v_idx<ring->npts; v_idx++) {
-		int x0 = ring->pts[v_idx].x;
-		int y0 = ring->pts[v_idx].y;
-		int x1 = ring->pts[(v_idx+1)%ring->npts].x;
-		int y1 = ring->pts[(v_idx+1)%ring->npts].y;
+		int x0 = (int)ring->pts[v_idx].x;
+		int y0 = (int)ring->pts[v_idx].y;
+		int x1 = (int)ring->pts[(v_idx+1)%ring->npts].x;
+		int y1 = (int)ring->pts[(v_idx+1)%ring->npts].y;
 		if(y0 == y1) continue;
 		if(y0 > y1) {
 			int tmp;
@@ -183,7 +186,7 @@ static int is_inside_crossings(row_crossings_t *c, int x) {
 }
 */
 
-static pixquad_t get_quad(unsigned char *mask, int w, int h, int x, int y, int select_color) {
+static inline pixquad_t get_quad(unsigned char *mask, int w, int h, int x, int y, int select_color) {
 	// 1 2
 	// 8 4
 	unsigned char *uprow = mask + (y  )*(w+2);
@@ -197,28 +200,16 @@ static pixquad_t get_quad(unsigned char *mask, int w, int h, int x, int y, int s
 	return quad;
 }
 
-static pixquad_t rotate_quad(pixquad_t q, int dir) {
+static inline pixquad_t rotate_quad(pixquad_t q, int dir) {
 	return ((q + (q<<4)) >> dir) & 0xf;
 }
 
-int dbg_idx = 0;
-static void debug_write_mask(unsigned char *mask, int w, int h) {
-	char fn[1000];
-	sprintf(fn, "zz-debug-%04d.pgm", dbg_idx++);
-	FILE *fh = fopen(fn, "w");
-	if(!fh) fatal_error("cannot open %s", fn);
-	fprintf(fh, "P5\n%d %d\n255\n", w, h);
-	for(int y=0; y<w; y++)
-		fwrite(mask+(w+2)*(y+1)+1, w, 1, fh);
-	fclose(fh);
-}
-
-static intring_t trace_single_mpoly(unsigned char *mask, int w, int h, int initial_x, int initial_y, int select_color) {
+static ring_t trace_single_mpoly(unsigned char *mask, int w, int h, int initial_x, int initial_y, int select_color) {
 	//printf("trace_single_mpoly enter (%d,%d)\n", initial_x, initial_y);
 
-	intring_t ring;
+	ring_t ring;
 	int ringbuf_size = 4;
-	ring.pts = (intvert_t *)malloc_or_die(sizeof(intvert_t *) * ringbuf_size);
+	ring.pts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * ringbuf_size);
 	ring.pts[0].x = initial_x;
 	ring.pts[0].y = initial_y;
 	ring.npts = 1;
@@ -260,8 +251,8 @@ static intring_t trace_single_mpoly(unsigned char *mask, int w, int h, int initi
 			if(ring.npts == ringbuf_size) {
 				if(ringbuf_size) ringbuf_size *= 2;
 				else ringbuf_size = 4;
-				ring.pts = (intvert_t *)realloc_or_die(ring.pts, 
-					sizeof(intvert_t *) * ringbuf_size);
+				ring.pts = (vertex_t *)realloc_or_die(ring.pts, 
+					sizeof(vertex_t) * ringbuf_size);
 			}
 			ring.pts[ring.npts].x = x;
 			ring.pts[ring.npts].y = y;
@@ -270,26 +261,15 @@ static intring_t trace_single_mpoly(unsigned char *mask, int w, int h, int initi
 	}
 
 	if(ringbuf_size > ring.npts) {
-		ring.pts = (intvert_t *)realloc_or_die(ring.pts, 
-			sizeof(intvert_t *) * ring.npts);
+		ring.pts = (vertex_t *)realloc_or_die(ring.pts, 
+			sizeof(vertex_t) * ring.npts);
 	}
 
 	return ring;
 }
 
-static ring_t ring_int2dbl(intring_t *in) {
-	ring_t out;
-	out.npts = in->npts;
-	out.pts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * in->npts);
-	for(int i=0; i<in->npts; i++) {
-		out.pts[i].x = in->pts[i].x;
-		out.pts[i].y = in->pts[i].y;
-	}
-	return out;
-}
-
 static void recursive_trace(unsigned char *mask, int w, int h,
-intring_t *bounds, int depth, mpoly_t *out_poly, int parent_id) {
+ring_t *bounds, int depth, mpoly_t *out_poly, int parent_id) {
 	//printf("recursive_trace enter: depth=%d\n", depth);
 
 	int select_color = (depth & 1) ? 0 : 1;
@@ -302,14 +282,15 @@ intring_t *bounds, int depth, mpoly_t *out_poly, int parent_id) {
 
 	int bound_left, bound_right;
 	int bound_top, bound_bottom;
-	bound_left = bound_right = bounds->pts[0].x;
-	bound_top = bound_bottom = bounds->pts[0].y;
+	bound_left = bound_right = (int)bounds->pts[0].x;
+	bound_top = bound_bottom = (int)bounds->pts[0].y;
 	for(int v_idx=0; v_idx<bounds->npts; v_idx++) {
-		intvert_t v = bounds->pts[v_idx];
-		if(v.x < bound_left) bound_left = v.x;
-		if(v.x > bound_right) bound_right = v.x;
-		if(v.y < bound_top) bound_top = v.y;
-		if(v.y > bound_bottom) bound_bottom = v.y;
+		int x = (int)bounds->pts[v_idx].x;
+		int y = (int)bounds->pts[v_idx].y;
+		if(x < bound_left) bound_left = x;
+		if(x > bound_right) bound_right = x;
+		if(y < bound_top) bound_top = y;
+		if(y > bound_bottom) bound_bottom = y;
 	}
 
 	row_crossings_t *crossings = get_row_crossings(bounds, bound_top, bound_bottom-bound_top);
@@ -352,9 +333,7 @@ intring_t *bounds, int depth, mpoly_t *out_poly, int parent_id) {
 				int is_seed = (quad != 0 && quad != 0xf);
 
 				if(is_seed) {
-					intring_t outer_ring = trace_single_mpoly(mask, w, h, x, y, select_color);
-
-					ring_t r = ring_int2dbl(&outer_ring);
+					ring_t r = trace_single_mpoly(mask, w, h, x, y, select_color);
 
 					r.parent_id = parent_id;
 					r.is_hole = depth % 2;
@@ -366,9 +345,7 @@ intring_t *bounds, int depth, mpoly_t *out_poly, int parent_id) {
 					int outer_ring_id = (out_poly->num_rings++);
 					out_poly->rings[outer_ring_id] = r;
 
-					recursive_trace(mask, w, h, &outer_ring, depth+1, out_poly, outer_ring_id);
-
-					free(outer_ring.pts);
+					recursive_trace(mask, w, h, &r, depth+1, out_poly, outer_ring_id);
 				}
 			} 
 		}
