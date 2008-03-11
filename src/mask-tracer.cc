@@ -312,12 +312,12 @@ ring_t *bounds, int depth, mpoly_t *out_poly, int parent_id) {
 		unsigned char *uprow = mask + (y  )*(w+2);
 		unsigned char *dnrow = mask + (y+1)*(w+2);
 
-		// make sure (y-1,y)*(x-1,x) in bounds
+		// make sure the range (y-1,y)*(x-1,x) is in bounds
 		crossings_intersection(&cross_both, 
 			crossings + (y-bound_top-1),
 			crossings + (y-bound_top));
 		for(int cidx=0; cidx<cross_both.num_crossings/2; cidx++) {
-			// make sure (y-1,y)*(x-1,x) in bounds
+			// make sure the range (y-1,y)*(x-1,x) is in bounds
 			int from = 1+cross_both.crossings[cidx*2  ];
 			int to   =   cross_both.crossings[cidx*2+1];
 			for(int x=from; x<to; x++) {
@@ -359,9 +359,7 @@ ring_t *bounds, int depth, mpoly_t *out_poly, int parent_id) {
 			for(int cidx=0; cidx<r->num_crossings/2; cidx++) {
 				int from = r->crossings[cidx*2  ];
 				int to   = r->crossings[cidx*2+1];
-				for(int x=from; x<to; x++) {
-					maskrow[x+1] = select_color;
-				}
+				memset(maskrow+from+1, select_color, to-from);
 			}
 		}
 		if(r->crossings) free(r->crossings);
