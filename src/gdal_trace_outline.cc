@@ -118,7 +118,7 @@ gdal_trace_outline raster.tif -classify -out-cs en -ogr-out outline.shp\n\
 
 mpoly_t calc_ring_from_mask(unsigned char *mask, int w, int h,
 	report_image_t *dbuf, int major_ring_only, int no_donuts,
-	double min_ring_area, double bevel_size);
+	long min_ring_area, double bevel_size);
 
 int main(int argc, char **argv) {
 	char *input_raster_fn = NULL;
@@ -138,7 +138,7 @@ int main(int argc, char **argv) {
 	char *mask_out_fn = NULL;
 	int major_ring_only = 0;
 	int no_donuts = 0;
-	double min_ring_area = 0;
+	long min_ring_area = 0;
 	double reduction_tolerance = 2;
 	int do_erosion = 0;
 	int do_invert = 0;
@@ -208,7 +208,7 @@ int main(int argc, char **argv) {
 			} else if(!strcmp(arg, "-min-ring-area")) {
 				if(argp == argc) usage(argv[0]);
 				char *endptr;
-				min_ring_area = strtod(argv[argp++], &endptr);
+				min_ring_area = strtol(argv[argp++], &endptr, 10);
 				if(*endptr) usage(argv[0]);
 			} else if(!strcmp(arg, "-dp-toler")) {
 				if(argp == argc) usage(argv[0]);
@@ -519,8 +519,10 @@ int main(int argc, char **argv) {
 
 mpoly_t calc_ring_from_mask(unsigned char *mask, int w, int h,
 report_image_t *dbuf, int major_ring_only, int no_donuts, 
-double min_ring_area, double bevel_size) {
-	mpoly_t mp = trace_mask(mask, w, h);
+long min_ring_area, double bevel_size) {
+	if(major_ring_only) no_donuts = 1;
+
+	mpoly_t mp = trace_mask(mask, w, h, min_ring_area, no_donuts);
 
 	if(VERBOSE) {
 		int total_pts = 0;
@@ -531,6 +533,8 @@ double min_ring_area, double bevel_size) {
 			mp.num_rings, total_pts);
 	}
 
+	// this is now done directly by tracer
+	/*
 	if(min_ring_area > 0) {
 		if(VERBOSE) printf("removing small rings...\n");
 
@@ -565,8 +569,9 @@ double min_ring_area, double bevel_size) {
 		mp.rings = filtered_rings;
 		mp.num_rings = num_filtered_rings;
 	}
+	*/
 
-	if(major_ring_only) {
+	if(major_ring_only && mp.num_rings > 1) {
 		double biggest_area = 0;
 		int best_idx = 0;
 		for(int i=0; i<mp.num_rings; i++) {
@@ -578,11 +583,23 @@ double min_ring_area, double bevel_size) {
 		}
 		if(VERBOSE) printf("major ring was %d with %d pts, %.1f area\n",
 			best_idx, mp.rings[best_idx].npts, biggest_area);
-		mp.rings = mp.rings+best_idx;
-		mp.num_rings = 1;
-		if(mp.rings[0].parent_id >= 0) fatal_error("largest ring should not have a parent");
+		if(mp.rings[best_idx].parent_id >= 0) fatal_error("largest ring should not have a parent");
+
+		mpoly_t new_mp;
+		new_mp.num_rings = 1;
+		new_mp.rings = (ring_t *)malloc_or_die(sizeof(ring_t));
+		new_mp.rings[0] = mp.rings[best_idx];
+
+		for(int i=0; i<mp.num_rings; i++) {
+			if(i != best_idx) free_ring(mp.rings+i);
+		}
+		free(mp.rings);
+
+		mp = new_mp;
 	}
 
+	// this is now done directly by tracer
+	/*
 	if(no_donuts) {
 		// we don't have to worry about remapping parent_id in this
 		// case because we only take rings with no parent
@@ -595,6 +612,7 @@ double min_ring_area, double bevel_size) {
 		mp.num_rings = out_idx;
 		if(VERBOSE) printf("number of non-donut rings is %d", mp.num_rings);
 	}
+	*/
 
 	if(bevel_size > 0) {
 		// the topology cannot be resolved by us or by geos/jump/postgis if

@@ -173,6 +173,20 @@ static void crossings_intersection(row_crossings_t *out, row_crossings_t *in1, r
 	}
 }
 
+static long compute_area(row_crossings_t *crossings, int num_rows) {
+	long area = 0;
+	for(int y=0; y<num_rows; y++) {
+		int nc = crossings[y].num_crossings;
+		int *rc = crossings[y].crossings;
+		for(int cidx=0; cidx<nc/2; cidx++) {
+			int from = rc[cidx*2  ];
+			int to   = rc[cidx*2+1];
+			area += to - from;
+		}
+	}
+	return area;
+}
+
 /*
 static int is_inside_crossings(row_crossings_t *c, int x) {
 	int inside = 0;
@@ -265,8 +279,9 @@ static ring_t trace_single_mpoly(unsigned char *mask, int w, int h, int initial_
 	return ring;
 }
 
-static void recursive_trace(unsigned char *mask, int w, int h,
-ring_t *bounds, int depth, mpoly_t *out_poly, int parent_id) {
+static int recursive_trace(unsigned char *mask, int w, int h,
+ring_t *bounds, int depth, mpoly_t *out_poly, int parent_id, 
+long min_area, int no_donuts) {
 	//printf("recursive_trace enter: depth=%d\n", depth);
 
 	int select_color = (depth & 1) ? 0 : 1;
@@ -291,6 +306,8 @@ ring_t *bounds, int depth, mpoly_t *out_poly, int parent_id) {
 	}
 
 	row_crossings_t *crossings = get_row_crossings(bounds, bound_top, bound_bottom-bound_top);
+	int skip_this = min_area && (compute_area(crossings, bound_bottom-bound_top) < min_area);
+	int skip_child = skip_this || (depth && no_donuts);
 
 	row_crossings_t cross_both;
 	cross_both.array_size = 0;
@@ -301,53 +318,61 @@ ring_t *bounds, int depth, mpoly_t *out_poly, int parent_id) {
 		GDALTermProgress(0, NULL, NULL);
 	}
 
-	for(int y=bound_top+1; y<bound_bottom; y++) {
-		if(!depth) {
-			GDALTermProgress((double)y/(double)(bound_bottom-bound_top-1), NULL, NULL);
-		}
+	if(!skip_child) {
+		for(int y=bound_top+1; y<bound_bottom; y++) {
+			if(!depth) {
+				GDALTermProgress((double)y/(double)(bound_bottom-bound_top-1), NULL, NULL);
+			}
 
-		unsigned char *uprow = mask + (y  )*(w+2);
-		unsigned char *dnrow = mask + (y+1)*(w+2);
+			unsigned char *uprow = mask + (y  )*(w+2);
+			unsigned char *dnrow = mask + (y+1)*(w+2);
 
-		// make sure the range (y-1,y)*(x-1,x) is in bounds
-		crossings_intersection(&cross_both, 
-			crossings + (y-bound_top-1),
-			crossings + (y-bound_top));
-		for(int cidx=0; cidx<cross_both.num_crossings/2; cidx++) {
 			// make sure the range (y-1,y)*(x-1,x) is in bounds
-			int from = 1+cross_both.crossings[cidx*2  ];
-			int to   =   cross_both.crossings[cidx*2+1];
-			for(int x=from; x<to; x++) {
-				//pixquad_t quad = get_quad(mask, w, h, x, y, select_color);
-				pixquad_t quad =
-					(uprow[x  ]     ) + // y-1, x-1
-					(uprow[x+1] << 1) + // y-1, x
-					(dnrow[x+1] << 2) + // y  , x
-					(dnrow[x  ] << 3);  // y  , x-1
-				// not needed in this case
-				//if(!select_color) quad ^= 0xf;
+			crossings_intersection(&cross_both, 
+				crossings + (y-bound_top-1),
+				crossings + (y-bound_top));
+			for(int cidx=0; cidx<cross_both.num_crossings/2; cidx++) {
+				// make sure the range (y-1,y)*(x-1,x) is in bounds
+				int from = 1+cross_both.crossings[cidx*2  ];
+				int to   =   cross_both.crossings[cidx*2+1];
+				for(int x=from; x<to; x++) {
+					//pixquad_t quad = get_quad(mask, w, h, x, y, select_color);
+					pixquad_t quad =
+						(uprow[x  ]     ) + // y-1, x-1
+						(uprow[x+1] << 1) + // y-1, x
+						(dnrow[x+1] << 2) + // y  , x
+						(dnrow[x  ] << 3);  // y  , x-1
+					// not needed in this case
+					//if(!select_color) quad ^= 0xf;
 
-				int is_seed = (quad != 0 && quad != 0xf);
+					int is_seed = (quad != 0 && quad != 0xf);
 
-				if(is_seed) {
-					ring_t r = trace_single_mpoly(mask, w, h, x, y, select_color);
+					if(is_seed) {
+						ring_t r = trace_single_mpoly(mask, w, h, x, y, select_color);
 
-					r.parent_id = parent_id;
-					r.is_hole = depth % 2;
-					//r.parent_id = -1;
-					//r.is_hole = 0;
+						r.parent_id = parent_id;
+						r.is_hole = depth % 2;
+						//r.parent_id = -1;
+						//r.is_hole = 0;
 
-					out_poly->rings = (ring_t *)realloc_or_die(out_poly->rings,
-						sizeof(ring_t) * (out_poly->num_rings + 1));
-					int outer_ring_id = (out_poly->num_rings++);
-					out_poly->rings[outer_ring_id] = r;
+						out_poly->rings = (ring_t *)realloc_or_die(out_poly->rings,
+							sizeof(ring_t) * (out_poly->num_rings + 1));
+						int outer_ring_id = (out_poly->num_rings++);
+						out_poly->rings[outer_ring_id] = r;
 
-					recursive_trace(mask, w, h, &r, depth+1, out_poly, outer_ring_id);
-				}
-			} 
+						int was_skip = recursive_trace(
+							mask, w, h, &r, depth+1, out_poly, outer_ring_id,
+							min_area, no_donuts);
+						if(was_skip) {
+							free(r.pts);
+							out_poly->num_rings--;
+						}
+					}
+				} 
+			}
 		}
+		if(cross_both.crossings != NULL) free(cross_both.crossings);
 	}
-	if(cross_both.crossings != NULL) free(cross_both.crossings);
 
 	for(int y=bound_top; y<bound_bottom; y++) {
 		row_crossings_t *r = crossings + (y-bound_top);
@@ -373,9 +398,11 @@ ring_t *bounds, int depth, mpoly_t *out_poly, int parent_id) {
 	if(!depth) {
 		GDALTermProgress(1, NULL, NULL);
 	}
+
+	return skip_this;
 }
 
-mpoly_t trace_mask(unsigned char *mask_1bit, int w, int h) {
+mpoly_t trace_mask(unsigned char *mask_1bit, int w, int h, long min_area, int no_donuts) {
 	if(VERBOSE >= 4) debug_write_mask(mask_1bit, w, h);
 
 	unsigned char *mask_8bit = (unsigned char *)malloc_or_die((w+2)*(h+2));
@@ -401,7 +428,7 @@ mpoly_t trace_mask(unsigned char *mask_1bit, int w, int h) {
 	out_poly.num_rings = 0;
 	out_poly.rings = NULL;
 
-	recursive_trace(mask_8bit, w, h, NULL, 0, &out_poly, -1);
+	recursive_trace(mask_8bit, w, h, NULL, 0, &out_poly, -1, min_area, no_donuts);
 	printf("Trace found %d rings.\n", out_poly.num_rings);
 
 	free(mask_8bit);
