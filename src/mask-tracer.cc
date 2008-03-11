@@ -26,9 +26,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "common.h"
 #include "polygon.h"
-#include "debugplot.h"
-#include "georef.h"
-#include "mask.h"
 
 #define DIR_UP 0
 #define DIR_RT 1

@@ -26,17 +26,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "common.h"
 #include "polygon.h"
-#include "georef.h"
-
-#ifdef MIN
-#undef MIN
-#endif
-#define MIN(a,b) ((a)<(b)?(a):(b))
-
-#ifdef MAX
-#undef MAX
-#endif
-#define MAX(a,b) ((a)>(b)?(a):(b))
 
 #define EPSILON 10E-10
 
