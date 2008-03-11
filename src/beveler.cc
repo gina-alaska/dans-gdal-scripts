@@ -130,6 +130,8 @@ void bevel_self_intersections(mpoly_t *mp, double amount) {
 	if(VERBOSE) printf("found %d self-intersections\n", total_num_touch);
 	if(!total_num_touch) {
 		free(entries);
+		GDALTermProgress(1, NULL, NULL);
+		if(VERBOSE) printf("beveler finish\n");
 		return;
 	}
 
