@@ -395,109 +395,111 @@ int main(int argc, char **argv) {
 			mask = eroded_mask;
 		}
 
-		mpoly_t bounds_poly = calc_ring_from_mask(mask, georef.w, georef.h, dbuf, 
+		mpoly_t feature_poly = calc_ring_from_mask(mask, georef.w, georef.h, dbuf, 
 			major_ring_only, no_donuts, min_ring_area, bevel_size);
 		free(mask);
 
 		if(mask_out_fn) {
-			mask_from_mpoly(&bounds_poly, georef.w, georef.h, mask_out_fn);
+			mask_from_mpoly(&feature_poly, georef.w, georef.h, mask_out_fn);
 		}
 
-		if(reduction_tolerance > 0) {
-			mpoly_t reduced_poly = compute_reduced_pointset(&bounds_poly, reduction_tolerance);
-			free_mpoly(&bounds_poly);
-			bounds_poly = reduced_poly;
+		if(feature_poly.num_rings && reduction_tolerance > 0) {
+			mpoly_t reduced_poly = compute_reduced_pointset(&feature_poly, reduction_tolerance);
+			free_mpoly(&feature_poly);
+			feature_poly = reduced_poly;
 		}
 
-		int num_outer=0, num_inner=0, total_pts=0;
-		int r_idx;
-		for(r_idx=0; r_idx<bounds_poly.num_rings; r_idx++) {
-			if(bounds_poly.rings[r_idx].is_hole) num_inner++;
-			else num_outer++;
-			total_pts += bounds_poly.rings[r_idx].npts;
-		}
-		printf("Found %d outer rings and %d holes with a total of %d vertices.\n",
-			num_outer, num_inner, total_pts);
+		if(feature_poly.num_rings) {
+			int num_outer=0, num_inner=0, total_pts=0;
+			int r_idx;
+			for(r_idx=0; r_idx<feature_poly.num_rings; r_idx++) {
+				if(feature_poly.rings[r_idx].is_hole) num_inner++;
+				else num_outer++;
+				total_pts += feature_poly.rings[r_idx].npts;
+			}
+			printf("Found %d outer rings and %d holes with a total of %d vertices.\n",
+				num_outer, num_inner, total_pts);
 
-		if(dbuf && dbuf->mode == PLOT_CONTOURS) {
-			debug_plot_rings(&bounds_poly, dbuf);
-		}
-
-		if(do_geom_output && bounds_poly.num_rings) {
-			printf("Writing output\n");
-
-			int num_shapes;
-			mpoly_t *shapes;
-			int shape_is_copy;
-			if(split_polys) {
-				split_mpoly_to_polys(&bounds_poly, &num_shapes, &shapes);
-				shape_is_copy = 0;
-			} else {
-				num_shapes = 1;
-				shapes = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
-				shapes[0] = bounds_poly;
-				shape_is_copy = 1;
+			if(dbuf && dbuf->mode == PLOT_CONTOURS) {
+				debug_plot_rings(&feature_poly, dbuf);
 			}
 
-			int shape_idx;
-			for(shape_idx=0; shape_idx<num_shapes; shape_idx++) {
-				mpoly_t *poly_in = shapes+shape_idx;
+			if(do_geom_output && feature_poly.num_rings) {
+				printf("Writing output\n");
 
-				mpoly_t *proj_poly;
-				int proj_is_copy;
-				if(out_cs == CS_XY) {
-					proj_poly = poly_in;
-					proj_is_copy = 1;
-				} else if(out_cs == CS_EN) {
-					proj_poly = mpoly_xy2en(&georef, poly_in);
-					proj_is_copy = 0;
-				} else if(out_cs == CS_LL) {
-					proj_poly = mpoly_xy2ll_with_interp(&georef, poly_in, llproj_toler);
-					proj_is_copy = 0;
+				int num_shapes;
+				mpoly_t *shapes;
+				int shape_is_copy;
+				if(split_polys) {
+					split_mpoly_to_polys(&feature_poly, &num_shapes, &shapes);
+					shape_is_copy = 0;
 				} else {
-					fatal_error("bad val for out_cs");
+					num_shapes = 1;
+					shapes = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
+					shapes[0] = feature_poly;
+					shape_is_copy = 1;
 				}
 
-				OGRGeometryH ogr_geom = mpoly_to_ogr(proj_poly);
+				int shape_idx;
+				for(shape_idx=0; shape_idx<num_shapes; shape_idx++) {
+					mpoly_t *poly_in = shapes+shape_idx;
 
-				if(wkt_fh) {
-					char *wkt_out;
-					OGR_G_ExportToWkt(ogr_geom, &wkt_out);
-					fprintf(wkt_fh, "%s\n", wkt_out);
-				}
-				if(wkb_fh) {
-					int wkb_size = OGR_G_WkbSize(ogr_geom);
-					printf("WKB size = %d\n", wkb_size);
-					unsigned char *wkb_out = (unsigned char *)malloc_or_die(wkb_size);
-					OGR_G_ExportToWkb(ogr_geom, WKB_BYTE_ORDER, wkb_out);
-					fwrite(wkb_out, wkb_size, 1, wkb_fh);
-					free(wkb_out);
-				}
-
-				if(ogr_ds) {
-					OGRFeatureH ogr_feat = OGR_F_Create(OGR_L_GetLayerDefn(ogr_layer));
-					if(class_fld_idx >= 0) OGR_F_SetFieldInteger(ogr_feat, class_fld_idx, class_id);
-					if(color) {
-						if(color_fld_idx[0] >= 0) OGR_F_SetFieldInteger(ogr_feat, color_fld_idx[0], color->c1);
-						if(color_fld_idx[1] >= 0) OGR_F_SetFieldInteger(ogr_feat, color_fld_idx[1], color->c2);
-						if(color_fld_idx[2] >= 0) OGR_F_SetFieldInteger(ogr_feat, color_fld_idx[2], color->c3);
-						if(color_fld_idx[3] >= 0) OGR_F_SetFieldInteger(ogr_feat, color_fld_idx[3], color->c4);
+					mpoly_t *proj_poly;
+					int proj_is_copy;
+					if(out_cs == CS_XY) {
+						proj_poly = poly_in;
+						proj_is_copy = 1;
+					} else if(out_cs == CS_EN) {
+						proj_poly = mpoly_xy2en(&georef, poly_in);
+						proj_is_copy = 0;
+					} else if(out_cs == CS_LL) {
+						proj_poly = mpoly_xy2ll_with_interp(&georef, poly_in, llproj_toler);
+						proj_is_copy = 0;
+					} else {
+						fatal_error("bad val for out_cs");
 					}
-					OGR_F_SetGeometryDirectly(ogr_feat, ogr_geom); // assumes ownership of geom
-					OGR_L_CreateFeature(ogr_layer, ogr_feat);
-					OGR_F_Destroy(ogr_feat);
-				} else {
-					OGR_G_DestroyGeometry(ogr_geom);
+
+					OGRGeometryH ogr_geom = mpoly_to_ogr(proj_poly);
+
+					if(wkt_fh) {
+						char *wkt_out;
+						OGR_G_ExportToWkt(ogr_geom, &wkt_out);
+						fprintf(wkt_fh, "%s\n", wkt_out);
+					}
+					if(wkb_fh) {
+						int wkb_size = OGR_G_WkbSize(ogr_geom);
+						printf("WKB size = %d\n", wkb_size);
+						unsigned char *wkb_out = (unsigned char *)malloc_or_die(wkb_size);
+						OGR_G_ExportToWkb(ogr_geom, WKB_BYTE_ORDER, wkb_out);
+						fwrite(wkb_out, wkb_size, 1, wkb_fh);
+						free(wkb_out);
+					}
+
+					if(ogr_ds) {
+						OGRFeatureH ogr_feat = OGR_F_Create(OGR_L_GetLayerDefn(ogr_layer));
+						if(class_fld_idx >= 0) OGR_F_SetFieldInteger(ogr_feat, class_fld_idx, class_id);
+						if(color) {
+							if(color_fld_idx[0] >= 0) OGR_F_SetFieldInteger(ogr_feat, color_fld_idx[0], color->c1);
+							if(color_fld_idx[1] >= 0) OGR_F_SetFieldInteger(ogr_feat, color_fld_idx[1], color->c2);
+							if(color_fld_idx[2] >= 0) OGR_F_SetFieldInteger(ogr_feat, color_fld_idx[2], color->c3);
+							if(color_fld_idx[3] >= 0) OGR_F_SetFieldInteger(ogr_feat, color_fld_idx[3], color->c4);
+						}
+						OGR_F_SetGeometryDirectly(ogr_feat, ogr_geom); // assumes ownership of geom
+						OGR_L_CreateFeature(ogr_layer, ogr_feat);
+						OGR_F_Destroy(ogr_feat);
+					} else {
+						OGR_G_DestroyGeometry(ogr_geom);
+					}
+
+					if(!proj_is_copy) free_mpoly(proj_poly);
+					if(!shape_is_copy) free_mpoly(poly_in);
+
+					num_shapes_written++;
 				}
-
-				if(!proj_is_copy) free_mpoly(proj_poly);
-				if(!shape_is_copy) free_mpoly(poly_in);
-
-				num_shapes_written++;
 			}
 		}
 
-		free_mpoly(&bounds_poly);
+		free_mpoly(&feature_poly);
 	}
 
 	printf("\n");
@@ -614,7 +616,7 @@ long min_ring_area, double bevel_size) {
 	}
 	*/
 
-	if(bevel_size > 0) {
+	if(mp.num_rings && bevel_size > 0) {
 		// the topology cannot be resolved by us or by geos/jump/postgis if
 		// there are self-intersections
 		bevel_self_intersections(&mp, bevel_size);
