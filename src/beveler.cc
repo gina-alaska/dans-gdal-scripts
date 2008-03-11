@@ -102,6 +102,7 @@ void bevel_self_intersections(mpoly_t *mp, double amount) {
 
 	if(VERBOSE) printf("finding self-intersections\n");
 	GDALTermProgress(0.1, NULL, NULL);
+	// sort by x,y
 	qsort(entries, total_pts, sizeof(vertsort_entry), compare_coords);
 	GDALTermProgress(0.8, NULL, NULL);
 
@@ -137,6 +138,7 @@ void bevel_self_intersections(mpoly_t *mp, double amount) {
 
 	// decrease memory usage
 	entries = (vertsort_entry *)realloc_or_die(entries, sizeof(vertsort_entry) * total_num_touch);
+	// sort by ring_idx,vert_idx
 	qsort(entries, total_num_touch, sizeof(vertsort_entry), compare_rings);
 
 	if(VERBOSE) printf("shaving corners\n");
@@ -144,7 +146,10 @@ void bevel_self_intersections(mpoly_t *mp, double amount) {
 	for(entry_idx=0; entry_idx<total_num_touch; ) {
 		ring_t *ring = entries[entry_idx].ring;
 		int ring_num_touch = 0;
-		while(entries[entry_idx+ring_num_touch].ring == ring) {
+		while(
+			entry_idx+ring_num_touch < total_num_touch &&
+			entries[entry_idx+ring_num_touch].ring == ring
+		) {
 			ring_num_touch++;
 		}
 
@@ -162,6 +167,9 @@ void bevel_self_intersections(mpoly_t *mp, double amount) {
 			if(numcp < 0) {
 				fatal_error("verts out of sequence");
 			} else if(numcp > 0) {
+				if(vin_idx + numcp > ring->npts) {
+					fatal_error("index out of bounds");
+				}
 				memcpy(new_pts+vout_idx, ring->pts+vin_idx, numcp*sizeof(vertex_t));
 				vout_idx += numcp;
 				vin_idx += numcp;

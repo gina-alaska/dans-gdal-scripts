@@ -371,7 +371,6 @@ int main(int argc, char **argv) {
 		const GDALColorEntry *color = NULL;
 		if(classify) {
 			if(!usage_array[class_id]) continue;
-if(class_id<100) continue;
 			printf("\nFeature class %d\n", class_id);
 
 			if(color_table) {
