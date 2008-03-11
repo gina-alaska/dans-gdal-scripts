@@ -336,17 +336,32 @@ long min_area, int no_donuts) {
 				// make sure the range (y-1,y)*(x-1,x) is in bounds
 				int from = 1+cross_both.crossings[cidx*2  ];
 				int to   =   cross_both.crossings[cidx*2+1];
+
+				// find the first possible quad that could match
+				unsigned char *mc1 = (unsigned char *)memchr(uprow+from, select_color, to-from);
+				unsigned char *mc2 = (unsigned char *)memchr(dnrow+from, select_color, to-from);
+				int ic1 = mc1 ? (mc1-uprow)-1 : to;
+				int ic2 = mc2 ? (mc2-dnrow)-1 : to;
+				if(ic2 < ic1) ic1 = ic2;
+				if(ic1 > from) from = ic1;
+
 				for(int x=from; x<to; x++) {
 					//pixquad_t quad = get_quad(mask, w, h, x, y, select_color);
-					pixquad_t quad =
-						(uprow[x  ]     ) + // y-1, x-1
-						(uprow[x+1] << 1) + // y-1, x
-						(dnrow[x+1] << 2) + // y  , x
-						(dnrow[x  ] << 3);  // y  , x-1
-					// not needed in this case
-					//if(!select_color) quad ^= 0xf;
-
-					int is_seed = (quad != 0 && quad != 0xf);
+					//int is_seed = (quad != 0 && quad != 0xf);
+					int is_seed;
+					if(select_color) {
+						is_seed = 
+							uprow[x  ] || // y-1, x-1
+							uprow[x+1] || // y-1, x
+							dnrow[x+1] || // y  , x
+							dnrow[x  ];   // y  , x-1
+					} else {
+						is_seed = 
+							(!uprow[x  ]) || // y-1, x-1
+							(!uprow[x+1]) || // y-1, x
+							(!dnrow[x+1]) || // y  , x
+							(!dnrow[x  ]);   // y  , x-1
+					}
 
 					if(is_seed) {
 						ring_t r = trace_single_mpoly(mask, w, h, x, y, select_color);
