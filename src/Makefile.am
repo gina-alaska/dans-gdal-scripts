@@ -28,5 +28,5 @@ gdal_merge_simple_CXXFLAGS = $(AM_CXXFLAGS)
 gdal_merge_vrt_SOURCES = gdal_merge_vrt.cc common.cc
 gdal_merge_vrt_CXXFLAGS = $(AM_CXXFLAGS)
 
-noinst_HEADERS = common.h polygon.h debugplot.h georef.h mask.h
+noinst_HEADERS = common.h debugplot.h dp.h georef.h mask-tracer.h mask.h polygon.h
 EXTRA_DIST = dem.pal test2.sh testcase.tif testcase2.tif testcase3.tif
