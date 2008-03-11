@@ -29,6 +29,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "debugplot.h"
 #include "georef.h"
 #include "mask.h"
+#include "mask-tracer.h"
+#include "dp.h"
 
 #include <ogrsf_frmts.h>
 #include <cpl_string.h>
@@ -113,8 +115,6 @@ gdal_trace_outline raster.tif -classify -out-cs en -ogr-out outline.shp\n\
 ");
 	exit(1);
 }
-
-mpoly_t trace_mask(unsigned char *mask_1bit, int w, int h); // FIXME - to *.h
 
 mpoly_t calc_ring_from_mask(unsigned char *mask, int w, int h,
 	report_image_t *dbuf, int major_ring_only, int no_donuts,
