@@ -245,9 +245,10 @@ static ring_t trace_single_mpoly(unsigned char *mask, int w, int h, int initial_
 			default: fatal_error("bad direction");
 		}
 		if(x == initial_x && y == initial_y) break;
+		if(x<0 || y<0 || x>w || y>h) fatal_error("fell off edge (%d,%d)", x, y);
 		pixquad_t quad = get_quad(mask, w, h, x, y, select_color);
 		quad = rotate_quad(quad, dir);
-		if((quad & 12) != 4) fatal_error("tracer was not on the right side of things");
+		if((quad & 12) != 4) fatal_error("tracer was not on the right side of things (%d)", quad);
 		int rot;
 		switch(quad & 3) {
 			case 0: rot =  1; break; // N N

@@ -40,7 +40,7 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 
 	if(VERBOSE) printf("mask array is %.1f megabytes\n", (double)(w+2)*(h+2)/1024.0/1024.0);
 	unsigned char *mask = (unsigned char *)malloc_or_die((w+2)*(h+2));
-	memset(mask, (w+2)*(h+2), 0);
+	memset(mask, 0, (w+2)*(h+2));
 
 	printf("Reading %d bands of size %d x %d\n", bandlist_size, w, h);
 
@@ -228,7 +228,7 @@ unsigned char *read_dataset_8bit(GDALDatasetH ds, int band_idx, unsigned char *u
 unsigned char *get_mask_for_8bit_raster(int w, int h, unsigned char *raster, unsigned char wanted) {
 	if(VERBOSE) printf("mask array is %.1f megabytes\n", (double)(w+2)*(h+2)/1024.0/1024.0);
 	unsigned char *mask = (unsigned char *)malloc_or_die((w+2)*(h+2));
-	memset(mask, (w+2)*(h+2), 0);
+	memset(mask, 0, (w+2)*(h+2));
 
 	for(int y=0; y<h; y++) {
 		unsigned char *mp = mask + (w+2)*(y+1) + 1;
