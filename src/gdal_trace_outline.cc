@@ -390,9 +390,7 @@ int main(int argc, char **argv) {
 		}
 
 		if(do_erosion) {
-			unsigned char *eroded_mask = erode_mask(mask, georef.w, georef.h);
-			free(mask);
-			mask = eroded_mask;
+			erode_mask(mask, georef.w, georef.h);
 		}
 
 		mpoly_t feature_poly = calc_ring_from_mask(mask, georef.w, georef.h, dbuf, 

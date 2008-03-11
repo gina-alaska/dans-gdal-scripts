@@ -176,9 +176,7 @@ int main(int argc, char **argv) {
 			num_ndv, ndv_list, ndv_tolerance, dbuf);
 
 		if(do_erosion) {
-			unsigned char *eroded_mask = erode_mask(mask, georef.w, georef.h);
-			free(mask);
-			mask = eroded_mask;
+			erode_mask(mask, georef.w, georef.h);
 		}
 	}
 
@@ -362,17 +360,11 @@ ring_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *d
 	for(j=0; j<h; j++) {
 		int left = w;
 		int right = -1;
-		unsigned char mask_bitp = 1;
-		unsigned char *mask_bytep = mask + mask_rowlen*j;
+		unsigned char *mp = mask + (w+2)*(j+1) + 1;
 		for(i=0; i<w; i++) {
-			if(*mask_bytep & mask_bitp) {
+			if(*(mp++)) {
 				if(left > i) left = i;
 				if(right < i) right = i;
-			}
-			mask_bitp <<= 1;
-			if(!mask_bitp) {
-				mask_bitp = 1;
-				mask_bytep++;
 			}
 		}
 		if(chrows_left[j] > left) chrows_left[j] = left;

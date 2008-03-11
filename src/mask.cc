@@ -38,10 +38,9 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 	int band_count = GDALGetRasterCount(ds);
 	if(VERBOSE) printf("input is %d x %d x %d\n", w, h, band_count);
 
-	int mask_rowlen = (w+7)/8;
-	if(VERBOSE) printf("mask array is %.1f megabytes\n", (double)mask_rowlen*h/1024.0/1024.0);
-	unsigned char *mask = (unsigned char *)malloc_or_die(mask_rowlen*h);
-	for(i=0; i<mask_rowlen*h; i++) mask[i] = 0;
+	if(VERBOSE) printf("mask array is %.1f megabytes\n", (double)(w+2)*(h+2)/1024.0/1024.0);
+	unsigned char *mask = (unsigned char *)malloc_or_die((w+2)*(h+2));
+	memset(mask, (w+2)*(h+2), 0);
 
 	printf("Reading %d bands of size %d x %d\n", bandlist_size, w, h);
 
@@ -111,8 +110,7 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 				for(j=0; j<bsize_y; j++) {
 					int y = j + boff_y;
 					int is_dbuf_stride_y = dbuf && ((y % dbuf->stride_y) == 0);
-					unsigned char mask_bitp = 1 << (boff_x % 8);
-					unsigned char *mask_bytep = mask + mask_rowlen*y + boff_x/8;
+					unsigned char *mp = mask + (w+2)*(y+1) + boff_x+1;
 					for(i=0; i<bsize_x; i++) {
 						int debug_color;
 						int is_ndv;
@@ -126,7 +124,7 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 							debug_color = (int)val;
 						}
 						if(!is_ndv) {
-							*mask_bytep |= mask_bitp;
+							*mp = 1;
 
 							int is_dbuf_stride = is_dbuf_stride_y && ((i % dbuf->stride_x) == 0);
 							if(is_dbuf_stride) {
@@ -139,11 +137,7 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 								plot_point(dbuf, x, y, r, db_v, db_v);
 							}
 						}
-						mask_bitp <<= 1;
-						if(!mask_bitp) {
-							mask_bitp = 1;
-							mask_bytep++;
-						}
+						mp++;
 					}
 				}
 			}
@@ -158,9 +152,7 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 }
 
 unsigned char *read_dataset_8bit(GDALDatasetH ds, int band_idx, unsigned char *usage_array, report_image_t *dbuf) {
-	int i, j;
-
-	for(i=0; i<256; i++) usage_array[i] = 0;
+	for(int i=0; i<256; i++) usage_array[i] = 0;
 
 	int w = GDALGetRasterXSize(ds);
 	int h = GDALGetRasterYSize(ds);
@@ -186,11 +178,10 @@ unsigned char *read_dataset_8bit(GDALDatasetH ds, int band_idx, unsigned char *u
 
 	unsigned char *outbuf = (unsigned char *)malloc_or_die(w*h);
 	unsigned char *inbuf = (unsigned char *)malloc_or_die(blocksize_x*blocksize_y);
-	int boff_x, boff_y;
-	for(boff_y=0; boff_y<h; boff_y+=blocksize_y) {
+	for(int boff_y=0; boff_y<h; boff_y+=blocksize_y) {
 		int bsize_y = blocksize_y;
 		if(bsize_y + boff_y > h) bsize_y = h - boff_y;
-		for(boff_x=0; boff_x<w; boff_x+=blocksize_x) {
+		for(int boff_x=0; boff_x<w; boff_x+=blocksize_x) {
 			int bsize_x = blocksize_x;
 			if(bsize_x + boff_x > w) bsize_x = w - boff_x;
 
@@ -204,11 +195,11 @@ unsigned char *read_dataset_8bit(GDALDatasetH ds, int band_idx, unsigned char *u
 				inbuf, bsize_x, bsize_y, GDT_Byte, 0, 0);
 
 			unsigned char *p_in = inbuf;
-			for(j=0; j<bsize_y; j++) {
+			for(int j=0; j<bsize_y; j++) {
 				int y = j + boff_y;
 				int is_dbuf_stride_y = dbuf && ((y % dbuf->stride_y) == 0);
 				unsigned char *p_out = outbuf + w*y + boff_x;
-				for(i=0; i<bsize_x; i++) {
+				for(int i=0; i<bsize_x; i++) {
 					unsigned char val = *(p_in++);
 					*(p_out++) = val;
 					usage_array[val] = 1;
@@ -235,114 +226,88 @@ unsigned char *read_dataset_8bit(GDALDatasetH ds, int band_idx, unsigned char *u
 }
 
 unsigned char *get_mask_for_8bit_raster(int w, int h, unsigned char *raster, unsigned char wanted) {
-	int mask_rowlen = (w+7)/8;
-	if(VERBOSE) printf("mask array is %.1f megabytes\n", (double)mask_rowlen*h/1024.0/1024.0);
-	unsigned char *mask = (unsigned char *)malloc_or_die(mask_rowlen*h);
-	int i;
-	for(i=0; i<mask_rowlen*h; i++) mask[i] = 0;
+	if(VERBOSE) printf("mask array is %.1f megabytes\n", (double)(w+2)*(h+2)/1024.0/1024.0);
+	unsigned char *mask = (unsigned char *)malloc_or_die((w+2)*(h+2));
+	memset(mask, (w+2)*(h+2), 0);
 
-	int x, y;
-	for(y=0; y<h; y++) {
-		unsigned char mask_bitp = 1;
-		unsigned char *mask_bytep = mask + mask_rowlen*y;
+	for(int y=0; y<h; y++) {
+		unsigned char *mp = mask + (w+2)*(y+1) + 1;
 		unsigned char *p_in = raster + y*w;
-		for(x=0; x<w; x++) {
+		for(int x=0; x<w; x++) {
 			unsigned char val = *(p_in++);
 			if(val == wanted) {
-				*mask_bytep |= mask_bitp;
+				*mp = 1;
 			}
-			mask_bitp <<= 1;
-			if(!mask_bitp) {
-				mask_bitp = 1;
-				mask_bytep++;
-			}
+			mp++;
 		}
 	}
 
 	return mask;
 }
 
-unsigned char *erode_mask(unsigned char *in_mask, int w, int h) {
-	int i, j;
-	int mask_rowlen = (w+7)/8;
+void erode_mask(unsigned char *mask, int w, int h) {
+	w += 2;
+	h += 2;
+	unsigned char *rowu = (unsigned char *)malloc_or_die(w);
+	unsigned char *rowm = (unsigned char *)malloc_or_die(w);
+	unsigned char *rowl = (unsigned char *)malloc_or_die(w);
+	memset(rowm, 0, w);
+	memcpy(rowl, mask, w);
 
-	unsigned char *out_mask = (unsigned char *)malloc_or_die(mask_rowlen*h);
-	for(i=0; i<mask_rowlen*h; i++) out_mask[i] = 0;
+	unsigned char *mp = mask;
 
-	for(j=0; j<h; j++) {
-		unsigned char *in_bytep = in_mask + mask_rowlen*j;
-		unsigned char *out_bytep = out_mask + mask_rowlen*j;
-		unsigned char ul = 0, um = j ? *(in_bytep-mask_rowlen) & 1 : 0;
-		unsigned char ml = 0, mm = *in_bytep & 1;
-		unsigned char ll = 0, lm = (j<h-1) ? *(in_bytep+mask_rowlen) & 1 : 0;
-		unsigned char in_bitp = 2;
-		unsigned char out_bitp = 1;
-		for(i=0; i<w; i++) {
-			unsigned char ur = (j && i<w-1) ? *(in_bytep-mask_rowlen) & in_bitp : 0;
-			unsigned char mr = (i<w-1) ? *in_bytep & in_bitp : 0;
-			unsigned char lr = (j<h-1 && i<w-1) ? *(in_bytep+mask_rowlen) & in_bitp : 0;
+	for(int y=0; y<h; y++) {
+		unsigned char *tmp = rowu;
+		rowu = rowm; rowm = rowl; rowl = tmp;
+		if(y+1 < h) {
+			memcpy(rowl, mask+w*(y+1), w);
+		} else {
+			memset(rowl, 0, w);
+		}
+
+		unsigned char ul = 0, um = rowu[0];
+		unsigned char ml = 0, mm = rowm[0];
+		unsigned char ll = 0, lm = rowl[0];
+
+		for(int x=0; x<w; x++) {
+			unsigned char ur = (x+1<w) ? rowu[x+1] : 0;
+			unsigned char mr = (x+1<w) ? rowm[x+1] : 0;
+			unsigned char lr = (x+1<w) ? rowl[x+1] : 0;
 
 			// remove pixels that don't have two consecutive filled neighbors
-			if(mm && (
+			if(!(
 				ul&&um || um&&ur || ur&&mr || mr&&lr ||
 				lr&&lm || lm&&ll || ll&&ml || ml&&ul
-			)) {
-				*out_bytep |= out_bitp;
-			}
-			// fill pixels that don't have two consecutive empty neighbors
-			/*
-			if(!mm && (
-				(ul||um) && (um||ur) && (ur||mr) && (mr||lr) &&
-				(lr||lm) && (lm||ll) && (ll||ml) && (ml||ul)
-			)) {
-				*out_bytep |= out_bitp;
-			}
-			*/
+			)) *mp = 0;
+
+			mp++;
 			
 			ul=um; ml=mm; ll=lm;
 			um=ur; mm=mr; lm=lr;
-
-			in_bitp <<= 1;
-			if(!in_bitp) {
-				in_bitp = 1;
-				in_bytep++;
-			}
-
-			out_bitp <<= 1;
-			if(!out_bitp) {
-				out_bitp = 1;
-				out_bytep++;
-			}
 		}
 	}
 
-	return out_mask;
+	free(rowu);
+	free(rowm);
+	free(rowl);
 }
 
 void invert_mask(unsigned char *mask, int w, int h) {
-	int mask_rowlen = (w+7)/8;
-	int i;
-	for(i=0; i<mask_rowlen*h; i++) mask[i] ^= 0xff;
+	int len = (w+2)*(h+2);
+	for(int i=0; i<len; i++) {
+		mask[i] = mask[i] ? 0 : 1;
+	}
 }
 
 vertex_t calc_centroid_from_mask(unsigned char *mask, int w, int h) {
-	int mask_rowlen = (w+7)/8;
-
 	long weight_x=0, weight_y=0, num_datavals=0;
-	int i, j;
-	for(j=0; j<h; j++) {
-		unsigned char mask_bitp = 1;
-		unsigned char *mask_bytep = mask + mask_rowlen*j;
-		for(i=0; i<w; i++) {
-			if(*mask_bytep & mask_bitp) {
+	for(int j=0; j<h; j++) {
+		unsigned char *mp = mask + (w+2)*(j+1) + 1;
+		for(int i=0; i<w; i++) {
+			if(*(mp++)) {
 				weight_x += i;
 				weight_y += j;
 				num_datavals++;
-			}
-			mask_bitp <<= 1;
-			if(!mask_bitp) {
-				mask_bitp = 1;
-				mask_bytep++;
 			}
 		}
 	}

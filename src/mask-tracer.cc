@@ -402,9 +402,10 @@ long min_area, int no_donuts) {
 	return skip_this;
 }
 
-mpoly_t trace_mask(unsigned char *mask_1bit, int w, int h, long min_area, int no_donuts) {
-	if(VERBOSE >= 4) debug_write_mask(mask_1bit, w, h);
+mpoly_t trace_mask(unsigned char *mask_8bit, int w, int h, long min_area, int no_donuts) {
+	if(VERBOSE >= 4) debug_write_mask(mask_8bit, w, h);
 
+	/*
 	unsigned char *mask_8bit = (unsigned char *)malloc_or_die((w+2)*(h+2));
 	// FIXME - only need to clear borders
 	memset(mask_8bit, 0, (w+2)*(h+2));
@@ -422,6 +423,7 @@ mpoly_t trace_mask(unsigned char *mask_1bit, int w, int h, long min_area, int no
 			}
 		}
 	}
+	*/
 
 	mpoly_t out_poly;
 
@@ -431,7 +433,7 @@ mpoly_t trace_mask(unsigned char *mask_1bit, int w, int h, long min_area, int no
 	recursive_trace(mask_8bit, w, h, NULL, 0, &out_poly, -1, min_area, no_donuts);
 	printf("Trace found %d rings.\n", out_poly.num_rings);
 
-	free(mask_8bit);
+	//free(mask_8bit);
 
 	//fatal_error("OK");
 

@@ -36,7 +36,7 @@ unsigned char *get_mask_for_dataset(GDALDatasetH ds, int bandlist_size, int *ban
 	int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf);
 unsigned char *read_dataset_8bit(GDALDatasetH ds, int band_idx, unsigned char *usage_array, report_image_t *dbuf);
 unsigned char *get_mask_for_8bit_raster(int w, int h, unsigned char *raster, unsigned char wanted);
-unsigned char *erode_mask(unsigned char *in_mask, int w, int h);
+void erode_mask(unsigned char *in_mask, int w, int h);
 void invert_mask(unsigned char *in_mask, int w, int h);
 vertex_t calc_centroid_from_mask(unsigned char *mask, int w, int h);
 
