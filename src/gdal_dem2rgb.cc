@@ -564,7 +564,7 @@ int main(int argc, char *argv[]) {
 					get_nan_color(pixel, palette);
 					for(i=0; i<out_numbands; i++) outbuf[i][col] = pixel[i];
 				} else {
-					for(i=0; i<out_numbands; i++) outbuf[i][col] = 255;
+					for(i=0; i<out_numbands; i++) outbuf[i][col] = 0;
 				}
 				got_nan=1;
 			} else {
