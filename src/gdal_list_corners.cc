@@ -207,7 +207,18 @@ int main(int argc, char **argv) {
 	if(georef.s_srs && strlen(georef.s_srs)) {
 		fprintf(yaml_fh, "s_srs: '%s'\n", georef.s_srs);
 	}
-	if(georef.res_x && georef.res_y) fprintf(yaml_fh, "res: %.15f %.15f\n", georef.res_x, georef.res_y);
+	if(georef.units_name) {
+		fprintf(yaml_fh, "units_name: '%s'\n", georef.units_name);
+	}
+	if(georef.units_val) {
+		fprintf(yaml_fh, "units_val: %lf\n", georef.units_val);
+	}
+	if(georef.res_x && georef.res_y) {
+		fprintf(yaml_fh, "res: %.15f %.15f\n", georef.res_x, georef.res_y);
+	}
+	if(georef.res_meters_x && georef.res_meters_y) {
+		fprintf(yaml_fh, "res_meters: %.15f %.15f\n", georef.res_meters_x, georef.res_meters_y);
+	}
 	if(georef.fwd_affine) {
 		fprintf(yaml_fh, "affine:\n");
 		for(i=0; i<6; i++) fprintf(yaml_fh, "  - %.15f\n", georef.fwd_affine[i]);
@@ -350,7 +361,6 @@ double ang_diff(double a1, double a2) {
 ring_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *dbuf) {
 	int i, j;
 
-	int mask_rowlen = (w+7)/8;
 	int *chrows_left = (int *)malloc_or_die(sizeof(int) * h);
 	int *chrows_right = (int *)malloc_or_die(sizeof(int) * h);
 	for(i=0; i<h; i++) {

@@ -40,6 +40,9 @@ typedef struct {
 typedef struct {
 	char *s_srs;
 	double res_x, res_y; // zero if there is rotation
+	double res_meters_x, res_meters_y; // zero if rotated/unknown
+	char *units_name;
+	double units_val;
 	int w, h;
 	OGRSpatialReferenceH spatial_ref;
 	OGRCoordinateTransformationH fwd_xform;
