@@ -445,7 +445,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	double min=0, max=0; // initialized to prevent compiler warning
-	int got_nan=0, got_valid=0;
+	int got_nan=0, got_valid=0, got_overflow=0;
 	for(row=0; row<h; row++) {
 		GDALTermProgress((double)row / (double)h, NULL, NULL);
 		if(row == 0) {
@@ -570,7 +570,10 @@ int main(int argc, char *argv[]) {
 			} else {
 				if(data24bit) {
 					int ival = (int)round(val*data24bit_scale) + (1<<23);
-					if(ival >> 24) fatal_error("overflow in conversion to 24-bit");
+					if(ival >> 24) {
+						got_overflow = 1;
+						ival = 0;
+					}
 					pixel[2] = ival & 0xff;
 					pixel[1] = (ival >> 8) & 0xff;
 					pixel[0] = (ival >> 16) & 0xff;
@@ -631,6 +634,9 @@ int main(int argc, char *argv[]) {
 
 	printf("got_nan=%d, got_valid=%d, min=%f, max=%f\n",
 		got_nan, got_valid, min, max);
+	if(got_overflow) {
+		printf("got an overflow in conversion to 24-bit\n");
+	}
 
 	return 0;
 }
