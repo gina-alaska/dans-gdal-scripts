@@ -61,6 +61,7 @@ void insert_point_into_ring(ring_t *ring, int idx);
 bbox_t make_bbox(ring_t *ring);
 bbox_t *make_bboxes(mpoly_t *mp);
 OGRGeometryH mpoly_to_ogr(mpoly_t *mpoly_in);
+mpoly_t ogr_to_mpoly(OGRGeometryH geom_in);
 void split_mpoly_to_polys(mpoly_t *mpoly, int *num_polys, mpoly_t **polys);
 mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance);
 int polygon_contains(ring_t *c1, ring_t *c2);
@@ -78,6 +79,7 @@ void line_line_intersection(
 );
 void bevel_self_intersections(mpoly_t *mp, double amount);
 mpoly_t *mpoly_xy2en(georef_t *georef, mpoly_t *xy_poly);
+mpoly_t *mpoly_en2xy(georef_t *georef, mpoly_t *en_poly);
 mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double toler);
 
 #endif // ifndef POLYGON_H

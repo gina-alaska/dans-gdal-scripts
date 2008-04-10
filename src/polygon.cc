@@ -112,13 +112,25 @@ bbox_t *make_bboxes(mpoly_t *mp) {
 }
 
 OGRGeometryH ring_to_ogr(ring_t *ring) {
-	OGRGeometryH r_out = OGR_G_CreateGeometry(wkbLinearRing);
+	OGRGeometryH ogr = OGR_G_CreateGeometry(wkbLinearRing);
 	int i;
 	for(i=0; i<ring->npts+1; i++) {
 		int j_in = i==ring->npts ? 0 : i;
-		OGR_G_AddPoint_2D(r_out, ring->pts[j_in].x, ring->pts[j_in].y);
+		OGR_G_AddPoint_2D(ogr, ring->pts[j_in].x, ring->pts[j_in].y);
 	}
-	return r_out;
+	return ogr;
+}
+
+ring_t ogr_to_ring(OGRGeometryH ogr) {
+	ring_t ring;
+	ring.npts = OGR_G_GetPointCount(ogr);
+	if(!ring.npts) fatal_error("ring has no points");
+	ring.pts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * ring.npts);
+	for(int i=0; i<ring.npts; i++) {
+		ring.pts[i].x = OGR_G_GetX(ogr, i);
+		ring.pts[i].y = OGR_G_GetY(ogr, i);
+	}
+	return ring;
 }
 
 OGRGeometryH mpoly_to_ogr(mpoly_t *mpoly_in) {
@@ -182,6 +194,23 @@ OGRGeometryH mpoly_to_ogr(mpoly_t *mpoly_in) {
 	free(num_holes);
 
 	return geom_out;
+}
+
+mpoly_t ogr_to_mpoly(OGRGeometryH geom_in) {
+	mpoly_t mpoly_out;
+
+	mpoly_out.num_rings = OGR_G_GetGeometryCount(geom_in);
+	if(mpoly_out.num_rings < 1) fatal_error("num_rings<1 in ogr_to_mpoly");
+
+	mpoly_out.rings = (ring_t *)malloc_or_die(sizeof(ring_t) * mpoly_out.num_rings);
+
+	for(int i=0; i<mpoly_out.num_rings; i++) {
+		mpoly_out.rings[i] = ogr_to_ring(OGR_G_GetGeometryRef(geom_in, i));
+		mpoly_out.rings[i].is_hole = (i>0);
+		mpoly_out.rings[i].parent_id = (i>0) ? 0 : -1;
+	}
+
+	return mpoly_out;
 }
 
 void split_mpoly_to_polys(mpoly_t *mpoly_in, int *num_polys, mpoly_t **polys) {
@@ -583,6 +612,32 @@ mpoly_t *mpoly_xy2en(georef_t *georef, mpoly_t *xy_poly) {
 	}
 
 	return en_poly;
+}
+
+mpoly_t *mpoly_en2xy(georef_t *georef, mpoly_t *en_poly) {
+	mpoly_t *xy_poly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
+	xy_poly->num_rings = en_poly->num_rings;
+	xy_poly->rings = (ring_t *)malloc_or_die(sizeof(ring_t) * xy_poly->num_rings);
+
+	int r_idx;
+	for(r_idx=0; r_idx<en_poly->num_rings; r_idx++) {
+		ring_t *en_ring = en_poly->rings + r_idx;
+		ring_t *xy_ring = xy_poly->rings + r_idx;
+
+		*xy_ring = duplicate_ring(en_ring);
+
+		int v_idx;
+		for(v_idx=0; v_idx<xy_ring->npts; v_idx++) {
+			double east = en_ring->pts[v_idx].x;
+			double north = en_ring->pts[v_idx].y;
+			double x, y;
+			en2xy(georef, east, north, &x, &y);
+			xy_ring->pts[v_idx].x = x;
+			xy_ring->pts[v_idx].y = y;
+		}
+	}
+
+	return xy_poly;
 }
 
 mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double toler) {
