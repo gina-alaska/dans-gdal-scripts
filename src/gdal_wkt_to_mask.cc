@@ -52,6 +52,7 @@ void usage(char *cmdname) {
 int main(int argc, char **argv) {
 	char *wkt_fn = NULL;
 	char *mask_fn = NULL;
+	char *geo_fn = NULL;
 
 	if(argc == 1) usage(argv[0]);
 
@@ -70,6 +71,9 @@ int main(int argc, char **argv) {
 			} else if(!strcmp(arg, "-mask-out")) {
 				if(argp == argc) usage(argv[0]);
 				mask_fn = argv[argp++];
+			} else if(!strcmp(arg, "-geo-from")) {
+				if(argp == argc) usage(argv[0]);
+				geo_fn = argv[argp++];
 			} else usage(argv[0]);
 		} else {
 			usage(argv[0]);
@@ -80,9 +84,15 @@ int main(int argc, char **argv) {
 
 	GDALAllRegister();
 
+	GDALDatasetH ds = NULL;
+	if(geo_fn) {
+		ds = GDALOpen(geo_fn, GA_ReadOnly);
+		if(!ds) fatal_error("open failed");
+	}
+
 	CPLPushErrorHandler(CPLQuietErrorHandler);
 
-	georef_t georef = init_georef(&geo_opts, NULL);
+	georef_t georef = init_georef(&geo_opts, ds);
 	if(!georef.inv_affine) fatal_error("missing affine transform");
 
 	///////////////////////

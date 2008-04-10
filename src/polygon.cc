@@ -692,7 +692,7 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 			//	printf("  ll=[%lf,%lf]:[%lf,%lf]\n", ll1->x, ll1->y, ll2->x, ll2->y);
 			//}
 
-			int need_midpt = sqr_error > toler*toler;
+			int need_midpt = toler && sqr_error > toler*toler;
 			if(need_midpt) {
 				vertex_t ll_m_proj;
 				xy2ll(georef, 
