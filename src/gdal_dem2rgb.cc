@@ -45,6 +45,7 @@ typedef struct {
 } data_range_t;
 
 void check_ndv(double *vals, char *is_ndv, int width, data_range_t *valid_range);
+void scale_values(double *vals, int w, double scale, double offset);
 
 typedef struct {
 	unsigned char nan_red, nan_green, nan_blue;
@@ -111,7 +112,6 @@ int main(int argc, char *argv[]) {
 	double src_offset = 0;
 	double src_scale = 1;
 	int data24bit = 0;
-	double data24bit_scale = 0;
 	int alpha_overlay = 0;
 
 	data_range_t valid_range;
@@ -166,10 +166,6 @@ int main(int argc, char *argv[]) {
 				palette_fn = argv[argp++];
 				if(!strcmp(palette_fn, "data24bit")) {
 					data24bit = 1;
-					if(argp == argc) usage(argv[0]);
-					char *endptr;
-					data24bit_scale = strtod(argv[argp++], &endptr);
-					if(*endptr) usage(argv[0]);
 				}
 			} else if(!strcmp(arg, "-texture")) {
 				if(argp == argc) usage(argv[0]);
@@ -382,8 +378,6 @@ int main(int argc, char *argv[]) {
 			for(col=0; col<SHADE_TABLE_SIZE*2+1; col++) {
 				float dx = (float)(col-SHADE_TABLE_SIZE) / SHADE_TABLE_SCALE;
 				float dy = (float)(row-SHADE_TABLE_SIZE) / SHADE_TABLE_SCALE;
-				dx *= slope_exageration; 
-				dy *= slope_exageration;
 				float vx, vy, vz;
 				if(dx==0 && dy==0) {
 					vx = vy = 0;
@@ -455,6 +449,9 @@ int main(int argc, char *argv[]) {
 			check_ndv(inbuf_prev, inbuf_ndv_prev, w, &valid_range);
 			check_ndv(inbuf_this, inbuf_ndv_this, w, &valid_range);
 			check_ndv(inbuf_next, inbuf_ndv_next, w, &valid_range);
+			scale_values(inbuf_prev, w, src_scale, src_offset);
+			scale_values(inbuf_this, w, src_scale, src_offset);
+			scale_values(inbuf_next, w, src_scale, src_offset);
 		} else {
 			double *swapd = inbuf_prev;
 			inbuf_prev = inbuf_this;
@@ -470,6 +467,7 @@ int main(int argc, char *argv[]) {
 				GDALRasterIO(src_band, GF_Read, 0, row+1, w, 1, inbuf_next, w, 1, GDT_Float64, 0, 0);
 			}
 			check_ndv(inbuf_next, inbuf_ndv_next, w, &valid_range);
+			scale_values(inbuf_next, w, src_scale, src_offset);
 		}
 		if(tex_bands) {
 			for(i=0; i<out_numbands; i++) {
@@ -545,6 +543,8 @@ int main(int argc, char *argv[]) {
 				// FIXME - why the minus signs?
 				double dx2 = invaffine[0] * (-dx) + invaffine[1] * (-dy);
 				double dy2 = invaffine[2] * (-dx) + invaffine[3] * (-dy);
+				dx2 *= slope_exageration;
+				dy2 *= slope_exageration;
 				//if(col == 0) printf("row=%d d=[%f, %f] d2=[%f, %f]\n", row, dx, dy, dx2, dy2);
 
 				int st_col = SHADE_TABLE_SIZE + (int)(SHADE_TABLE_SCALE * dx2);
@@ -569,7 +569,7 @@ int main(int argc, char *argv[]) {
 				got_nan=1;
 			} else {
 				if(data24bit) {
-					int ival = (int)round(val*data24bit_scale) + (1<<23);
+					int ival = (int)round(val) + (1<<23);
 					if(ival >> 24) {
 						got_overflow = 1;
 						ival = 0;
@@ -661,6 +661,14 @@ void check_ndv(double *vals, char *is_ndv, int width, data_range_t *valid_range)
 		for(i=0; i<width; i++) {
 			if(vals[i] == ndv) is_ndv[i] = 1;
 		}
+	}
+}
+
+void scale_values(double *vals, int w, double scale, double offset) {
+	double *p = vals;
+	while(w--) {
+		*p = (*p) * scale + offset;
+		p++;
 	}
 }
 
