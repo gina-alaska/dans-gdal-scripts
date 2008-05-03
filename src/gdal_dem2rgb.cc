@@ -24,7 +24,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 
-#include <common.h>
+#include "common.h"
+#include "georef.h"
 
 // these are global so that they can be printed by the usage() function
 float default_slope_exageration = 2.0;
@@ -59,25 +60,34 @@ void get_nan_color(unsigned char *buf, palette_t *pal);
 void get_palette_color(unsigned char *buf, float val, palette_t *pal);
 
 void compute_tierow_invaffine(
-	double *affine, OGRCoordinateTransformationH xform,
+	georef_t *georef,
 	int num_cols, int row, int grid_spacing,
 	double *invaffine_tierow
 );
 
 void usage(char *cmdname) {
-	printf("Usage: %s\n", cmdname);
-	printf("\t[-b input_band_id]\n");
-	printf("\t[-res input_resolution] | [-s_srs input_srs_def]\n");
-	printf("\t[-of output_format]\n");
-	printf("\t[-ndv no_data_val [-ndv val] ...] [-min min_val] [-max max_val]       (set range of valid input values)\n");
-	printf("\t[-palette palette.pal] | [-texture texture_image] | [-alpha-overlay]  (default: gray background)\n");
-	printf("\t[-exag slope_exageration]                                             (default: %.1f)\n", default_slope_exageration);
-	printf("\t[-shade ambient diffuse specular_intensity specular_falloff]          (default: %.1f, %.1f, %.1f, %.1f)\n",
+	printf("Usage: %s <options> src_dataset dst_dataset\n\n", cmdname);
+	
+	print_georef_usage();
+	printf("\n");
+	printf("Input/Output:\n");
+	printf("  -b input_band_id\n");
+	printf("  -of output_format\n");
+	printf("  -ndv no_data_val [-ndv val ...]     Set a list of input no-data values\n");
+	printf("  -min min_val -max max_val           Set range of valid input values\n");
+	printf("  -offset X -scale X                  Multiply and add to source values\n");
+	printf("\n");
+	printf("Texture: (choose one of these - default is gray background)\n");
+	printf("  -palette palette.pal                Palette file to map elevation values to colors\n");
+	printf("  -texture texture_image              Hillshade a given raster (must be same georeference as DEM)\n");
+	printf("  -alpha-overlay                      Generate an RGBA image that can be used as a hillshade mask\n");
+	printf("\n");
+	printf("Shading:\n");
+	printf("  -exag slope_exageration             Exagerate slope (default: %.1f)\n", default_slope_exageration);
+	printf("  -shade ambient diffuse specular_intensity specular_falloff          (default: %.1f, %.1f, %.1f, %.1f)\n",
 		default_shade_params[0], default_shade_params[1], default_shade_params[2], default_shade_params[3]);
-	printf("\t[-lightvec sun_x sun_y sun_z]                                         (default: %.1f, %.1f, %.1f)\n",
+	printf("  -lightvec sun_x sun_y sun_z                                         (default: %.1f, %.1f, %.1f)\n",
 		default_lightvec[0], default_lightvec[1], default_lightvec[2]);
-	printf("\t[-offset new_zeropoint] [-scale scale_factor]                         (default: offset=0 scale=1)\n");
-	printf("\tsrc_dataset dst_dataset\n");
 	printf("\n");
 	printf("The -palette option creates a color-mapped image.  A default palette (dem.pal)\n");
 	printf("is included in the distribution.  The -texture option is used for hillshading\n");
@@ -105,8 +115,6 @@ int main(int argc, char *argv[]) {
 	char *dst_fn = NULL;
 	char *palette_fn = NULL;
 	char *output_format = NULL;
-	float res_override = 0;
-	char *s_srs = NULL;
 	int grid_spacing = 20; // could be configurable...
 	int band_id = 1;
 	double src_offset = 0;
@@ -120,20 +128,14 @@ int main(int argc, char *argv[]) {
 	valid_range.num_ndv = 0;
 	valid_range.ndv = NULL;
 
+	geo_opts_t geo_opts = init_geo_options(&argc, &argv);
+
 	int argp = 1;
 	while(argp < argc) {
 		char *arg = argv[argp++];
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
-			if(!strcmp(arg, "-res")) {
-				if(argp == argc) usage(argv[0]);
-				char *endptr;
-				res_override = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
-			} else if(!strcmp(arg, "-s_srs")) {
-				if(argp == argc) usage(argv[0]);
-				s_srs = argv[argp++];
-			} else if(!strcmp(arg, "-min")) {
+			if(!strcmp(arg, "-min")) {
 				if(valid_range.use_min) fatal_error("min value specified twice");
 				if(argp == argc) usage(argv[0]);
 				char *endptr;
@@ -261,62 +263,20 @@ int main(int argc, char *argv[]) {
 	if(!w || !h) fatal_error("missing width/height");
 	printf("Input size is %d, %d\n", w, h);
 
+	georef_t georef = init_georef(&geo_opts, src_ds);
+
 	//////// compute orientation ////////
 
-	int have_full_affine;
-	double affine[6];
-	if(res_override) {
-		affine[1] = res_override;
-		affine[2] = 0;
-		affine[4] = 0;
-		affine[5] = -res_override;
-		// FIXME - allow setting UL E/N (needed for xform)
-		have_full_affine = 0;
-	} else {
-		if(GDALGetGeoTransform(src_ds, affine) != CE_None) {
-			fatal_error("cannot get resolution - please specify it on command line");
-		}
-		have_full_affine = 1;
-	}
-
-	OGRCoordinateTransformationH xform = NULL;
 	double *constant_invaffine = NULL;
 	if(do_shade) {
-		if(have_full_affine) {
-			OGRSpatialReferenceH p1 = NULL;
-			if(s_srs) {
-				p1 = OSRNewSpatialReference(NULL);
-				OSRImportFromProj4(p1, s_srs);
-			} else if(src_ds) {
-				const char *wkt = GDALGetProjectionRef(src_ds);
-				if(wkt && strlen(wkt)) {
-					//if(VERBOSE) printf("%s\n", wkt);
-					p1 = OSRNewSpatialReference(wkt);
-				}
-			}
-			if(p1) {
-				OGRSpatialReferenceH p2 = OSRNewSpatialReference(NULL);
-				OSRImportFromProj4(p2, "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs");
-
-				xform = OCTNewCoordinateTransformation(p1, p2);
-			}
-		}
-
-		if(!xform) {
-			printf("warning: no SRS available - assuming north-up\n");
-			// Invert the affine matrix...
-			// FIXME: find a rotated DEM to test this with!
-			//          affine[]
-			// x a b    0 1 2
-			// y c d    3 4 5
+		if(!georef.fwd_xform) {
+			if(!georef.inv_affine) fatal_error("please specify resolution of image");
+			printf("warning: no SRS available - basing orientation on affine transform\n");
 			constant_invaffine = (double *)malloc_or_die(sizeof(double) * 4);
-			double s = affine[1]*affine[5] - affine[2]*affine[4]; // ad - bc
-			if(fabs(s) < 1e-6) fatal_error("cannot invert affine matrix");
-			constant_invaffine[0] =  affine[5] / s; //  d/s
-			constant_invaffine[1] = -affine[2] / s; // -b/s
-			constant_invaffine[2] = -affine[4] / s; // -c/s
-			constant_invaffine[3] =  affine[1] / s; //  a/s
-			//printf("invaffine:\n\t%f %f\n\t%f %f\n", invaffine_a, invaffine_b, invaffine_c, invaffine_d);
+			constant_invaffine[0] = georef.inv_affine[1];
+			constant_invaffine[1] = georef.inv_affine[2];
+			constant_invaffine[2] = georef.inv_affine[4];
+			constant_invaffine[3] = georef.inv_affine[5];
 		}
 	}
 
@@ -348,8 +308,8 @@ int main(int argc, char *argv[]) {
 	GDALDatasetH dst_ds = GDALCreate(dst_driver, dst_fn, w, h, out_numbands, GDT_Byte, NULL);
 	if(!dst_ds) fatal_error("could create dst_dataset");
 
-	if(GDALGetGeoTransform(src_ds, affine) == CE_None) {
-		GDALSetGeoTransform(dst_ds, affine);
+	if(georef.fwd_affine) {
+		GDALSetGeoTransform(dst_ds, georef.fwd_affine);
 	}
 	GDALSetProjection(dst_ds, GDALGetProjectionRef(src_ds));
 
@@ -483,13 +443,13 @@ int main(int argc, char *argv[]) {
 			if(below_tiept > h) below_tiept = h;
 			if(row == above_tiept) {
 				if(row == 0) {
-					compute_tierow_invaffine(affine, xform, w, 0, grid_spacing, invaffine_tierow_above);
+					compute_tierow_invaffine(&georef, w, 0, grid_spacing, invaffine_tierow_above);
 				} else {
 					double *tmp = invaffine_tierow_above;
 					invaffine_tierow_above = invaffine_tierow_below;
 					invaffine_tierow_below = tmp;
 				}
-				compute_tierow_invaffine(affine, xform, w, below_tiept, grid_spacing, invaffine_tierow_below);
+				compute_tierow_invaffine(&georef, w, below_tiept, grid_spacing, invaffine_tierow_below);
 			}
 			double segment_height = below_tiept - above_tiept;
 			grid_fraction = ((double)row - (double)above_tiept) / segment_height;
@@ -538,7 +498,7 @@ int main(int argc, char *argv[]) {
 						invaffine[i] = invaffine_tierow_above[col*4 + i] * (1.0 - grid_fraction) +
 							invaffine_tierow_below[col*4 + i] * grid_fraction;
 					}
-					//compute_invaffine(affine, xform, col, row, invaffine);
+					//compute_invaffine(georef, col, row, invaffine);
 				}
 				// FIXME - why the minus signs?
 				double dx2 = invaffine[0] * (-dx) + invaffine[1] * (-dy);
@@ -739,37 +699,11 @@ void get_palette_color(unsigned char *buf, float val, palette_t *pal) {
 	fatal_error("palette file out of sequence\n");
 }
 
-void xy2ll(
-	double *affine, OGRCoordinateTransformationH xform,
-	double xpos, double ypos,
-	double *lon_out, double *lat_out
-) {
-	double u = affine[0] + affine[1] * xpos + affine[2] * ypos;
-	double v = affine[3] + affine[4] * xpos + affine[5] * ypos;
-
-	if(!OCTTransform(xform, 1, &u, &v, NULL)) {
-		fatal_error("OCTTransform failed");
-	}
-
-	if(
-		u < -180.0 || u > 180.0 ||
-	    v < -90.0 || v > 90.0
-	) {
-		printf("lon/lat out of bounds: %f %f\n", u, v);
-		*lon_out = HUGE_VAL;
-		*lat_out = HUGE_VAL;
-	} else {
-		*lon_out = u;
-		*lat_out = v;
-	}
-}
-
 // this function generates a 2x2 matrix that
 // can be used to convert row/column gradients
 // to easting/northing gradients
 void compute_invaffine(
-	double *affine, OGRCoordinateTransformationH xform,
-	double col, double row, double *invaffine
+	georef_t *georef, double col, double row, double *invaffine
 ) {
 	// in case we return due to error:
 	invaffine[0] = invaffine[1] =
@@ -779,11 +713,11 @@ void compute_invaffine(
 	// for the given pixel (row/col)
 	double epsilon = 1;
 	double lon_0, lat_0;
-	xy2ll(affine, xform, col, row, &lon_0, &lat_0);
+	xy2ll(georef, col, row, &lon_0, &lat_0);
 	double lon_dx, lat_dx;
-	xy2ll(affine, xform, col+epsilon, row, &lon_dx, &lat_dx);
+	xy2ll(georef, col+epsilon, row, &lon_dx, &lat_dx);
 	double lon_dy, lat_dy;
-	xy2ll(affine, xform, col, row+epsilon, &lon_dy, &lat_dy);
+	xy2ll(georef, col, row+epsilon, &lon_dy, &lat_dy);
 
 	if(
 		lon_0  == HUGE_VAL || lat_0  == HUGE_VAL ||
@@ -845,7 +779,7 @@ void compute_invaffine(
 
 // interpolate the invaffine for an entire row
 void compute_tierow_invaffine(
-	double *affine, OGRCoordinateTransformationH xform,
+	georef_t *georef,
 	int num_cols, int row, int grid_spacing,
 	double *invaffine_tierow
 ) {
@@ -853,7 +787,7 @@ void compute_tierow_invaffine(
 	double tiecol_left[4];
 	double tiecol_right[4];
 
-	compute_invaffine(affine, xform, 0, row, tiecol_right);
+	compute_invaffine(georef, 0, row, tiecol_right);
 
 	int col;
 	double segment_width = 0; // will be initialized on first iteration
@@ -864,7 +798,7 @@ void compute_tierow_invaffine(
 			int right_tiept = col+grid_spacing;
 			if(right_tiept > num_cols) right_tiept = num_cols;
 			segment_width = right_tiept - left_tiept;
-			compute_invaffine(affine, xform, right_tiept, row, tiecol_right);
+			compute_invaffine(georef, right_tiept, row, tiecol_right);
 		}
 		double grid_fraction = ((double)col - (double)left_tiept) / segment_width;
 		for(i=0; i<4; i++) {

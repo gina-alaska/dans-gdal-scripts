@@ -7,7 +7,7 @@ bin_PROGRAMS = gdal_raw2geotiff gdal_dem2rgb gdal_list_corners gdal_trace_outlin
 gdal_raw2geotiff_SOURCES = gdal_raw2geotiff.cc common.cc
 gdal_raw2geotiff_CXXFLAGS = $(AM_CXXFLAGS)
 
-gdal_dem2rgb_SOURCES = gdal_dem2rgb.cc common.cc
+gdal_dem2rgb_SOURCES = gdal_dem2rgb.cc common.cc georef.cc
 gdal_dem2rgb_CXXFLAGS = $(AM_CXXFLAGS)
 
 gdal_list_corners_SOURCES = gdal_list_corners.cc common.cc polygon.cc debugplot.cc georef.cc mask.cc
