@@ -13,7 +13,7 @@ gdal_dem2rgb_CXXFLAGS = $(AM_CXXFLAGS)
 gdal_list_corners_SOURCES = gdal_list_corners.cc common.cc polygon.cc debugplot.cc georef.cc mask.cc
 gdal_list_corners_CXXFLAGS = $(AM_CXXFLAGS)
 
-gdal_trace_outline_SOURCES = gdal_trace_outline.cc common.cc polygon.cc debugplot.cc georef.cc mask.cc mask-tracer.cc beveler.cc dp.cc
+gdal_trace_outline_SOURCES = gdal_trace_outline.cc common.cc polygon.cc debugplot.cc georef.cc mask.cc mask-tracer.cc beveler.cc dp.cc excursion_pincher.cc
 gdal_trace_outline_CXXFLAGS = $(AM_CXXFLAGS)
 
 gdal_contrast_stretch_SOURCES = gdal_contrast_stretch.cc common.cc

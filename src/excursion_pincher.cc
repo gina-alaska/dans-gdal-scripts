@@ -89,19 +89,54 @@ static double vert_dist(vertex_t v1, vertex_t v2) {
 	return sqrt(dx*dx + dy*dy);
 }
 
+//static int is_almost_colinear(ring_t *ring, int v1_idx, int v2_idx, int v3_idx, int v4_idx) {
+//	vertex_t p1 = ring->pts[v1_idx];
+//	vertex_t p2 = ring->pts[v2_idx];
+//	vertex_t p3 = ring->pts[v3_idx];
+//	vertex_t p4 = ring->pts[v4_idx];
+//	double numer_a = (p4.x-p3.x)*(p1.y-p3.y) - (p4.y-p3.y)*(p1.x-p3.x);
+//	double numer_b = (p2.x-p1.x)*(p1.y-p3.y) - (p2.y-p1.y)*(p1.x-p3.x);
+//	double denom   = (p4.y-p3.y)*(p2.x-p1.x) - (p4.x-p3.x)*(p2.y-p1.y);
+//	double scale   = (p1.x-p2.x)*(p1.x-p2.x) + (p1.y-p2.y)*(p1.y-p2.y) +
+//	                 (p3.x-p4.x)*(p3.x-p4.x) + (p3.y-p4.y)*(p3.y-p4.y);
+////	printf("is_colin: %d,%d,%d,%d :: %lf,%lf,%lf,%lf\n",
+////		v1_idx, v2_idx, v3_idx, v4_idx, numer_a, numer_b, denom, scale);
+//	double eps = 0.01;
+//	if(
+//		denom   < scale*eps && 
+//		numer_a < scale*eps &&
+//		numer_b < scale*eps
+//	) {
+//		return 1;
+//	} else {
+//		return 0;
+//	}
+//}
+
+// FIXME - don't need v4
 static int is_almost_colinear(ring_t *ring, int v1_idx, int v2_idx, int v3_idx, int v4_idx) {
-	double numer_a = (p4.x-p3.x)*(p1.y-p3.y) - (p4.y-p3.y)*(p1.x-p3.x);
-	double numer_b = (p2.x-p1.x)*(p1.y-p3.y) - (p2.y-p1.y)*(p1.x-p3.x);
-	double denom   = (p4.y-p3.y)*(p2.x-p1.x) - (p4.x-p3.x)*(p2.y-p1.y);
-	if(denom == 0) {
-		if(numer_a==0 && numer_b==0) { // coincident
-		}
-	}
+	vertex_t p1 = ring->pts[v1_idx];
+	vertex_t p2 = ring->pts[v2_idx];
+	vertex_t p0 = ring->pts[v3_idx];
+	double d21x = p2.x - p1.x; double d21y = p2.y - p1.y;
+	double d02x = p0.x - p2.x; double d02y = p0.y - p2.y;
+	double d10x = p1.x - p0.x; double d10y = p1.y - p0.y;
+	double dist_from_line = fabs(d21x*d10y - d10x*d21y) / sqrt(d21x*d21x + d21y*d21y);
+	double dist_from_seg = sqrt(d02x*d02x + d02y*d02y);
+	return dist_from_line < dist_from_seg * 0.01;
 }
 
-static int find_next_colinear(ring_t *ring, chopdata_t *cd, int v1id, double radius) {
+static int intcompare(const void *ap, const void *bp) {
+	int a = *((int *)ap);
+	int b = *((int *)bp);
+	return (a<b) ? -1 : (a>b) ? 1 : 0;
+}
+
+static box_contents_t get_neighbors(ring_t *ring, chopdata_t *cd, int v1id, double radius) {
+	box_contents_t out;
+	out.npts = 0;
+	out.point_ids = NULL;
 	vertex_t v1 = ring->pts[v1id];
-	int v1id_left = (v1id-1+ring->npts) % ring->npts;
 	int center_x = (int)((v1.x - cd->min_x) / cd->stepsize);
 	int center_y = (int)((v1.y - cd->min_y) / cd->stepsize);
 	int radius_cells = (int)(radius / cd->stepsize) + 1;
@@ -112,15 +147,75 @@ static int find_next_colinear(ring_t *ring, chopdata_t *cd, int v1id, double rad
 			box_contents_t *cont = cd->cells + (y*cd->num_x) + x;
 			for(int cont_idx=0; cont_idx<cont->npts; cont_idx++) {
 				int v2id = cont->point_ids[cont_idx];
-				if(v2id <= v1id) continue;
 				vertex_t v2 = ring->pts[v2id];
 				double d = vert_dist(v1, v2);
 				if(d > radius) continue;
-				int v2id_right = (v2id+1) % ring->npts;
-				int is_colin = is_almost_colinear(ring, v1id_left, v1id, v2id, v2id_right);
-				if(is_colin) return v2id;
+				out.point_ids = (int *)realloc_or_die(out.point_ids,
+					sizeof(int) * (out.npts + 1));
+				out.point_ids[out.npts++] = v2id;
 			}
 		}
 	}
+	qsort(out.point_ids, out.npts, sizeof(int), intcompare);
+	return out;
+}
+
+static int find_next_colinear(ring_t *ring, chopdata_t *cd, int v1id, double radius) {
+	vertex_t v1 = ring->pts[v1id];
+	int v1id_left = (v1id-1+ring->npts) % ring->npts;
+
+	// FIXME - free list
+	box_contents_t neig = get_neighbors(ring, cd, v1id, radius);
+	//printf("neig =");
+	//for(int neig_idx=0; neig_idx<neig.npts; neig_idx++) {
+	//	int v2id = neig.point_ids[neig_idx];
+	//	printf(" %d", v2id);
+	//}
+	//printf("\n");
+	for(int neig_idx=0; neig_idx<neig.npts; neig_idx++) {
+		int v2id = neig.point_ids[neig_idx];
+		if(v2id <= v1id) continue;
+		vertex_t v2 = ring->pts[v2id];
+		int v2id_right = (v2id+1) % ring->npts;
+		int is_colin = is_almost_colinear(ring, v1id_left, v1id, v2id, v2id_right);
+		if(is_colin) return v2id;
+	}
 	return -1;
+}
+
+static double calc_perimeter(ring_t *ring, int from, int to) {
+	double perim = 0;
+	int i = from;
+	while(i != to) {
+		int i2 = (i+1) % ring->npts;
+		perim += vert_dist(ring->pts[i], ring->pts[i2]);
+		i = i2;
+	}
+	return perim;
+}
+
+ring_t pinch_excursions(ring_t *ring) {
+	double radius = 100; // FIXME
+	chopdata_t cd = chop_ring_into_cells(ring, (int)radius);
+	ring_t out = duplicate_ring(ring);
+	
+	for(int vidx=0; vidx<out.npts; vidx++) {
+		int vnext = find_next_colinear(&out, &cd, vidx, radius);
+		if(vnext < 0) continue;
+		double perim = calc_perimeter(&out, vidx, vnext);
+		double revperim = calc_perimeter(&out, vnext, vidx); // FIXME - could be faster
+		double chord = vert_dist(out.pts[vidx], out.pts[vnext]);
+		if(perim < revperim && perim > chord * 2.0) { // FIXME
+			printf("pinch %d:(%lf,%lf) .. %d:(%lf,%lf) - (%lf and %lf)\n", 
+				vidx, out.pts[vidx].x, out.pts[vidx].y,
+				vnext, out.pts[vnext].x, out.pts[vnext].y,
+				perim, chord);
+			if(vnext > vidx) {
+				memmove(out.pts+vidx+1, out.pts+vnext, sizeof(vertex_t) * (out.npts-vnext));
+				out.npts -= vnext - (vidx+1);
+			} else break; // FIXME
+		}
+	}
+
+	return out;
 }
