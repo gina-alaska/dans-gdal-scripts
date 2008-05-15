@@ -408,9 +408,9 @@ int main(int argc, char **argv) {
 			feature_poly = reduced_poly;
 		}
 
-		for(int ridx=0; ridx<feature_poly.num_rings; ridx++) {
-			feature_poly.rings[ridx] = pinch_excursions(feature_poly.rings + ridx);
-		}
+//		for(int ridx=0; ridx<feature_poly.num_rings; ridx++) {
+//			feature_poly.rings[ridx] = pinch_excursions(feature_poly.rings + ridx);
+//		}
 
 		if(feature_poly.num_rings) {
 			int num_outer=0, num_inner=0, total_pts=0;
