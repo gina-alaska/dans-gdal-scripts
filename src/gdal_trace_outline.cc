@@ -145,6 +145,7 @@ int main(int argc, char **argv) {
 	int do_invert = 0;
 	double llproj_toler = .2;
 	double bevel_size = .1;
+	int do_pinch_excursions = 0;
 
 	if(argc == 1) usage(argv[0]);
 
@@ -223,6 +224,8 @@ int main(int argc, char **argv) {
 				if(*endptr) usage(argv[0]);
 				if(bevel_size < 0 || bevel_size >= 1) fatal_error(
 					"-bevel-size must be in the range 0 <= bevel < 1");
+			} else if(!strcmp(arg, "-pinch-excursions")) {
+				do_pinch_excursions = 1;
 			} else if(!strcmp(arg, "-llproj-toler")) {
 				if(argp == argc) usage(argv[0]);
 				char *endptr;
@@ -408,9 +411,12 @@ int main(int argc, char **argv) {
 			feature_poly = reduced_poly;
 		}
 
-//		for(int ridx=0; ridx<feature_poly.num_rings; ridx++) {
-//			feature_poly.rings[ridx] = pinch_excursions(feature_poly.rings + ridx);
-//		}
+		if(do_pinch_excursions) {
+			// FIXME - free old rings, verify topology
+			for(int ridx=0; ridx<feature_poly.num_rings; ridx++) {
+				feature_poly.rings[ridx] = pinch_excursions(feature_poly.rings + ridx);
+			}
+		}
 
 		if(feature_poly.num_rings) {
 			int num_outer=0, num_inner=0, total_pts=0;

@@ -28,6 +28,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "polygon.h"
 #include "georef.h"
 
+// FIXME - memory leaks
+
 typedef struct {
 	int npts;
 	int *point_ids;
@@ -113,17 +115,26 @@ static double vert_dist(vertex_t v1, vertex_t v2) {
 //	}
 //}
 
-// FIXME - don't need v4
 static int is_almost_colinear(ring_t *ring, int v1_idx, int v2_idx, int v3_idx, int v4_idx) {
 	vertex_t p1 = ring->pts[v1_idx];
 	vertex_t p2 = ring->pts[v2_idx];
-	vertex_t p0 = ring->pts[v3_idx];
+	vertex_t p3 = ring->pts[v3_idx];
+	vertex_t p4 = ring->pts[v4_idx];
 	double d21x = p2.x - p1.x; double d21y = p2.y - p1.y;
-	double d02x = p0.x - p2.x; double d02y = p0.y - p2.y;
-	double d10x = p1.x - p0.x; double d10y = p1.y - p0.y;
-	double dist_from_line = fabs(d21x*d10y - d10x*d21y) / sqrt(d21x*d21x + d21y*d21y);
-	double dist_from_seg = sqrt(d02x*d02x + d02y*d02y);
-	return dist_from_line < dist_from_seg * 0.01;
+	double d32x = p3.x - p2.x; double d32y = p3.y - p2.y;
+	double d13x = p1.x - p3.x; double d13y = p1.y - p3.y;
+	double d43x = p4.x - p3.x; double d43y = p4.y - p3.y;
+	// from http://mathworld.wolfram.com/Point-LineDistance2-Dimensional.html
+	double dist_from_line = fabs(d21x*d13y - d13x*d21y) / sqrt(d21x*d21x + d21y*d21y);
+	double dist_from_seg = sqrt(d32x*d32x + d32y*d32y);
+	if(dist_from_line > dist_from_seg * 0.1) return 0;
+	double ang1 = atan2(d21y, d21x);
+	double ang2 = atan2(d43y, d43x);
+	double max_diff = PI / 180.0 * 5.0;
+	return 
+		fabs(ang1 - ang2) < max_diff ||
+		fabs(ang1 - ang2 + 2.0*PI) < max_diff ||
+		fabs(ang1 - ang2 - 2.0*PI) < max_diff;
 }
 
 static int intcompare(const void *ap, const void *bp) {
@@ -194,28 +205,43 @@ static double calc_perimeter(ring_t *ring, int from, int to) {
 	return perim;
 }
 
-ring_t pinch_excursions(ring_t *ring) {
-	double radius = 100; // FIXME
-	chopdata_t cd = chop_ring_into_cells(ring, (int)radius);
+static ring_t pinch_excursions_once(ring_t *ring) {
+	double radius = 200; // FIXME
+	chopdata_t cd = chop_ring_into_cells(ring, (int)(radius / 5.0));
 	ring_t out = duplicate_ring(ring);
+	out.npts = 0;
 	
-	for(int vidx=0; vidx<out.npts; vidx++) {
-		int vnext = find_next_colinear(&out, &cd, vidx, radius);
+	for(int vidx=0; vidx<ring->npts; vidx++) {
+		out.pts[out.npts++] = ring->pts[vidx];
+		int vnext = find_next_colinear(ring, &cd, vidx, radius);
 		if(vnext < 0) continue;
-		double perim = calc_perimeter(&out, vidx, vnext);
-		double revperim = calc_perimeter(&out, vnext, vidx); // FIXME - could be faster
-		double chord = vert_dist(out.pts[vidx], out.pts[vnext]);
-		if(perim < revperim && perim > chord * 2.0) { // FIXME
+		double perim = calc_perimeter(ring, vidx, vnext);
+		double revperim = calc_perimeter(ring, vnext, vidx); // FIXME - could be faster
+		double chord = vert_dist(ring->pts[vidx], ring->pts[vnext]);
+		if(perim < revperim && perim > chord * 1.2) { // FIXME
 			printf("pinch %d:(%lf,%lf) .. %d:(%lf,%lf) - (%lf and %lf)\n", 
-				vidx, out.pts[vidx].x, out.pts[vidx].y,
-				vnext, out.pts[vnext].x, out.pts[vnext].y,
+				vidx, ring->pts[vidx].x, ring->pts[vidx].y,
+				vnext, ring->pts[vnext].x, ring->pts[vnext].y,
 				perim, chord);
 			if(vnext > vidx) {
-				memmove(out.pts+vidx+1, out.pts+vnext, sizeof(vertex_t) * (out.npts-vnext));
-				out.npts -= vnext - (vidx+1);
+				vidx = vnext;
+				out.pts[out.npts++] = ring->pts[vidx];
 			} else break; // FIXME
 		}
 	}
 
+	out.pts = (vertex_t *)realloc_or_die(out.pts, sizeof(vertex_t) * out.npts);
+
 	return out;
+}
+
+ring_t pinch_excursions(ring_t *ring) {
+	ring_t last;
+	ring_t next = *ring;
+	do {
+		last = next;
+		next = pinch_excursions_once(&last);
+		printf("pinched %d => %d pts\n", last.npts, next.npts);
+	} while(last.npts != next.npts);
+	return next;
 }
