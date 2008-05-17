@@ -235,6 +235,7 @@ static ring_t pinch_excursions_once(ring_t *ring) {
 	return out;
 }
 
+/*
 ring_t pinch_excursions(ring_t *ring) {
 	ring_t last;
 	ring_t next = *ring;
@@ -244,4 +245,55 @@ ring_t pinch_excursions(ring_t *ring) {
 		printf("pinched %d => %d pts\n", last.npts, next.npts);
 	} while(last.npts != next.npts);
 	return next;
+}
+*/
+
+/////////////////////////// version 2
+
+int polygon_orientation(ring_t *c) {
+	double accum = 0;
+	int i;
+	for(i=0; i<c->npts; i++) {
+		double x0 = c->pts[i].x;
+		double y0 = c->pts[i].y;
+		double x1 = c->pts[(i+1)%c->npts].x;
+		double y1 = c->pts[(i+1)%c->npts].y;
+		accum += x0*y1 - x1*y0;
+	}
+	return accum > 0;
+}
+
+int is_good_corner(vertex_t *v1, vertex_t *v2, vertex_t *v3) {
+	double d21x = v2->x - v1->x; double d21y = v2->y - v1->y;
+	double d32x = v3->x - v2->x; double d32y = v3->y - v2->y;
+	double len1 = sqrt(d21x*d21x + d21y*d21y);
+	double len2 = sqrt(d32x*d32x + d32y*d32y);
+	double ca = (d21x*d32x + d21y*d32y) / len1 / len2;
+	return ca > 0 || len1 > 100 || len2 > 100;
+}
+
+ring_t pinch_excursions(ring_t *ring) {
+	ring_t in = duplicate_ring(ring);
+	ring_t out = duplicate_ring(ring);
+	int did_work = 1;
+	while(did_work) {
+		// swap buffers
+		ring_t rtmp = out; out = in; in = rtmp;
+
+		did_work = 0;
+		out.npts = 0;
+		int vidx;
+		for(vidx=0; vidx<in.npts; vidx++) {
+			int vleft  = (vidx-1+in.npts) % in.npts;
+			int vright = (vidx+1+in.npts) % in.npts;
+			int good = is_good_corner(in.pts+vleft, in.pts+vidx, in.pts+vright);
+			if(good) {
+				out.pts[out.npts++] = in.pts[vidx];
+			} else {
+				did_work = 1;
+			}
+		}
+		printf("pinched %d => %d pts\n", in.npts, out.npts);
+	}
+	return out;
 }

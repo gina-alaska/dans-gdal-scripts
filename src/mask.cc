@@ -63,8 +63,8 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 
 		double ndv_lo_dbl = ndv_list[bandlist_idx] - ndv_tolerance;
 		double ndv_hi_dbl = ndv_list[bandlist_idx] + ndv_tolerance;
-		unsigned char ndv_lo_8bit = (unsigned char)ceil (ndv_lo_dbl);
-		unsigned char ndv_hi_8bit = (unsigned char)floor(ndv_hi_dbl);
+		unsigned char ndv_lo_8bit = (unsigned char)MAX(ceil (ndv_lo_dbl), 0);
+		unsigned char ndv_hi_8bit = (unsigned char)MIN(floor(ndv_hi_dbl), 255);
 
 		if(VERBOSE) {
 			if(use_8bit) {

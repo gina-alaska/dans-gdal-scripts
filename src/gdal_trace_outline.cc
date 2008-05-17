@@ -224,7 +224,7 @@ int main(int argc, char **argv) {
 				if(*endptr) usage(argv[0]);
 				if(bevel_size < 0 || bevel_size >= 1) fatal_error(
 					"-bevel-size must be in the range 0 <= bevel < 1");
-			} else if(!strcmp(arg, "-pinch-excursions")) {
+			} else if(!strcmp(arg, "-pinch-excursions")) { // FIXME - document
 				do_pinch_excursions = 1;
 			} else if(!strcmp(arg, "-llproj-toler")) {
 				if(argp == argc) usage(argv[0]);
