@@ -235,7 +235,6 @@ static ring_t pinch_excursions_once(ring_t *ring) {
 	return out;
 }
 
-/*
 ring_t pinch_excursions(ring_t *ring) {
 	ring_t last;
 	ring_t next = *ring;
@@ -246,10 +245,10 @@ ring_t pinch_excursions(ring_t *ring) {
 	} while(last.npts != next.npts);
 	return next;
 }
-*/
 
 /////////////////////////// version 2
 
+/*
 int polygon_orientation(ring_t *c) {
 	double accum = 0;
 	int i;
@@ -297,3 +296,4 @@ ring_t pinch_excursions(ring_t *ring) {
 	}
 	return out;
 }
+*/
