@@ -49,7 +49,7 @@ double ang_diff(double a1, double a2) {
 	return d<=180.0 ? d : 360.0-d;
 }
 
-ring_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *dbuf) {
+ring_t calc_rect4_from_convex_hull(unsigned char *mask, int w, int h, report_image_t *dbuf) {
 	int i, j;
 
 	int *chrows_left = (int *)malloc_or_die(sizeof(int) * h);
@@ -303,4 +303,21 @@ ring_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *d
 		printf("could not find a 4-sided bounding polygon\n");
 	}
 	return rect4;
+}
+
+static int doublecompare(const void *ap, const void *bp) {
+	double a = *((double *)ap);
+	double b = *((double *)bp);
+	return (a<b) ? -1 : (a>b) ? 1 : 0;
+}
+
+//void ringdiff(ring_t r1, ring_t r2, unsigned char *mask, int w, int h) {
+//	for(int y=0; y<h; y++) {
+//		
+//	unsigned char *mp = mask + (w+2)*(j+1) + (i+1);
+//}
+
+ring_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *dbuf) {
+	ring_t best = calc_rect4_from_convex_hull(mask, w, h, NULL);
+	return best;
 }

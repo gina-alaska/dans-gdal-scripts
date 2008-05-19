@@ -38,12 +38,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 #define MAX(a,b) ((a)>(b)?(a):(b))
 
-typedef struct {
-	int num_crossings;
-	int array_size;
-	int *crossings;
-} row_crossings_t;
-
 mpoly_t empty_polygon() {
 	mpoly_t empty;
 	empty.num_rings = 0;
@@ -515,21 +509,25 @@ void compute_containments(mpoly_t *mp) {
 }
 */
 
-void mask_from_mpoly(mpoly_t *mpoly, int w, int h, char *fn) {
-	int i, j, y;
 
-	printf("mask draw: begin\n");
+static int intcompare(const void *ap, const void *bp) {
+	int a = *((int *)ap);
+	int b = *((int *)bp);
+	return (a<b) ? -1 : (a>b) ? 1 : 0;
+}
 
-	row_crossings_t *rows = (row_crossings_t *)malloc_or_die(sizeof(row_crossings_t) * h);
-	for(i=0; i<h; i++) {
+row_crossings_t *get_row_crossings(mpoly_t *mpoly, int min_y, int num_rows) {
+	row_crossings_t *rows = (row_crossings_t *)malloc_or_die(sizeof(row_crossings_t) * num_rows);
+
+	for(int i=0; i<num_rows; i++) {
 		rows[i].num_crossings = 0;
 		rows[i].array_size = 0;
 		rows[i].crossings = NULL;
 	}
 
-	for(i=0; i<mpoly->num_rings; i++) {
+	for(int i=0; i<mpoly->num_rings; i++) {
 		ring_t *c = mpoly->rings + i;
-		for(j=0; j<c->npts; j++) {
+		for(int j=0; j<c->npts; j++) {
 			double x0 = c->pts[j].x;
 			double y0 = c->pts[j].y;
 			double x1 = c->pts[(j+1)%c->npts].x;
@@ -540,13 +538,12 @@ void mask_from_mpoly(mpoly_t *mpoly, int w, int h, char *fn) {
 				tmp=x0; x0=x1; x1=tmp; 
 				tmp=y0; y0=y1; y1=tmp; 
 			}
-			x0 += .5; x1 += .5;
-			y0 += .5; y1 += .5;
 			double alpha = (x1-x0) / (y1-y0);
-			for(y=(int)floor(y0); y<(int)floor(y1); y++) {
-				if(y<0 || y>h-1) continue;
-				int x = (int)floor(x0 + ((double)y - y0)*alpha);
-				row_crossings_t *r = rows+y;
+			for(int y=(int)round(y0); y<(int)round(y1); y++) {
+				int row = y - min_y;
+				if(row<0 || row>num_rows-1) continue;
+				row_crossings_t *r = rows+row;
+				int x = (int)round(x0 + ((double)y - y0)*alpha);
 				if(r->num_crossings == r->array_size) {
 					r->array_size += 16;
 					r->crossings = (int *)realloc_or_die(r->crossings,
@@ -556,6 +553,33 @@ void mask_from_mpoly(mpoly_t *mpoly, int w, int h, char *fn) {
 			}
 		}
 	}
+
+	for(int row=0; row<num_rows; row++) {
+		row_crossings_t *r = rows+row;
+		int *c = r->crossings;
+		if(r->num_crossings == 2) {
+			if(c[0] > c[1]) {
+				int tmp = c[0];
+				c[0] = c[1];
+				c[1] = tmp;
+			}
+		} else {
+			if(r->num_crossings % 2) {
+				fatal_error("should not have an odd number of crossings");
+			}
+			qsort(c, r->num_crossings, sizeof(int), intcompare);
+		}
+	}
+
+	return rows;
+}
+
+void mask_from_mpoly(mpoly_t *mpoly, int w, int h, char *fn) {
+	int i, j, y;
+
+	printf("mask draw: begin\n");
+
+	row_crossings_t *rows = get_row_crossings(mpoly, 0, h);
 
 	printf("mask draw: write\n");
 

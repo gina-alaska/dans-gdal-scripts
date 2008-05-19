@@ -32,12 +32,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define DIR_DN 2
 #define DIR_LF 3
 
-typedef struct {
-	int num_crossings;
-	int array_size;
-	int *crossings;
-} row_crossings_t;
-
 typedef int pixquad_t;
 
 int dbg_idx = 0;
@@ -65,66 +59,6 @@ static ring_t *make_enclosing_ring(int w, int h) {
 	ring->pts[3].x = -1;
 	ring->pts[3].y = h;
 	return ring;
-}
-
-static int intcompare(const void *ap, const void *bp) {
-	int a = *((int *)ap);
-	int b = *((int *)bp);
-	return (a<b) ? -1 : (a>b) ? 1 : 0;
-}
-
-static row_crossings_t *get_row_crossings(ring_t *ring, int min_y, int num_rows) {
-	row_crossings_t *rows = (row_crossings_t *)malloc_or_die(sizeof(row_crossings_t) * num_rows);
-
-	for(int i=0; i<num_rows; i++) {
-		rows[i].num_crossings = 0;
-		rows[i].array_size = 0;
-		rows[i].crossings = NULL;
-	}
-
-	for(int v_idx=0; v_idx<ring->npts; v_idx++) {
-		int x0 = (int)ring->pts[v_idx].x;
-		int y0 = (int)ring->pts[v_idx].y;
-		int x1 = (int)ring->pts[(v_idx+1)%ring->npts].x;
-		int y1 = (int)ring->pts[(v_idx+1)%ring->npts].y;
-		if(y0 == y1) continue;
-		if(y0 > y1) {
-			int tmp;
-			tmp=x0; x0=x1; x1=tmp; 
-			tmp=y0; y0=y1; y1=tmp; 
-		}
-		if(x0 != x1) fatal_error("segment was not horizontal or vertical (%d,%d;%d,%d)", x0, y0, x1, y1);
-		for(int y=y0; y<y1; y++) {
-			int row = y - min_y;
-			if(row<0 || row>num_rows-1) continue;
-			row_crossings_t *r = rows+row;
-			if(r->num_crossings == r->array_size) {
-				r->array_size += 16;
-				r->crossings = (int *)realloc_or_die(r->crossings,
-					sizeof(int) * r->array_size);
-			}
-			r->crossings[r->num_crossings++] = x0;
-		}
-	}
-
-	for(int row=0; row<num_rows; row++) {
-		row_crossings_t *r = rows+row;
-		int *c = r->crossings;
-		if(r->num_crossings == 2) {
-			if(c[0] > c[1]) {
-				int tmp = c[0];
-				c[0] = c[1];
-				c[1] = tmp;
-			}
-		} else {
-			if(r->num_crossings % 2) {
-				fatal_error("should not have an odd number of crossings");
-			}
-			qsort(c, r->num_crossings, sizeof(int), intcompare);
-		}
-	}
-
-	return rows;
 }
 
 static void crossings_intersection(row_crossings_t *out, row_crossings_t *in1, row_crossings_t *in2) {
@@ -306,7 +240,11 @@ long min_area, int no_donuts) {
 		if(y > bound_bottom) bound_bottom = y;
 	}
 
-	row_crossings_t *crossings = get_row_crossings(bounds, bound_top, bound_bottom-bound_top);
+	mpoly_t bounds_mp;
+	bounds_mp.num_rings = 1;
+	bounds_mp.rings = bounds;
+
+	row_crossings_t *crossings = get_row_crossings(&bounds_mp, bound_top, bound_bottom-bound_top);
 	int skip_this = min_area && (compute_area(crossings, bound_bottom-bound_top) < min_area);
 	int skip_child = skip_this || (depth && no_donuts);
 

@@ -52,6 +52,12 @@ typedef struct {
 	char empty;
 } bbox_t;
 
+typedef struct {
+	int num_crossings;
+	int array_size;
+	int *crossings;
+} row_crossings_t;
+
 
 mpoly_t empty_polygon();
 ring_t duplicate_ring(ring_t *in_ring);
@@ -66,6 +72,7 @@ void split_mpoly_to_polys(mpoly_t *mpoly, int *num_polys, mpoly_t **polys);
 mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance);
 int polygon_contains(ring_t *c1, ring_t *c2);
 double polygon_area(ring_t *c);
+row_crossings_t *get_row_crossings(mpoly_t *mpoly, int min_y, int num_rows);
 void mask_from_mpoly(mpoly_t *mpoly, int w, int h, char *fn);
 int line_intersects_line(
 	vertex_t p1, vertex_t p2,
