@@ -105,6 +105,15 @@ bbox_t *make_bboxes(mpoly_t *mp) {
 	return bboxes;
 }
 
+bbox_t union_bbox(bbox_t bb1, bbox_t bb2) {
+	bbox_t bb;
+	bb.min_x = MIN(bb1.min_x, bb2.min_x);
+	bb.min_y = MIN(bb1.min_y, bb2.min_y);
+	bb.max_x = MAX(bb1.max_x, bb2.max_x);
+	bb.max_y = MAX(bb1.max_y, bb2.max_y);
+	return bb;
+}
+
 OGRGeometryH ring_to_ogr(ring_t *ring) {
 	OGRGeometryH ogr = OGR_G_CreateGeometry(wkbLinearRing);
 	int i;

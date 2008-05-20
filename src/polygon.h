@@ -66,6 +66,7 @@ void free_mpoly(mpoly_t *mpoly);
 void insert_point_into_ring(ring_t *ring, int idx);
 bbox_t make_bbox(ring_t *ring);
 bbox_t *make_bboxes(mpoly_t *mp);
+bbox_t union_bbox(bbox_t bb1, bbox_t bb2);
 OGRGeometryH mpoly_to_ogr(mpoly_t *mpoly_in);
 mpoly_t ogr_to_mpoly(OGRGeometryH geom_in);
 void split_mpoly_to_polys(mpoly_t *mpoly, int *num_polys, mpoly_t **polys);

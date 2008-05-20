@@ -305,19 +305,127 @@ ring_t calc_rect4_from_convex_hull(unsigned char *mask, int w, int h, report_ima
 	return rect4;
 }
 
-static int doublecompare(const void *ap, const void *bp) {
-	double a = *((double *)ap);
-	double b = *((double *)bp);
-	return (a<b) ? -1 : (a>b) ? 1 : 0;
+int is_in_crossings(row_crossings_t *r, int x) {
+	int v = 0;
+	// not the fastest way...
+	for(int j=0; j<r->num_crossings; j++) {
+		if(x >= r->crossings[j]) v = !v;
+	}
+	return v;
 }
 
-//void ringdiff(ring_t r1, ring_t r2, unsigned char *mask, int w, int h) {
-//	for(int y=0; y<h; y++) {
-//		
-//	unsigned char *mp = mask + (w+2)*(j+1) + (i+1);
-//}
+int ringdiff(ring_t r1, ring_t r2, unsigned char *mask, int w, int h) {
+	mpoly_t mp1, mp2;
+	mp1.num_rings = mp2.num_rings = 1;
+	mp1.rings = &r1;
+	mp2.rings = &r2;
+
+	bbox_t bb = union_bbox(make_bbox(&r1), make_bbox(&r2));
+	int min_x = (int)floor(bb.min_x);
+	int min_y = (int)floor(bb.min_y);
+	int max_x = (int)ceil (bb.max_x);
+	int max_y = (int)ceil (bb.max_y);
+
+	row_crossings_t *rcs1 = get_row_crossings(&mp1, min_y, max_y-min_y+1);
+	row_crossings_t *rcs2 = get_row_crossings(&mp2, min_y, max_y-min_y+1);
+
+	int tally = 0;
+	for(int y=min_y; y<=max_y; y++) {
+		row_crossings_t *row1 = rcs1 + y - min_y;
+		row_crossings_t *row2 = rcs2 + y - min_y;
+
+		int in1=0, in2=0;
+		int ci1=0, ci2=0;
+		for(;;) {
+			int cx1 = ci1 < row1->num_crossings ? row1->crossings[ci1] : max_x+1;
+			int cx2 = ci2 < row2->num_crossings ? row2->crossings[ci2] : max_x+1;
+			// FIXME
+			//if(cx1 > max_x+1 || cx2 > max_x+1) fatal_error("cx > max_x+1 (%d,%d,%d)", cx1, cx2, max_x+1);
+			//if(cx1 == max_x+1 && cx2 == max_x+1) break;
+			if(cx1 >= max_x+1 && cx2 >= max_x+1) break;
+
+			int x_from = MIN(cx1, cx2);
+			if(cx1 < cx2) {
+				in1 = !in1;
+				ci1++;
+			} else {
+				in2 = !in2;
+				ci2++;
+			}
+
+			if((in1 && in2) || (!in1 && !in2)) continue;
+
+			cx1 = ci1 < row1->num_crossings ? row1->crossings[ci1] : max_x+1;
+			cx2 = ci2 < row2->num_crossings ? row2->crossings[ci2] : max_x+1;
+			int x_to = MIN(cx1, cx2);
+			
+			int gain=1, penalty=2;
+			for(int x=x_from; x<x_to; x++) {
+				unsigned char m = (y>=0 && y<h && x>=0 && x<w)
+					? mask[(w+2)*(y+1) + (x+1)] : 0;
+				if(in1) tally += m ? -penalty : gain;
+				if(in2) tally += m ? gain : -penalty;
+			}
+		}
+
+		//for(int x=min_x; x<=max_x; x++) {
+		//	int in1 = is_in_crossings(row1, x);
+		//	int in2 = is_in_crossings(row2, x);
+		//	if((in1 && !in2) || (in2 && !in1)) {
+		//		unsigned char m = (y>=0 && y<h && x>=0 && x<w)
+		//			? mask[(w+2)*(y+1) + (x+1)] : 0;
+		//		if(in1) tally += m ? -1 :  1;
+		//		if(in2) tally += m ?  1 : -1;
+		//	}
+		//}
+	}
+	return tally;
+}
+
+int rand_delta() {
+	//return (int)(3.0 * (rand() / (RAND_MAX + 1.0))) - 1;
+	return (int)(10.0 * exp(-(double)rand() / (double)RAND_MAX * 3.0))
+		* (rand() > RAND_MAX/2 ? -1 : 1);
+}
 
 ring_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *dbuf) {
 	ring_t best = calc_rect4_from_convex_hull(mask, w, h, NULL);
+	ring_t trial = duplicate_ring(&best);
+
+	if(dbuf && dbuf->mode == PLOT_RECT4) {
+		for(int i=0; i<best.npts; i++) {
+			int i2 = (i+1) % best.npts;
+			plot_line(dbuf, best.pts[i], best.pts[i2], 255, 0, 0);
+			plot_point_big(dbuf, best.pts[i].x, best.pts[i].y, 255, 255, 0);
+			plot_point_big(dbuf, best.pts[i2].x, best.pts[i2].y, 255, 255, 0);
+		}
+	}
+
+	int tdiff = 0;
+	for(int iter=0; iter<10000; iter++) {
+		if(!(iter % 100)) printf("iter=%d tdiff=%d\n", iter, tdiff);
+		//int corner = (int)(4.0 * (rand() / (RAND_MAX + 1.0)));
+		for(int v=0; v<4; v++) {
+			trial.pts[v] = best.pts[v];
+			trial.pts[v].x += rand_delta();
+			trial.pts[v].y += rand_delta();
+		}
+		int diff = ringdiff(best, trial, mask, w, h);
+		if(diff > 0) {
+			ring_t t = best;
+			best = trial; trial = t;
+			tdiff += diff;
+		}
+	}
+
+	if(dbuf && dbuf->mode == PLOT_RECT4) {
+		for(int i=0; i<best.npts; i++) {
+			int i2 = (i+1) % best.npts;
+			plot_line(dbuf, best.pts[i], best.pts[i2], 0, 255, 0);
+			plot_point_big(dbuf, best.pts[i].x, best.pts[i].y, 255, 255, 0);
+			plot_point_big(dbuf, best.pts[i2].x, best.pts[i2].y, 255, 255, 0);
+		}
+	}
+
 	return best;
 }
