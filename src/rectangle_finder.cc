@@ -386,23 +386,33 @@ static int ringdiff(ring_t *r1, ring_t *r2, unsigned char *mask, int w, int h) {
 	return tally;
 }
 
+static int rand_range(int min, int max) {
+	return (int)(
+		(double)(max-min+1.0) * rand() / (RAND_MAX + 1.0)
+	) + min;
+}
+
 static int rand_delta(int amt) {
 	//return (int)(50.0 * exp(-(double)rand() / (double)RAND_MAX * 4.0))
 	//	* (rand() > RAND_MAX/2 ? -1 : 1);
 	
 	//int max = (rand() < RAND_MAX / 50) ? 100 : 2;
-	int max = amt;
-	return (int)((2.0*max+1.0) * (rand() / (RAND_MAX + 1.0))) - max;
+	return rand_range(-amt, amt);
 }
 
 static void perturb(ring_t *in, ring_t *out, int amt) {
-	int corner = (int)(4.0 * (rand() / (RAND_MAX + 1.0)));
+	int parallelogram = 1;
+	int corner = rand_range(0, parallelogram ? 2 : 3);
 	for(int v=0; v<4; v++) {
 		out->pts[v] = in->pts[v];
 		if(v == corner) {
 			out->pts[v].x += rand_delta(amt);
 			out->pts[v].y += rand_delta(amt);
 		}
+	}
+	if(parallelogram) {
+		out->pts[3].x = out->pts[0].x + out->pts[2].x - out->pts[1].x;
+		out->pts[3].y = out->pts[0].y + out->pts[2].y - out->pts[1].y;
 	}
 }
 
