@@ -583,6 +583,13 @@ row_crossings_t *get_row_crossings(mpoly_t *mpoly, int min_y, int num_rows) {
 	return rows;
 }
 
+void free_row_crossings(row_crossings_t *rc, int num_rows) {
+	for(int i=0; i<num_rows; i++) {
+		if(rc[i].crossings) free(rc[i].crossings);
+	}
+	free(rc);
+}
+
 void mask_from_mpoly(mpoly_t *mpoly, int w, int h, char *fn) {
 	int i, j, y;
 
@@ -617,7 +624,7 @@ void mask_from_mpoly(mpoly_t *mpoly, int w, int h, char *fn) {
 		fwrite(buf, (w+7)/8, 1, fout);
 	}
 	fclose(fout);
-
+	free_row_crossings(rows, h);
 	printf("mask draw: done\n");
 }
 

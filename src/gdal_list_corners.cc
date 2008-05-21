@@ -41,6 +41,8 @@ void usage(char *cmdname) {
 \n\
 Inspection:\n\
   -inspect-rect4              Attempt to find 4-sided bounding polygon\n\
+  -fuzzy-match                Try to exclude logos and other extraneous\n\
+                              pixels from bounding polygon\n\
   -nodataval 'val [val ...]'  Specify value of no-data pixels\n\
   -ndv-toler val              Tolerance for deciding if a pixel\n\
                               matches nodataval\n\
@@ -63,12 +65,11 @@ Examples:\n\
 	exit(1);
 }
 
-ring_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *dbuf);
-
 int main(int argc, char **argv) {
 	char *input_raster_fn = NULL;
 
 	int inspect_rect4 = 0;
+	int fuzzy_match = 0;
 	int num_ndv = 0;
 	double *ndv_list = NULL;
 	double ndv_tolerance = 0;
@@ -101,6 +102,8 @@ int main(int argc, char **argv) {
 				VERBOSE++;
 			} else if(!strcmp(arg, "-inspect-rect4")) {
 				inspect_rect4++;
+			} else if(!strcmp(arg, "-fuzzy-match")) {
+				fuzzy_match++;
 			} else if(!strcmp(arg, "-nodataval")) {
 				if(argp == argc) usage(argv[0]);
 				int result = parse_list_of_doubles(argv[argp++], &num_ndv, &ndv_list);
@@ -151,6 +154,7 @@ int main(int argc, char **argv) {
 	}
 
 	if(!do_inspect) {
+		if(fuzzy_match)   fatal_error("-fuzzy-match option can only be used with -inspect-rect4 option");
 		if(num_ndv)       fatal_error("-nodataval option can only be used with -inspect-rect4 option");
 		if(ndv_tolerance) fatal_error("-ndv-toler option can only be used with -inspect-rect4 option");
 		if(debug_report)  fatal_error("-report option can only be used with -inspect-rect4 option");
@@ -263,7 +267,7 @@ int main(int argc, char **argv) {
 	}
 
 	if(inspect_rect4) {
-		ring_t rect4 = calc_rect4_from_mask(mask, georef.w, georef.h, dbuf);
+		ring_t rect4 = calc_rect4_from_mask(mask, georef.w, georef.h, dbuf, fuzzy_match);
 
 		if(rect4.npts != 4) {
 			fatal_error("could not find four-sided region");

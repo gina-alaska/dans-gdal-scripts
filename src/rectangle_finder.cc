@@ -367,8 +367,6 @@ static int ringdiff(ring_t *r1, ring_t *r2, unsigned char *mask, int w, int h) {
 				if(in2) tally += m ? gain : -penalty;
 			}
 		}
-		if(row1->crossings) free(row1->crossings);
-		if(row2->crossings) free(row2->crossings);
 
 		//for(int x=min_x; x<=max_x; x++) {
 		//	int in1 = is_in_crossings(row1, x);
@@ -381,8 +379,8 @@ static int ringdiff(ring_t *r1, ring_t *r2, unsigned char *mask, int w, int h) {
 		//	}
 		//}
 	}
-	free(rcs1);
-	free(rcs2);
+	free_row_crossings(rcs1, max_y-min_y+1);
+	free_row_crossings(rcs2, max_y-min_y+1);
 	return tally;
 }
 
@@ -402,20 +400,27 @@ static int rand_delta(int amt) {
 
 static void perturb(ring_t *in, ring_t *out, int amt) {
 	int parallelogram = 1;
-	int corner = rand_range(0, parallelogram ? 2 : 3);
-	for(int v=0; v<4; v++) {
-		out->pts[v] = in->pts[v];
-		if(v == corner) {
+	if(parallelogram) {
+		for(int v=0; v<3; v++) {
+			out->pts[v] = in->pts[v];
 			out->pts[v].x += rand_delta(amt);
 			out->pts[v].y += rand_delta(amt);
 		}
-	}
-	if(parallelogram) {
 		out->pts[3].x = out->pts[0].x + out->pts[2].x - out->pts[1].x;
 		out->pts[3].y = out->pts[0].y + out->pts[2].y - out->pts[1].y;
+	} else {
+		int corner = rand_range(0, 3);
+		for(int v=0; v<4; v++) {
+			out->pts[v] = in->pts[v];
+			if(v == corner) {
+				out->pts[v].x += rand_delta(amt);
+				out->pts[v].y += rand_delta(amt);
+			}
+		}
 	}
 }
 
+/*
 static ring_t anneal(ring_t *input, int recurse, unsigned char *mask, int w, int h) {
 	ring_t best = duplicate_ring(input);
 	ring_t pert = duplicate_ring(input);
@@ -456,27 +461,39 @@ static ring_t anneal(ring_t *input, int recurse, unsigned char *mask, int w, int
 	free_ring(&pert);
 	return best;
 }
+*/
 
-ring_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *dbuf) {
-	ring_t best = calc_rect4_from_convex_hull(mask, w, h, NULL);
+static ring_t anneal(ring_t *input, unsigned char *mask, int w, int h) {
+	ring_t best = duplicate_ring(input);
+	ring_t pert = duplicate_ring(input);
 
-	if(dbuf && dbuf->mode == PLOT_RECT4) {
-		for(int i=0; i<best.npts; i++) {
-			int i2 = (i+1) % best.npts;
-			plot_line(dbuf, best.pts[i], best.pts[i2], 255, 0, 0);
-			plot_point_big(dbuf, best.pts[i].x, best.pts[i].y, 255, 255, 0);
-			plot_point_big(dbuf, best.pts[i2].x, best.pts[i2].y, 255, 255, 0);
+	for(int iter=0; iter<10000; iter++) {
+		int amt = (int)ceil(200.0 * exp(-iter / 50.0));
+		perturb(&best, &pert, amt);
+		int diff = ringdiff(&best, &pert, mask, w, h);
+		if(diff > 0) {
+			// swap best and pert
+			ring_t t = best; best = pert; pert = t;
 		}
 	}
 
-	best = anneal(&best, 1, mask, w, h);
+	free_ring(&pert);
+	return best;
+}
 
-	if(dbuf && dbuf->mode == PLOT_RECT4) {
-		for(int i=0; i<best.npts; i++) {
-			int i2 = (i+1) % best.npts;
-			plot_line(dbuf, best.pts[i], best.pts[i2], 0, 255, 0);
-			plot_point_big(dbuf, best.pts[i].x, best.pts[i].y, 255, 255, 0);
-			plot_point_big(dbuf, best.pts[i2].x, best.pts[i2].y, 255, 255, 0);
+ring_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *dbuf, int use_ai) {
+	ring_t best = calc_rect4_from_convex_hull(mask, w, h, dbuf);
+
+	if(use_ai) {
+		best = anneal(&best, mask, w, h);
+
+		if(dbuf && dbuf->mode == PLOT_RECT4) {
+			for(int i=0; i<best.npts; i++) {
+				int i2 = (i+1) % best.npts;
+				plot_line(dbuf, best.pts[i], best.pts[i2], 0, 255, 0);
+				plot_point_big(dbuf, best.pts[i].x, best.pts[i].y, 255, 255, 0);
+				plot_point_big(dbuf, best.pts[i2].x, best.pts[i2].y, 255, 255, 0);
+			}
 		}
 	}
 

@@ -338,9 +338,8 @@ long min_area, int no_donuts) {
 				memset(maskrow+from+1, select_color, to-from);
 			}
 		}
-		if(r->crossings) free(r->crossings);
 	}
-	free(crossings);
+	free_row_crossings(crossings, bound_bottom-bound_top);
 
 	if(must_free_bounds) {
 		free(bounds->pts);
