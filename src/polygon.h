@@ -91,4 +91,6 @@ mpoly_t *mpoly_xy2en(georef_t *georef, mpoly_t *xy_poly);
 mpoly_t *mpoly_en2xy(georef_t *georef, mpoly_t *en_poly);
 mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double toler);
 
+mpoly_t mpoly_from_wktfile(const char *fn);
+
 #endif // ifndef POLYGON_H

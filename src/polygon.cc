@@ -760,3 +760,41 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 
 	return ll_poly;
 }
+
+static char *read_whole_file(FILE *fin) {
+	int chunk_size = 1024;
+	int data_len = 0;
+	int buf_len = chunk_size+1;
+	char *buffer = (char *)malloc_or_die(buf_len);
+	int num_read;
+	while(0 < (num_read = fread(buffer+data_len, 1, chunk_size, fin))) {
+		data_len += num_read;
+		if(data_len+chunk_size+1 > buf_len) {
+			buf_len += chunk_size;
+			buffer = (char *)realloc_or_die(buffer, buf_len);
+		}
+	}
+	buffer[data_len++] = 0;
+	return buffer;
+}
+
+mpoly_t mpoly_from_wktfile(const char *fn) {
+	FILE *fh = fopen(fn, "r");
+	if(!fh) fatal_error("cannot read file [%s]", fn);
+	char *wkt_in = read_whole_file(fh);
+	int i;
+	for(i=0; wkt_in[i]; i++) {
+		if(wkt_in[i] == '\r') wkt_in[i] = ' ';
+		if(wkt_in[i] == '\n') wkt_in[i] = ' ';
+		if(wkt_in[i] == '\t') wkt_in[i] = ' ';
+	}
+
+	OGRGeometryH geom;
+	OGRErr err = OGR_G_CreateFromWkt(&wkt_in, NULL, &geom);
+	if(OGRERR_NONE != err) {
+		fatal_error("OGR_G_CreateFromWkt failed: %d", err);
+	}
+	
+	mpoly_t mp = ogr_to_mpoly(geom);
+	return mp;
+}

@@ -27,7 +27,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "common.h"
 #include "polygon.h"
 #include "debugplot.h"
-#include "georef.h"
 #include "mask.h"
 #include "mask-tracer.h"
 #include "dp.h"
@@ -37,26 +36,19 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cpl_conv.h>
 #include <cpl_port.h>
 
-char *read_whole_file(FILE *fin);
-
 void usage(char *cmdname) {
 	// FIXME
 	printf("Usage:\n  %s [options] \n", cmdname);
 	printf("\n");
 	
-	print_georef_usage();
-
 	exit(1);
 }
 
 int main(int argc, char **argv) {
-	char *wkt_fn = NULL;
-	char *mask_fn = NULL;
-	char *geo_fn = NULL;
+	const char *src_wkt_fn = NULL;
+	const char *dst_wkt_fn = NULL;
 
 	if(argc == 1) usage(argv[0]);
-
-	geo_opts_t geo_opts = init_geo_options(&argc, &argv);
 
 	int argp = 1;
 	while(argp < argc) {
@@ -65,41 +57,25 @@ int main(int argc, char **argv) {
 		if(arg[0] == '-') {
 			if(!strcmp(arg, "-v")) {
 				VERBOSE++;
-			} else if(!strcmp(arg, "-wkt")) {
+			} else if(!strcmp(arg, "-src-wkt")) {
 				if(argp == argc) usage(argv[0]);
-				wkt_fn = argv[argp++];
-			} else if(!strcmp(arg, "-mask-out")) {
+				src_wkt_fn = argv[argp++];
+			} else if(!strcmp(arg, "-dst-wkt")) {
 				if(argp == argc) usage(argv[0]);
-				mask_fn = argv[argp++];
-			} else if(!strcmp(arg, "-geo-from")) {
-				if(argp == argc) usage(argv[0]);
-				geo_fn = argv[argp++];
+				dst_wkt_fn = argv[argp++];
 			} else usage(argv[0]);
 		} else {
 			usage(argv[0]);
 		}
 	}
 
-	if(!wkt_fn || !mask_fn) usage(argv[0]);
-
 	GDALAllRegister();
-
-	GDALDatasetH ds = NULL;
-	if(geo_fn) {
-		ds = GDALOpen(geo_fn, GA_ReadOnly);
-		if(!ds) fatal_error("open failed");
-	}
 
 	CPLPushErrorHandler(CPLQuietErrorHandler);
 
-	georef_t georef = init_georef(&geo_opts, ds);
-	if(!georef.inv_affine) fatal_error("missing affine transform");
-
-	mpoly_t mp_en = mpoly_from_wktfile(wkt_fn);
-
-	mpoly_t *mp_xy = mpoly_en2xy(&georef, &mp_en);
-
-	mask_from_mpoly(mp_xy, georef.w, georef.h, mask_fn);
+	///////////////////////
+	
+	mpoly_t mp = mpoly_from_wktfile(src_wkt_fn);
 
 	return 0;
 }
