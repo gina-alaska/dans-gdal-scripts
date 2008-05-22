@@ -405,17 +405,25 @@ int main(int argc, char **argv) {
 			mask_from_mpoly(&feature_poly, georef.w, georef.h, mask_out_fn);
 		}
 
-		if(feature_poly.num_rings && reduction_tolerance > 0) {
-			mpoly_t reduced_poly = compute_reduced_pointset(&feature_poly, reduction_tolerance);
-			free_mpoly(&feature_poly);
-			feature_poly = reduced_poly;
-		}
+		if(feature_poly.num_rings && do_pinch_excursions) {
+			if(reduction_tolerance > 0) {
+				// FIXME
+				mpoly_t reduced_poly = compute_reduced_pointset(&feature_poly, 
+					MIN(reduction_tolerance, 1.01));
+				free_mpoly(&feature_poly);
+				feature_poly = reduced_poly;
+			}
 
-		if(do_pinch_excursions) {
 			// FIXME - free old rings, verify topology
 			for(int ridx=0; ridx<feature_poly.num_rings; ridx++) {
 				feature_poly.rings[ridx] = pinch_excursions(feature_poly.rings + ridx);
 			}
+		}
+
+		if(feature_poly.num_rings && reduction_tolerance > 0) {
+			mpoly_t reduced_poly = compute_reduced_pointset(&feature_poly, reduction_tolerance);
+			free_mpoly(&feature_poly);
+			feature_poly = reduced_poly;
 		}
 
 		if(feature_poly.num_rings) {

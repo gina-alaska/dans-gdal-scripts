@@ -359,7 +359,7 @@ static int ringdiff(ring_t *r1, ring_t *r2, unsigned char *mask, int w, int h) {
 			cx2 = ci2 < row2->num_crossings ? row2->crossings[ci2] : max_x+1;
 			int x_to = MIN(cx1, cx2);
 			
-			int gain=1, penalty=2;
+			int gain=1, penalty=2; // FIXME - arbitrary
 			for(int x=x_from; x<x_to; x++) {
 				unsigned char m = (y>=0 && y<h && x>=0 && x<w)
 					? mask[(w+2)*(y+1) + (x+1)] : 0;
@@ -467,8 +467,8 @@ static ring_t anneal(ring_t *input, unsigned char *mask, int w, int h) {
 	ring_t best = duplicate_ring(input);
 	ring_t pert = duplicate_ring(input);
 
-	for(int iter=0; iter<10000; iter++) {
-		int amt = (int)ceil(200.0 * exp(-iter / 50.0));
+	for(int iter=0; iter<10000; iter++) { // FIXME - arbitrary
+		int amt = (int)ceil(200.0 * exp(-iter / 50.0)); // FIXME - arbitrary
 		perturb(&best, &pert, amt);
 		int diff = ringdiff(&best, &pert, mask, w, h);
 		if(diff > 0) {

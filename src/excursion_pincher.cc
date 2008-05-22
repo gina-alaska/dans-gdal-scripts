@@ -124,13 +124,16 @@ static int is_almost_colinear(ring_t *ring, int v1_idx, int v2_idx, int v3_idx, 
 	double d32x = p3.x - p2.x; double d32y = p3.y - p2.y;
 	double d13x = p1.x - p3.x; double d13y = p1.y - p3.y;
 	double d43x = p4.x - p3.x; double d43y = p4.y - p3.y;
+	double len_a = sqrt(d21x*d21x + d21y*d21y);
+	double len_b = sqrt(d43x*d43x + d43y*d43y);
+	if(len_a < 10.0 || len_b < 10.0) return 0; // FIXME
 	// from http://mathworld.wolfram.com/Point-LineDistance2-Dimensional.html
 	double dist_from_line = fabs(d21x*d13y - d13x*d21y) / sqrt(d21x*d21x + d21y*d21y);
 	double dist_from_seg = sqrt(d32x*d32x + d32y*d32y);
-	if(dist_from_line > dist_from_seg * 0.1) return 0;
+	if(dist_from_line > dist_from_seg * 0.1) return 0; // FIXME - arbitrary
 	double ang1 = atan2(d21y, d21x);
 	double ang2 = atan2(d43y, d43x);
-	double max_diff = PI / 180.0 * 5.0;
+	double max_diff = PI / 180.0 * 5.0; // FIXME - arbitrary
 	return 
 		fabs(ang1 - ang2) < max_diff ||
 		fabs(ang1 - ang2 + 2.0*PI) < max_diff ||
@@ -194,7 +197,16 @@ static int find_next_colinear(ring_t *ring, chopdata_t *cd, int v1id, double rad
 	return -1;
 }
 
-static double calc_perimeter(ring_t *ring, int from, int to) {
+static double calc_ring_perimeter(ring_t *ring) {
+	double perim = 0;
+	for(int i=0; i<ring->npts; i++) {
+		int i2 = (i+1) % ring->npts;
+		perim += vert_dist(ring->pts[i], ring->pts[i2]);
+	}
+	return perim;
+}
+
+static double calc_string_perimeter(ring_t *ring, int from, int to) {
 	double perim = 0;
 	int i = from;
 	while(i != to) {
@@ -210,23 +222,25 @@ static ring_t pinch_excursions_once(ring_t *ring) {
 	chopdata_t cd = chop_ring_into_cells(ring, (int)(radius / 5.0));
 	ring_t out = duplicate_ring(ring);
 	out.npts = 0;
+
+	double ring_perim = calc_ring_perimeter(ring);
 	
 	for(int vidx=0; vidx<ring->npts; vidx++) {
 		out.pts[out.npts++] = ring->pts[vidx];
 		int vnext = find_next_colinear(ring, &cd, vidx, radius);
 		if(vnext < 0) continue;
-		double perim = calc_perimeter(ring, vidx, vnext);
-		double revperim = calc_perimeter(ring, vnext, vidx); // FIXME - could be faster
+		double string_perim = calc_string_perimeter(ring, vidx, vnext);
 		double chord = vert_dist(ring->pts[vidx], ring->pts[vnext]);
-		if(perim < revperim && perim > chord * 1.2) { // FIXME
+		// don't allow excursions longer than a semicircle
+		if(string_perim < ring_perim/2 && string_perim > chord * PI/2.0) {
 			printf("pinch %d:(%lf,%lf) .. %d:(%lf,%lf) - (%lf and %lf)\n", 
 				vidx, ring->pts[vidx].x, ring->pts[vidx].y,
 				vnext, ring->pts[vnext].x, ring->pts[vnext].y,
-				perim, chord);
+				string_perim, chord);
 			if(vnext > vidx) {
 				vidx = vnext;
 				out.pts[out.npts++] = ring->pts[vidx];
-			} else break; // FIXME
+			} else break; // FIXME - handle excursions that cross idx==0
 		}
 	}
 
