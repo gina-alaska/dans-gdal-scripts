@@ -27,7 +27,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "common.h"
 #include "georef.h"
 
-void usage(char *cmdname); // externally defined
+void usage(const char *cmdname); // externally defined
 
 void print_georef_usage() {
 	printf("\

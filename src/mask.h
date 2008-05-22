@@ -35,9 +35,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 unsigned char *get_mask_for_dataset(GDALDatasetH ds, int bandlist_size, int *bandlist, 
 	int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf);
 unsigned char *read_dataset_8bit(GDALDatasetH ds, int band_idx, unsigned char *usage_array, report_image_t *dbuf);
-unsigned char *get_mask_for_8bit_raster(int w, int h, unsigned char *raster, unsigned char wanted);
+unsigned char *get_mask_for_8bit_raster(int w, int h, const unsigned char *raster, unsigned char wanted);
 void erode_mask(unsigned char *in_mask, int w, int h);
 void invert_mask(unsigned char *in_mask, int w, int h);
-vertex_t calc_centroid_from_mask(unsigned char *mask, int w, int h);
+vertex_t calc_centroid_from_mask(const unsigned char *mask, int w, int h);
 
 #endif // ifndef MASK_H

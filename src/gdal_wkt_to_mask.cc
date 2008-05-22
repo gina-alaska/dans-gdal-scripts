@@ -39,7 +39,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 char *read_whole_file(FILE *fin);
 
-void usage(char *cmdname) {
+void usage(const char *cmdname) {
 	// FIXME
 	printf("Usage:\n  %s [options] \n", cmdname);
 	printf("\n");

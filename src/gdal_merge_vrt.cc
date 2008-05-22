@@ -26,7 +26,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <common.h>
 
-void usage(char *cmdname) {
+void usage(const char *cmdname) {
 	printf("Usage:\n");
 	printf("    %s -in <rgb.tif> -in <mask.tif> -out <out.vrt>\n", cmdname);
 	printf("\nMerges several images into one image with many bands.\n");

@@ -26,7 +26,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <common.h>
 
-void usage(char *cmdname) {
+void usage(const char *cmdname) {
 	printf("Usage: %s\n", cmdname);
 	printf("\t-wh <width> <height>\n");
 	printf("\t-origin <left easting> <top northing>\n");

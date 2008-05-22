@@ -28,7 +28,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 void copyGeoCode(GDALDatasetH dst_ds, GDALDatasetH src_ds);
 
-void usage(char *cmdname) {
+void usage(const char *cmdname) {
 	printf("Usage:\n");
 	printf("    %s -in <rgb.tif> -in <mask.tif> -out <out.tif>\n", cmdname);
 	printf("\nMerges several images into one image with many bands.\n");

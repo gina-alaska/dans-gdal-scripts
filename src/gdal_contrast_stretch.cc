@@ -35,7 +35,7 @@ void invert_histogram_to_gaussian(int *histogram_in, double variance,
 	int *table_out, int input_range, int output_range, double max_rel_freq);
 void copyGeoCode(GDALDatasetH dst_ds, GDALDatasetH src_ds);
 
-void usage(char *cmdname) {
+void usage(const char *cmdname) {
 	printf("Usage: %s <src.tif> <dst.tif>\n", cmdname);
 	printf("\
   { { -linear-stretch <target_avg> <target_stddev> } |\n\

@@ -42,7 +42,7 @@ void copyGeoCode(GDALDatasetH dst_ds, GDALDatasetH src_ds);
 scaled_band_t getScaledBand(GDALDatasetH lores_ds, int band_id, GDALDatasetH hires_ds);
 void readLineScaled(scaled_band_t *sb, int row, double *hires_buf);
 
-void usage(char *cmdname) {
+void usage(const char *cmdname) {
 	printf("Usage:\n %s\n", cmdname);
 	printf("\
       -rgb <src_rgb.tif> [ -rgb <src.tif> ... ]\n\

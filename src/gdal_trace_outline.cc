@@ -49,7 +49,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define CS_EN 2
 #define CS_LL 3
 
-void usage(char *cmdname) {
+void usage(const char *cmdname) {
 	printf("Usage:\n  %s [options] [image_name]\n", cmdname);
 	printf("\n");
 	
@@ -153,7 +153,7 @@ int main(int argc, char **argv) {
 
 	int argp = 1;
 	while(argp < argc) {
-		char *arg = argv[argp++];
+		const char *arg = argv[argp++];
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
 			if(!strcmp(arg, "-v")) {
@@ -195,7 +195,7 @@ int main(int argc, char **argv) {
 				ogr_fmt = argv[argp++];
 			} else if(!strcmp(arg, "-out-cs")) {
 				if(argp == argc) usage(argv[0]);
-				char *cs = argv[argp++];
+				const char *cs = argv[argp++];
 				if(!strcmp(cs, "xy")) out_cs = CS_XY;
 				else if(!strcmp(cs, "en")) out_cs = CS_EN;
 				else if(!strcmp(cs, "ll")) out_cs = CS_LL;
@@ -290,7 +290,7 @@ int main(int argc, char **argv) {
 		dbuf->mode = PLOT_CONTOURS;
 	}
 
-	unsigned char *raster = NULL;
+	const unsigned char *raster = NULL;
 	unsigned char *mask = NULL;
 	unsigned char usage_array[256];
 	GDALColorTableH color_table = NULL;

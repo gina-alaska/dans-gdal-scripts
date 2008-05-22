@@ -225,14 +225,14 @@ unsigned char *read_dataset_8bit(GDALDatasetH ds, int band_idx, unsigned char *u
 	return outbuf;
 }
 
-unsigned char *get_mask_for_8bit_raster(int w, int h, unsigned char *raster, unsigned char wanted) {
+unsigned char *get_mask_for_8bit_raster(int w, int h, const unsigned char *raster, unsigned char wanted) {
 	if(VERBOSE) printf("mask array is %.1f megabytes\n", (double)(w+2)*(h+2)/1024.0/1024.0);
 	unsigned char *mask = (unsigned char *)malloc_or_die((w+2)*(h+2));
 	memset(mask, 0, (w+2)*(h+2));
 
 	for(int y=0; y<h; y++) {
 		unsigned char *mp = mask + (w+2)*(y+1) + 1;
-		unsigned char *p_in = raster + y*w;
+		const unsigned char *p_in = raster + y*w;
 		for(int x=0; x<w; x++) {
 			unsigned char val = *(p_in++);
 			if(val == wanted) {
@@ -299,10 +299,10 @@ void invert_mask(unsigned char *mask, int w, int h) {
 	}
 }
 
-vertex_t calc_centroid_from_mask(unsigned char *mask, int w, int h) {
+vertex_t calc_centroid_from_mask(const unsigned char *mask, int w, int h) {
 	long weight_x=0, weight_y=0, num_datavals=0;
 	for(int j=0; j<h; j++) {
-		unsigned char *mp = mask + (w+2)*(j+1) + 1;
+		const unsigned char *mp = mask + (w+2)*(j+1) + 1;
 		for(int i=0; i<w; i++) {
 			if(*(mp++)) {
 				weight_x += i;

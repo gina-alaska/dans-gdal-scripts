@@ -149,7 +149,8 @@ static inline pixquad_t rotate_quad(pixquad_t q, int dir) {
 	return ((q + (q<<4)) >> dir) & 0xf;
 }
 
-static ring_t trace_single_mpoly(unsigned char *mask, int w, int h, int initial_x, int initial_y, int select_color) {
+static ring_t trace_single_mpoly(unsigned char *mask, int w, int h,
+int initial_x, int initial_y, int select_color) {
 	//printf("trace_single_mpoly enter (%d,%d)\n", initial_x, initial_y);
 
 	ring_t ring;
@@ -355,6 +356,7 @@ long min_area, int no_donuts) {
 	return skip_this;
 }
 
+// this function has the side effect of erasing the mask
 mpoly_t trace_mask(unsigned char *mask_8bit, int w, int h, long min_area, int no_donuts) {
 	if(VERBOSE >= 4) debug_write_mask(mask_8bit, w, h);
 

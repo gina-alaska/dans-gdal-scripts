@@ -65,7 +65,7 @@ void compute_tierow_invaffine(
 	double *invaffine_tierow
 );
 
-void usage(char *cmdname) {
+void usage(const char *cmdname) {
 	printf("Usage: %s <options> src_dataset dst_dataset\n\n", cmdname);
 	
 	print_georef_usage();

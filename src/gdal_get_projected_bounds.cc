@@ -36,7 +36,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cpl_conv.h>
 #include <cpl_port.h>
 
-void usage(char *cmdname) {
+void usage(const char *cmdname) {
 	// FIXME
 	printf("Usage:\n  %s [options] \n", cmdname);
 	printf("\n");
