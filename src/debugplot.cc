@@ -54,7 +54,7 @@ report_image_t *create_plot(double w, double h) {
 	return dbuf;
 }
 
-void write_plot(report_image_t *dbuf, char *fn) {
+void write_plot(report_image_t *dbuf, const char *fn) {
 	FILE *fout = fopen(fn, "wb");
 	fprintf(fout, "P6\n%d %d\n255\n", dbuf->img_w, dbuf->img_h);
 	fwrite(dbuf->img, dbuf->img_w*dbuf->img_h, 3, fout);

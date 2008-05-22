@@ -49,9 +49,9 @@ Input must be either 8-bit or 16-bit.  Output is 8-bit.\n\
 
 int main(int argc, char *argv[]) {
 	int i;
-	char *src_fn = NULL;
-	char *dst_fn = NULL;
-	char *output_format = NULL;
+	const char *src_fn = NULL;
+	const char *dst_fn = NULL;
+	const char *output_format = NULL;
 	unsigned char ndv = 0;
 	char use_ndv = 0;
 

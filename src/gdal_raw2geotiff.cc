@@ -50,7 +50,7 @@ int main(int argc, char *argv[]) {
 	char *srs = NULL;
 	double ndv=0;
 	int got_ndv=0;
-	char *datatype = "UINT8";
+	const char *datatype = "UINT8";
 	double affine[6];
 	int got_affine=0;
 	char endian=0;

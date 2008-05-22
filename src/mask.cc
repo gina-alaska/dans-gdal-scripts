@@ -276,8 +276,8 @@ void erode_mask(unsigned char *mask, int w, int h) {
 
 			// remove pixels that don't have two consecutive filled neighbors
 			if(!(
-				ul&&um || um&&ur || ur&&mr || mr&&lr ||
-				lr&&lm || lm&&ll || ll&&ml || ml&&ul
+				(ul&&um) || (um&&ur) || (ur&&mr) || (mr&&lr) ||
+				(lr&&lm) || (lm&&ll) || (ll&&ml) || (ml&&ul)
 			)) *mp = 0;
 
 			mp++;

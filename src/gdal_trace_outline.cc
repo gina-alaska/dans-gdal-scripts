@@ -122,21 +122,21 @@ mpoly_t calc_ring_from_mask(unsigned char *mask, int w, int h,
 	long min_ring_area, double bevel_size);
 
 int main(int argc, char **argv) {
-	char *input_raster_fn = NULL;
+	const char *input_raster_fn = NULL;
 	int classify = 0;
 	int num_ndv = 0;
 	double *ndv_list = NULL;
 	double ndv_tolerance = 0;
-	char *debug_report = NULL;
+	const char *debug_report = NULL;
 	int inspect_numbands = 0;
 	int *inspect_bandids = NULL;
 	int split_polys = 0;
 	int out_cs = CS_UNKNOWN;
-	char *wkt_fn = NULL;
-	char *wkb_fn = NULL;
-	char *ogr_fn = NULL;
-	char *ogr_fmt = NULL;
-	char *mask_out_fn = NULL;
+	const char *wkt_fn = NULL;
+	const char *wkb_fn = NULL;
+	const char *ogr_fn = NULL;
+	const char *ogr_fmt = NULL;
+	const char *mask_out_fn = NULL;
 	int major_ring_only = 0;
 	int no_donuts = 0;
 	long min_ring_area = 0;
@@ -334,7 +334,7 @@ int main(int argc, char **argv) {
 			ogr_ds = OGR_Dr_CreateDataSource(ogr_driver, ogr_fn, NULL);
 			if(!ogr_ds) fatal_error("cannot create OGR data source");
 
-			char *layer_name = ogr_fn;
+			const char *layer_name = ogr_fn;
 
 			OGRSpatialReferenceH sref = NULL;
 			if(out_cs == CS_EN) {
@@ -355,7 +355,7 @@ int main(int argc, char **argv) {
 				class_fld_idx = OGR_FD_GetFieldIndex(OGR_L_GetLayerDefn(ogr_layer), "value");
 
 				if(color_table) {
-					char *names[4] = { "c1", "c2", "c3", "c4" };
+					const char *names[4] = { "c1", "c2", "c3", "c4" };
 					int i;
 					for(i=0; i<4; i++) {
 						fld = OGR_Fld_Create(names[i], OFTInteger);

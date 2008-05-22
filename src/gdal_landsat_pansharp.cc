@@ -75,9 +75,9 @@ int main(int argc, char *argv[]) {
 	int rgb_band_count = 0;
 	GDALDatasetH *rgb_ds = NULL;
 
-	char *pan_fn = NULL;
-	char *dst_fn = NULL;
-	char *output_format = NULL;
+	const char *pan_fn = NULL;
+	const char *dst_fn = NULL;
+	const char *output_format = NULL;
 	double ndv = 0;
 	char use_ndv = 0;
 

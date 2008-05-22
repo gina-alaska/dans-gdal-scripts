@@ -590,7 +590,7 @@ void free_row_crossings(row_crossings_t *rc, int num_rows) {
 	free(rc);
 }
 
-void mask_from_mpoly(mpoly_t *mpoly, int w, int h, char *fn) {
+void mask_from_mpoly(mpoly_t *mpoly, int w, int h, const char *fn) {
 	int i, j, y;
 
 	printf("mask draw: begin\n");

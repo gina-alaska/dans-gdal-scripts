@@ -72,7 +72,7 @@ extern int VERBOSE;
 void fatal_error(const char *s, ...) __attribute__((noreturn, format(printf, 1, 2)));
 void *malloc_or_die(size_t size);
 void *realloc_or_die(void *p, size_t size);
-int parse_list_of_doubles(char *input, int *num_out, double **list_out);
+int parse_list_of_doubles(const char *input, int *num_out, double **list_out);
 void setup_ndv_list(GDALDatasetH ds, int bandlist_size, int *bandlist, int *num_ndv, double **ndv_list);
 
 #endif // ifndef COMMON_H

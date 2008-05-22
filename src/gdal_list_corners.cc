@@ -282,7 +282,7 @@ int main(int argc, char **argv) {
 			mask_from_mpoly(bpoly, georef.w, georef.h, mask_out_fn);
 		}
 
-		char *labels[] = { "upper_left", "upper_right", "lower_right", "lower_left" };
+		const char *labels[] = { "upper_left", "upper_right", "lower_right", "lower_left" };
 		if(georef.fwd_xform && georef.fwd_affine) {
 			fprintf(yaml_fh, "geometry_ll:\n  type: rectangle4\n");
 			for(i=0; i<4; i++) {
@@ -305,9 +305,9 @@ int main(int argc, char **argv) {
 			fprintf(yaml_fh, "  %s_y: %.15f\n", labels[i], rect4.pts[i].y);
 		}
 	} else {
-		char *e_labels[] = { "left", "mid", "right" };
+		const char *e_labels[] = { "left", "mid", "right" };
 		double e_pos[] = { 0, (double)georef.w/2.0, georef.w };
-		char *n_labels[] = { "upper", "mid", "lower" };
+		const char *n_labels[] = { "upper", "mid", "lower" };
 		double n_pos[] = { 0, (double)georef.h/2.0, georef.h };
 		if(georef.fwd_xform && georef.fwd_affine) {
 			fprintf(yaml_fh, "geometry_ll:\n  type: rectangle8\n");

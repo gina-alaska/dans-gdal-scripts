@@ -55,7 +55,7 @@ typedef struct {
 	unsigned char *reds, *greens, *blues;
 } palette_t;
 
-palette_t *read_palette_file(char *fn);
+palette_t *read_palette_file(const char *fn);
 void get_nan_color(unsigned char *buf, palette_t *pal);
 void get_palette_color(unsigned char *buf, float val, palette_t *pal);
 
@@ -110,11 +110,11 @@ int main(int argc, char *argv[]) {
 	float shade_params[4];
 	memcpy(shade_params, default_shade_params, 4*sizeof(float));
 
-	char *src_fn = NULL;
-	char *tex_fn = NULL;
-	char *dst_fn = NULL;
-	char *palette_fn = NULL;
-	char *output_format = NULL;
+	const char *src_fn = NULL;
+	const char *tex_fn = NULL;
+	const char *dst_fn = NULL;
+	const char *palette_fn = NULL;
+	const char *output_format = NULL;
 	int grid_spacing = 20; // could be configurable...
 	int band_id = 1;
 	double src_offset = 0;
@@ -632,7 +632,7 @@ void scale_values(double *vals, int w, double scale, double offset) {
 	}
 }
 
-palette_t *read_palette_file(char *fn) {
+palette_t *read_palette_file(const char *fn) {
 	FILE *fh;
 	palette_t *p;
 	int num, r, g, b;

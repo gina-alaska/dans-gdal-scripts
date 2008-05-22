@@ -39,13 +39,13 @@ void usage(char *cmdname) {
 int main(int argc, char *argv[]) {
 	int i;
 
-	char *dst_fn = NULL;
+	const char *dst_fn = NULL;
 
 	int src_ds_count = 0;
 	int band_count = 0;
 	GDALDatasetH *src_ds = NULL;
 
-	char *output_format = NULL;
+	const char *output_format = NULL;
 
 	GDALAllRegister();
 

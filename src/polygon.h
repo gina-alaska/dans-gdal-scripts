@@ -75,7 +75,7 @@ int polygon_contains(ring_t *c1, ring_t *c2);
 double polygon_area(ring_t *c);
 row_crossings_t *get_row_crossings(mpoly_t *mpoly, int min_y, int num_rows);
 void free_row_crossings(row_crossings_t *rc, int num_rows);
-void mask_from_mpoly(mpoly_t *mpoly, int w, int h, char *fn);
+void mask_from_mpoly(mpoly_t *mpoly, int w, int h, const char *fn);
 int line_intersects_line(
 	vertex_t p1, vertex_t p2,
 	vertex_t p3, vertex_t p4,
