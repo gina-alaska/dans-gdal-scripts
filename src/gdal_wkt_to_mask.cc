@@ -28,9 +28,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "polygon.h"
 #include "debugplot.h"
 #include "georef.h"
-#include "mask.h"
-#include "mask-tracer.h"
-#include "dp.h"
 
 #include <ogrsf_frmts.h>
 #include <cpl_string.h>

@@ -71,7 +71,13 @@ void insert_point_into_ring(ring_t *ring, int idx) {
 	ring->npts++;
 }
 
-bbox_t make_bbox(ring_t *ring) {
+void add_point_to_ring(ring_t *ring, vertex_t v) {
+	ring->pts = (vertex_t *)realloc_or_die(ring->pts, sizeof(vertex_t) * (ring->npts+1));
+	ring->pts[ring->npts] = v;
+	ring->npts++;
+}
+
+bbox_t get_ring_bbox(ring_t *ring) {
 	bbox_t bbox;
 
 	if(ring->npts == 0) {
@@ -95,22 +101,42 @@ bbox_t make_bbox(ring_t *ring) {
 	return bbox;
 }
 
+bbox_t get_polygon_bbox(mpoly_t *mp) {
+	bbox_t bbox;
+	bbox.min_x = bbox.max_x = 0;
+	bbox.min_y = bbox.max_y = 0;
+	bbox.empty = 1;
+	for(int i=0; i<mp->num_rings; i++) {
+		bbox_t rbb = get_ring_bbox(mp->rings + i);
+		bbox = union_bbox(bbox, rbb);
+	}
+	return bbox;
+}
+
 bbox_t *make_bboxes(mpoly_t *mp) {
 	int nrings = mp->num_rings;
 	bbox_t *bboxes = (bbox_t *)malloc_or_die(sizeof(bbox_t) * nrings);
 	int i;
 	for(i=0; i<nrings; i++) {
-		bboxes[i] = make_bbox(mp->rings + i);
+		bboxes[i] = get_ring_bbox(mp->rings + i);
 	}
 	return bboxes;
 }
 
 bbox_t union_bbox(bbox_t bb1, bbox_t bb2) {
 	bbox_t bb;
-	bb.min_x = MIN(bb1.min_x, bb2.min_x);
-	bb.min_y = MIN(bb1.min_y, bb2.min_y);
-	bb.max_x = MAX(bb1.max_x, bb2.max_x);
-	bb.max_y = MAX(bb1.max_y, bb2.max_y);
+	if(bb1.empty) {
+		// bb2 may be empty also...
+		bb = bb2;
+	} else if(bb2.empty) {
+		bb = bb1;
+	} else {
+		bb.empty = 0;
+		bb.min_x = MIN(bb1.min_x, bb2.min_x);
+		bb.min_y = MIN(bb1.min_y, bb2.min_y);
+		bb.max_x = MAX(bb1.max_x, bb2.max_x);
+		bb.max_y = MAX(bb1.max_y, bb2.max_y);
+	}
 	return bb;
 }
 
@@ -393,7 +419,47 @@ double polygon_area(ring_t *c) {
 	return fabs(accum) / 2.0;
 }
 
-inline int polygon_contains(ring_t *c1, ring_t *c2) {
+static int ring_contains_point(ring_t *ring, double px, double py) {
+	int num_crossings = 0;
+	int i;
+	for(i=0; i<ring->npts; i++) {
+		double x0 = ring->pts[i].x;
+		double y0 = ring->pts[i].y;
+		double x1 = ring->pts[(i+1) % ring->npts].x;
+		double y1 = ring->pts[(i+1) % ring->npts].y;
+		// we want to know whether a ray from (px,py) in the (1,0) direction
+		// passes through this segment
+		if(x0 < px && x1 < px) continue;
+
+		int y0above = y0 >= py;
+		int y1above = y1 >= py;
+		if(y0above && y1above) continue;
+		if(!y0above && !y1above) continue;
+
+		double alpha = (py-y0)/(y1-y0);
+		double cx = x0 + (x1-x0)*alpha;
+		//printf("x0=%.15f x1=%.15f\n", x0, x1);
+		//printf("y0=%.15f y1=%.15f\n", y0, y1);
+		//printf("alpha=%.15f cx=%.15f px=%.15f\n", alpha, cx, px);
+		if(cx > px) num_crossings++;
+	}
+	//printf("num_crossings=%d\n", num_crossings);
+	// if there are an odd number of crossings, then (px,py) is within c1
+	return num_crossings & 1;
+}
+
+int polygon_contains_point(mpoly_t *mp, double px, double py) {
+	int num_crossings = 0;
+	for(int r_idx=0; r_idx<mp->num_rings; r_idx++) {
+		if(ring_contains_point(mp->rings+r_idx, px, py)) num_crossings++;
+	}
+	// if it is within an odd number of rings it is not in a hole
+	return num_crossings & 1;
+}
+
+/*
+// assumes that edges do not cross
+static int ring_contains_ring(ring_t *c1, ring_t *c2) {
 	// NOTE: by assumption, c1 and c2 don't cross
 
 	int c2npts = c2->npts;
@@ -405,38 +471,11 @@ inline int polygon_contains(ring_t *c1, ring_t *c2) {
 	for(j=0; j<c2npts; j++) {
 		double px = c2->pts[j].x;
 		double py = c2->pts[j].y;
-		//printf("px=%.15f py=%.15f\n", px, py);
-		int num_crossings = 0;
-		int i;
-		for(i=0; i<c1->npts; i++) {
-			double x0 = c1->pts[i].x;
-			double y0 = c1->pts[i].y;
-			double x1 = c1->pts[(i+1) % c1->npts].x;
-			double y1 = c1->pts[(i+1) % c1->npts].y;
-			// we want to know whether a ray from (px,py) in the (1,0) direction
-			// passes through this segment
-			if(x0 < px && x1 < px) continue;
-
-			int y0above = y0 >= py;
-			int y1above = y1 >= py;
-			if(y0above && y1above) continue;
-			if(!y0above && !y1above) continue;
-
-			double alpha = (py-y0)/(y1-y0);
-			double cx = x0 + (x1-x0)*alpha;
-			//printf("x0=%.15f x1=%.15f\n", x0, x1);
-			//printf("y0=%.15f y1=%.15f\n", y0, y1);
-			//printf("alpha=%.15f cx=%.15f px=%.15f\n", alpha, cx, px);
-			if(cx > px) num_crossings++;
-		}
-		//printf("num_crossings=%d\n", num_crossings);
-		// if there are an odd number of crossings, then (px,py) is within c1
-		if(0 == (num_crossings & 1)) return 0;
+		if(!ring_contains_point(c1, px, py)) return 0;
 	}
 	return 1;
 }
 
-/*
 void compute_containments(mpoly_t *mp) {
 	int i;
 	int nrings = mp->num_rings;
@@ -469,7 +508,7 @@ void compute_containments(mpoly_t *mp) {
 				bbox2.min_y > bbox1.max_y
 			) continue;
 
-			int contains = (i != j) && polygon_contains(
+			int contains = (i != j) && ring_contains_ring(
 				mp->rings + j, mp->rings + i);
 			if(contains) {
 				if(VERBOSE) printf("%d contains %d\n", j, i);

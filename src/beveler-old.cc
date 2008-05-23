@@ -156,7 +156,7 @@ static void bevel_self_intersections_old(mpoly_t *mp, double amount) {
 
 	bbox_t *bboxes = (bbox_t *)malloc_or_die(sizeof(bbox_t) * mp->num_rings);
 	for(r_idx=0; r_idx<mp->num_rings; r_idx++) {
-		bboxes[r_idx] = make_bbox(mp->rings + r_idx);
+		bboxes[r_idx] = get_ring_bbox(mp->rings + r_idx);
 	}
 
 	printf("Beveling: ");

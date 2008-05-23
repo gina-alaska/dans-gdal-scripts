@@ -320,7 +320,7 @@ static int ringdiff(ring_t *r1, ring_t *r2, unsigned char *mask, int w, int h) {
 	mp1.rings = r1;
 	mp2.rings = r2;
 
-	bbox_t bb = union_bbox(make_bbox(r1), make_bbox(r2));
+	bbox_t bb = union_bbox(get_ring_bbox(r1), get_ring_bbox(r2));
 	//int min_x = (int)floor(bb.min_x);
 	int min_y = (int)floor(bb.min_y);
 	int max_x = (int)ceil (bb.max_x);
