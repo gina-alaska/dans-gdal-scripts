@@ -49,6 +49,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define CS_EN 2
 #define CS_LL 3
 
+// FIXME - describe setting out-cs and ogr-fmt only before output is specified
 void usage(const char *cmdname) {
 	printf("Usage:\n  %s [options] [image_name]\n", cmdname);
 	printf("\n");
@@ -145,7 +146,7 @@ typedef struct {
 
 geom_output_t *add_geom_output(geom_output_list_t *list, int out_cs) {
 	if(out_cs == CS_UNKNOWN) fatal_error(
-		"must specify output coordinate system with -out-cs option");
+		"must specify output coordinate system with -out-cs option before specifying output");
 	list->output = (geom_output_t *)realloc_or_die(list->output,
 		sizeof(geom_output_t) * (list->num + 1));
 	geom_output_t *go = list->output + list->num;
@@ -170,7 +171,7 @@ int main(int argc, char **argv) {
 	int *inspect_bandids = NULL;
 	int split_polys = 0;
 	int cur_out_cs = CS_UNKNOWN;
-	const char *cur_ogr_fmt = NULL;
+	const char *cur_ogr_fmt = "ESRI Shapefile";
 	geom_output_list_t geom_outputs = (geom_output_list_t){NULL, 0};
 	const char *mask_out_fn = NULL;
 	int major_ring_only = 0;
@@ -366,18 +367,17 @@ int main(int argc, char **argv) {
 
 		if(go->ogr_fn) {
 			OGRRegisterAll();
-			if(!ogr_fmt) ogr_fmt = "ESRI Shapefile";
-			OGRSFDriverH ogr_driver = OGRGetDriverByName(ogr_fmt);
-			if(!ogr_driver) fatal_error("cannot get OGR driver (%s)", ogr_fmt);
+			OGRSFDriverH ogr_driver = OGRGetDriverByName(go->ogr_fmt);
+			if(!ogr_driver) fatal_error("cannot get OGR driver (%s)", go->ogr_fmt);
 			go->ogr_ds = OGR_Dr_CreateDataSource(ogr_driver, go->ogr_fn, NULL);
 			if(!go->ogr_ds) fatal_error("cannot create OGR data source");
 
 			const char *layer_name = go->ogr_fn;
 
 			OGRSpatialReferenceH sref = NULL;
-			if(out_cs == CS_EN) {
+			if(go->out_cs == CS_EN) {
 				sref = georef.spatial_ref;
-			} else if(out_cs == CS_LL) {
+			} else if(go->out_cs == CS_LL) {
 				sref = OSRNewSpatialReference(NULL);
 				OSRImportFromProj4(sref, "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs");
 			}
@@ -386,9 +386,8 @@ int main(int argc, char **argv) {
 				(split_polys ? wkbPolygon : wkbMultiPolygon), NULL);
 			if(!go->ogr_layer) fatal_error("cannot create OGR layer");
 
-	// FIXME
-	int class_fld_idx = -1;
-	int color_fld_idx[4] = { -1, -1, -1, -1 };
+			go->class_fld_idx = -1;
+			for(int i=0; i<4; i++) go->color_fld_idx[i] = -1;
 			if(classify) {
 				OGRFieldDefnH fld = OGR_Fld_Create("value", OFTInteger);
 				OGR_Fld_SetWidth(fld, 4);
@@ -402,7 +401,7 @@ int main(int argc, char **argv) {
 						fld = OGR_Fld_Create(names[i], OFTInteger);
 						OGR_Fld_SetWidth(fld, 4);
 						OGR_L_CreateField(go->ogr_layer, fld, TRUE);
-						color_fld_idx[i] = OGR_FD_GetFieldIndex(OGR_L_GetLayerDefn(go->ogr_layer), names[i]);
+						go->color_fld_idx[i] = OGR_FD_GetFieldIndex(OGR_L_GetLayerDefn(go->ogr_layer), names[i]);
 					}
 				}
 			}
@@ -502,54 +501,62 @@ int main(int argc, char **argv) {
 				for(shape_idx=0; shape_idx<num_shapes; shape_idx++) {
 					mpoly_t *poly_in = shapes+shape_idx;
 
-					mpoly_t *proj_poly;
-					int proj_is_copy;
-					if(out_cs == CS_XY) {
-						proj_poly = poly_in;
-						proj_is_copy = 1;
-					} else if(out_cs == CS_EN) {
-						proj_poly = mpoly_xy2en(&georef, poly_in);
-						proj_is_copy = 0;
-					} else if(out_cs == CS_LL) {
-						proj_poly = mpoly_xy2ll_with_interp(&georef, poly_in, llproj_toler);
-						proj_is_copy = 0;
-					} else {
-						fatal_error("bad val for out_cs");
-					}
+					for(int go_idx=0; go_idx<geom_outputs.num; go_idx++) {
+						geom_output_t *go = geom_outputs.output + go_idx;
 
-					OGRGeometryH ogr_geom = mpoly_to_ogr(proj_poly);
-
-					if(go->wkt_fh) {
-						char *wkt_out;
-						OGR_G_ExportToWkt(ogr_geom, &wkt_out);
-						fprintf(go->wkt_fh, "%s\n", wkt_out);
-					}
-					if(go->wkb_fh) {
-						int wkb_size = OGR_G_WkbSize(ogr_geom);
-						printf("WKB size = %d\n", wkb_size);
-						unsigned char *wkb_out = (unsigned char *)malloc_or_die(wkb_size);
-						OGR_G_ExportToWkb(ogr_geom, WKB_BYTE_ORDER, wkb_out);
-						fwrite(wkb_out, wkb_size, 1, go->wkb_fh);
-						free(wkb_out);
-					}
-
-					if(go->ogr_ds) {
-						OGRFeatureH ogr_feat = OGR_F_Create(OGR_L_GetLayerDefn(go->ogr_layer));
-						if(go->class_fld_idx >= 0) OGR_F_SetFieldInteger(ogr_feat, go->class_fld_idx, class_id);
-						if(color) {
-							if(color_fld_idx[0] >= 0) OGR_F_SetFieldInteger(ogr_feat, color_fld_idx[0], color->c1);
-							if(color_fld_idx[1] >= 0) OGR_F_SetFieldInteger(ogr_feat, color_fld_idx[1], color->c2);
-							if(color_fld_idx[2] >= 0) OGR_F_SetFieldInteger(ogr_feat, color_fld_idx[2], color->c3);
-							if(color_fld_idx[3] >= 0) OGR_F_SetFieldInteger(ogr_feat, color_fld_idx[3], color->c4);
+						int proj_is_copy;
+						mpoly_t *proj_poly;
+						if(go->out_cs == CS_XY) {
+							proj_poly = poly_in;
+							proj_is_copy = 1;
+						} else if(go->out_cs == CS_EN) {
+							proj_poly = mpoly_xy2en(&georef, poly_in);
+							proj_is_copy = 0;
+						} else if(go->out_cs == CS_LL) {
+							proj_poly = mpoly_xy2ll_with_interp(&georef, poly_in, llproj_toler);
+							proj_is_copy = 0;
+						} else {
+							fatal_error("bad val for out_cs");
 						}
-						OGR_F_SetGeometryDirectly(ogr_feat, ogr_geom); // assumes ownership of geom
-						OGR_L_CreateFeature(go->ogr_layer, ogr_feat);
-						OGR_F_Destroy(ogr_feat);
-					} else {
-						OGR_G_DestroyGeometry(ogr_geom);
+
+						OGRGeometryH ogr_geom = mpoly_to_ogr(proj_poly);
+
+						if(go->wkt_fh) {
+							char *wkt_out;
+							OGR_G_ExportToWkt(ogr_geom, &wkt_out);
+							fprintf(go->wkt_fh, "%s\n", wkt_out);
+						}
+						if(go->wkb_fh) {
+							int wkb_size = OGR_G_WkbSize(ogr_geom);
+							printf("WKB size = %d\n", wkb_size);
+							unsigned char *wkb_out = (unsigned char *)malloc_or_die(wkb_size);
+							OGR_G_ExportToWkb(ogr_geom, WKB_BYTE_ORDER, wkb_out);
+							fwrite(wkb_out, wkb_size, 1, go->wkb_fh);
+							free(wkb_out);
+						}
+
+						if(go->ogr_ds) {
+							OGRFeatureH ogr_feat = OGR_F_Create(OGR_L_GetLayerDefn(go->ogr_layer));
+							if(go->class_fld_idx >= 0) OGR_F_SetFieldInteger(ogr_feat, go->class_fld_idx, class_id);
+							if(color) {
+								if(go->color_fld_idx[0] >= 0) OGR_F_SetFieldInteger(
+									ogr_feat, go->color_fld_idx[0], color->c1);
+								if(go->color_fld_idx[1] >= 0) OGR_F_SetFieldInteger(
+									ogr_feat, go->color_fld_idx[1], color->c2);
+								if(go->color_fld_idx[2] >= 0) OGR_F_SetFieldInteger(
+									ogr_feat, go->color_fld_idx[2], color->c3);
+								if(go->color_fld_idx[3] >= 0) OGR_F_SetFieldInteger(
+									ogr_feat, go->color_fld_idx[3], color->c4);
+							}
+							OGR_F_SetGeometryDirectly(ogr_feat, ogr_geom); // assumes ownership of geom
+							OGR_L_CreateFeature(go->ogr_layer, ogr_feat);
+							OGR_F_Destroy(ogr_feat);
+						} else {
+							OGR_G_DestroyGeometry(ogr_geom);
+						}
+						if(!proj_is_copy) free_mpoly(proj_poly);
 					}
 
-					if(!proj_is_copy) free_mpoly(proj_poly);
 					if(!shape_is_copy) free_mpoly(poly_in);
 
 					num_shapes_written++;
@@ -562,9 +569,13 @@ int main(int argc, char **argv) {
 
 	printf("\n");
 
-	if(go->wkt_fh) fclose(go->wkt_fh);
-	if(go->wkb_fh) fclose(go->wkb_fh);
-	if(go->ogr_ds) OGR_DS_Destroy(go->ogr_ds);
+	for(int go_idx=0; go_idx<geom_outputs.num; go_idx++) {
+		geom_output_t *go = geom_outputs.output + go_idx;
+		if(go->wkt_fh) fclose(go->wkt_fh);
+		if(go->wkb_fh) fclose(go->wkb_fh);
+		if(go->ogr_ds) OGR_DS_Destroy(go->ogr_ds);
+	}
+
 	if(dbuf) write_plot(dbuf, debug_report);
 
 	if(do_geom_output) {
