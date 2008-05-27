@@ -34,14 +34,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cpl_conv.h>
 #include <cpl_port.h>
 
-char *read_whole_file(FILE *fin);
-
 void usage(const char *cmdname) {
-	// FIXME
 	printf("Usage:\n  %s [options] \n", cmdname);
 	printf("\n");
 	
 	print_georef_usage();
+	printf("  -geo-from <fn>                  Get georeference from this raster file\n");
+	printf("\nOptions:\n");
+	printf("  -wkt <fn>                       File containing WKT def in easting/northing units\n");
+	printf("  -mask-out <fn.pbm>              Filename for mask output in PBM format\n");
 
 	exit(1);
 }
