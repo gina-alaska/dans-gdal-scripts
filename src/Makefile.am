@@ -35,4 +35,4 @@ gdal_merge_vrt_SOURCES = gdal_merge_vrt.cc common.cc
 gdal_merge_vrt_CXXFLAGS = $(AM_CXXFLAGS)
 
 noinst_HEADERS = common.h debugplot.h dp.h georef.h mask-tracer.h mask.h polygon.h
-EXTRA_DIST = dem.pal test2.sh testcase.tif testcase2.tif testcase3.tif
+EXTRA_DIST = dem.pal tests/good-tc1.wkt tests/good-tc2.wkt tests/good-tc3.wkt tests/good-tc4.wkt tests/good-tc5.wkt tests/pal.tif tests/test1.sh tests/test2.sh tests/testcase.tif tests/testcase2.tif tests/testcase3.tif tests/testcase4.png tests/testcase5.png
