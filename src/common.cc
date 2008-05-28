@@ -57,19 +57,23 @@ void *realloc_or_die(void *p, size_t size) {
 }
 
 int parse_list_of_doubles(const char *input, int *num_out, double **list_out) {
-	char *s1 = strdup(input);
-	if(!s1) fatal_error("out of memory");
+	char *input_dup = strdup(input);
+	if(!input_dup) fatal_error("out of memory");
 
 	int num = 0;
 	double *list = NULL;
 
+	char *s1 = input_dup;
 	const char *s2 = " \t\n\r";
 	const char *tok;
 	while((tok = strtok(s1, s2))) {
 		s1 = NULL;
 		char *endptr;
 		double val = strtod(tok, &endptr);
-		if(*endptr) return 1;
+		if(*endptr) {
+			free(input_dup);
+			return 1;
+		}
 		list = (double *)realloc_or_die(list, sizeof(double) * (num+1));
 		list[num++] = val;
 	}
@@ -77,6 +81,7 @@ int parse_list_of_doubles(const char *input, int *num_out, double **list_out) {
 	*num_out = num;
 	*list_out = list;
 
+	free(input_dup);
 	return 0;
 }
 
