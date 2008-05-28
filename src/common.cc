@@ -105,7 +105,7 @@ void setup_ndv_list(GDALDatasetH ds, int bandlist_size, int *bandlist, int *num_
 	} else if(*num_ndv == 1) {
 		double ndv = (*ndv_list)[0];
 		*num_ndv = bandlist_size;
-		*ndv_list = (double *)malloc_or_die(sizeof(double) * bandlist_size);
+		*ndv_list = (double *)realloc_or_die(*ndv_list, sizeof(double) * bandlist_size);
 		int i;
 		for(i=0; i<bandlist_size; i++) (*ndv_list)[i] = ndv;
 	} else if(*num_ndv != bandlist_size) {

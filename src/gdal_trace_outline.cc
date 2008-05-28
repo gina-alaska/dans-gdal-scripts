@@ -153,6 +153,11 @@ geom_output_t *add_geom_output(geom_output_list_t *list, int out_cs) {
 	list->num++;
 
 	go->out_cs = out_cs;
+
+	go->wkt_fn = NULL;
+	go->wkb_fn = NULL;
+	go->ogr_fn = NULL;
+
 	go->wkt_fh = NULL;
 	go->wkb_fh = NULL;
 	go->ogr_ds = NULL;
