@@ -26,6 +26,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "common.h"
 #include "georef.h"
+#include "default_palette.h"
 
 // these are global so that they can be printed by the usage() function
 float default_slope_exageration = 2.0;
@@ -56,6 +57,7 @@ typedef struct {
 } palette_t;
 
 palette_t *read_palette_file(const char *fn);
+palette_t *read_default_palette();
 void get_nan_color(unsigned char *buf, palette_t *pal);
 void get_palette_color(unsigned char *buf, float val, palette_t *pal);
 
@@ -79,6 +81,7 @@ void usage(const char *cmdname) {
 	printf("\n");
 	printf("Texture: (choose one of these - default is gray background)\n");
 	printf("  -palette palette.pal                Palette file to map elevation values to colors\n");
+	printf("  -default-palette                    Use the builtin default palette\n");
 	printf("  -texture texture_image              Hillshade a given raster (must be same georeference as DEM)\n");
 	printf("  -alpha-overlay                      Generate an RGBA image that can be used as a hillshade mask\n");
 	printf("\n");
@@ -114,6 +117,7 @@ int main(int argc, char *argv[]) {
 	const char *tex_fn = NULL;
 	const char *dst_fn = NULL;
 	const char *palette_fn = NULL;
+	int use_default_palette = 0;
 	const char *output_format = NULL;
 	int grid_spacing = 20; // could be configurable...
 	int band_id = 1;
@@ -169,6 +173,8 @@ int main(int argc, char *argv[]) {
 				if(!strcmp(palette_fn, "data24bit")) {
 					data24bit = 1;
 				}
+			} else if(!strcmp(arg, "-default-palette")) {
+				use_default_palette = 1;
 			} else if(!strcmp(arg, "-texture")) {
 				if(argp == argc) usage(argv[0]);
 				tex_fn = argv[argp++];
@@ -224,8 +230,12 @@ int main(int argc, char *argv[]) {
 
 	if(!output_format) output_format = "GTiff";
 
-	// FIXME - alpha_overlay
-	if(palette_fn && tex_fn) fatal_error("cannot specify both palette and texture image");
+	int num_output_modes = 
+		(data24bit ? 1 : 0) +
+		(use_default_palette ? 1 : 0) +
+		(palette_fn ? 1 : 0) +
+		(alpha_overlay ? 1 : 0);
+	if(num_output_modes > 1) fatal_error("you can only use one of the -palette, -default-palette, -texture, and -alpha-overlay options");
 
 	GDALAllRegister();
 
@@ -238,9 +248,13 @@ int main(int argc, char *argv[]) {
 	if(data24bit) {
 		do_shade = 0;
 		out_numbands = 3;
+	} else if(use_default_palette) {
+		palette = read_default_palette();
+		do_shade = 1;
+		out_numbands = 3;
 	} else if(palette_fn) {
 		palette = read_palette_file(palette_fn);
-		if(!palette) fatal_error("could not read palette");
+		if(!palette) fatal_error("palette was null"); // this can't happen
 		do_shade = 1;
 		out_numbands = 3;
 	} else if(alpha_overlay) {
@@ -632,43 +646,71 @@ void scale_values(double *vals, int w, double scale, double offset) {
 	}
 }
 
-palette_t *read_palette_file(const char *fn) {
-	FILE *fh;
-	palette_t *p;
-	int num, r, g, b;
-	float val;
+palette_t *parse_palette(const char * const *lines) {
+	palette_t *p = (palette_t *)malloc_or_die(sizeof(palette_t));
 
-	p = (palette_t *)malloc_or_die(sizeof(palette_t));
-	if(!p) return NULL;
-
-	fh = fopen(fn, "r");
-	if(!fh) return NULL;
-
-	if(3 != fscanf(fh, "NAN %d %d %d\n", &r, &g, &b)) return NULL;
-	p->nan_red   = r;
-	p->nan_green = g;
-	p->nan_blue  = b;
-
-	num = 0;
+	int num = 0;
 	p->vals = NULL;
 	p->reds = p->greens = p->blues = NULL;
-	while(4 == fscanf(fh, "%f %d %d %d\n", &val, &r, &g, &b)) {
-		num++;
-		p->vals = (float *)realloc_or_die(p->vals, num*sizeof(float));
-		p->reds   = (unsigned char *)realloc_or_die(p->reds,   num);
-		p->greens = (unsigned char *)realloc_or_die(p->greens, num);
-		p->blues  = (unsigned char *)realloc_or_die(p->blues,  num);
-		if(!p->vals || !p->reds || !p->greens || !p->blues) return NULL;
-		p->vals  [num-1] = val;
-		p->reds  [num-1] = r;
-		p->greens[num-1] = g;
-		p->blues [num-1] = b;
+	p->nan_red = p->nan_green = p->nan_blue = 0;
+
+	for(int line_num=0; lines[line_num]; line_num++) {
+		const char *line = lines[line_num];
+		int r, g, b;
+		float val;
+		if(4 != sscanf(line, "%f %d %d %d\n", &val, &r, &g, &b)) {
+			fatal_error("cannot parse line in palette file: [%s]", line);
+		}
+		if(isnan(val)) {
+			p->nan_red   = r;
+			p->nan_green = g;
+			p->nan_blue  = b;
+		} else {
+			num++;
+			p->vals = (float *)realloc_or_die(p->vals, num*sizeof(float));
+			p->reds   = (unsigned char *)realloc_or_die(p->reds,   num);
+			p->greens = (unsigned char *)realloc_or_die(p->greens, num);
+			p->blues  = (unsigned char *)realloc_or_die(p->blues,  num);
+			p->vals  [num-1] = val;
+			p->reds  [num-1] = r;
+			p->greens[num-1] = g;
+			p->blues [num-1] = b;
+		}
 	}
 	
-	if(num < 2) return NULL;
+	if(num < 2) fatal_error("not enough entries in palette");
 	p->num_vals = num;
 
 	return p;
+}
+
+palette_t *read_palette_file(const char *fn) {
+	FILE *fh = fopen(fn, "r");
+	if(!fh) fatal_error("cannot open palette file");
+	char **lines = NULL;
+	int num_lines = 0;
+	char *line;
+	char buf[1000];
+	while((line = fgets(buf, 1000, fh))) {
+		lines = (char **)realloc_or_die(lines, sizeof(char *) * (num_lines + 2));
+		lines[num_lines] = strdup(line);
+		lines[num_lines+1] = NULL;
+		num_lines++;
+	}
+	fclose(fh);
+
+	if(!num_lines) fatal_error("palette file was empty");
+
+	palette_t *p = parse_palette(lines);
+
+	for(int i=0; lines[i]; i++) free(lines[i]);
+	free(lines);
+
+	return p;
+}
+
+palette_t *read_default_palette() {
+	return parse_palette(DEFAULT_PALETTE);
 }
 
 void get_nan_color(unsigned char *buf, palette_t *pal) {
