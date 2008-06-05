@@ -92,7 +92,7 @@ void usage(const char *cmdname) {
 	printf("  -lightvec sun_x sun_y sun_z                                         (default: %.1f, %.1f, %.1f)\n",
 		default_lightvec[0], default_lightvec[1], default_lightvec[2]);
 	printf("\n");
-	printf("The -palette option creates a color-mapped image.  A default palette (dem.pal)\n");
+	printf("The -palette option creates a color-mapped image.  An example palette (dem.pal)\n");
 	printf("is included in the distribution.  The -texture option is used for hillshading\n");
 	printf("a raster image.  The texture and DEM must have the same geocoding.  The\n");
 	printf("-alpha-overlay option generates an output with an alpha channel that can be\n");
