@@ -26,6 +26,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "common.h"
 #include "georef.h"
+#include "ndv.h"
 #include "default_palette.h"
 
 // these are global so that they can be printed by the usage() function
@@ -37,29 +38,19 @@ float default_shade_params[] = { 0, 1, .5, 10 };
 #define SHADE_TABLE_SCALE 100.0
 #define EARTH_RADIUS 6370997.0
 
-typedef struct {
-	int use_min;
-	double min_val;
-	int use_max;
-	double max_val;
-	int num_ndv;
-	double *ndv;
-} data_range_t;
-
-void check_ndv(double *vals, char *is_ndv, int width, data_range_t *valid_range);
 void scale_values(double *vals, int w, double scale, double offset);
 
 typedef struct {
-	unsigned char nan_red, nan_green, nan_blue;
+	uint8_t nan_red, nan_green, nan_blue;
 	int num_vals;
 	float *vals;
-	unsigned char *reds, *greens, *blues;
+	uint8_t *reds, *greens, *blues;
 } palette_t;
 
 palette_t *read_palette_file(const char *fn);
 palette_t *read_default_palette();
-void get_nan_color(unsigned char *buf, palette_t *pal);
-void get_palette_color(unsigned char *buf, float val, palette_t *pal);
+void get_nan_color(uint8_t *buf, palette_t *pal);
+void get_palette_color(uint8_t *buf, float val, palette_t *pal);
 
 void compute_tierow_invaffine(
 	georef_t *georef,
@@ -72,11 +63,11 @@ void usage(const char *cmdname) {
 	
 	print_georef_usage();
 	printf("\n");
+	print_ndv_usage();
+	printf("\n");
 	printf("Input/Output:\n");
 	printf("  -b input_band_id\n");
 	printf("  -of output_format\n");
-	printf("  -ndv no_data_val [-ndv val ...]     Set a list of input no-data values\n");
-	printf("  -min min_val -max max_val           Set range of valid input values\n");
 	printf("  -offset X -scale X                  Multiply and add to source values\n");
 	printf("\n");
 	printf("Texture: (choose one of these - default is gray background)\n");
@@ -126,43 +117,15 @@ int main(int argc, char *argv[]) {
 	int data24bit = 0;
 	int alpha_overlay = 0;
 
-	data_range_t valid_range;
-	valid_range.use_min = 0;
-	valid_range.use_max = 0;
-	valid_range.num_ndv = 0;
-	valid_range.ndv = NULL;
-
 	geo_opts_t geo_opts = init_geo_options(&argc, &argv);
+	ndv_def_t ndv_def = init_ndv_options(&argc, &argv);
 
 	int argp = 1;
 	while(argp < argc) {
 		char *arg = argv[argp++];
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
-			if(!strcmp(arg, "-min")) {
-				if(valid_range.use_min) fatal_error("min value specified twice");
-				if(argp == argc) usage(argv[0]);
-				char *endptr;
-				valid_range.use_min = 1;
-				valid_range.min_val = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
-			} else if(!strcmp(arg, "-max")) {
-				if(valid_range.use_max) fatal_error("max value specified twice");
-				if(argp == argc) usage(argv[0]);
-				char *endptr;
-				valid_range.use_max = 1;
-				valid_range.max_val = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
-			} else if(!strcmp(arg, "-ndv")) {
-				if(argp == argc) usage(argv[0]);
-				char *endptr;
-				double val = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
-				valid_range.ndv = (double *)realloc_or_die(valid_range.ndv,
-					sizeof(double) * (valid_range.num_ndv+1));
-				valid_range.ndv[valid_range.num_ndv] = val;
-				valid_range.num_ndv++;
-			} else if(!strcmp(arg, "-b")) {
+			if(!strcmp(arg, "-b")) {
 				if(argp == argc) usage(argv[0]);
 				char *endptr;
 				band_id = strtol(argv[argp++], &endptr, 10);
@@ -384,27 +347,28 @@ int main(int argc, char *argv[]) {
 
 	//////// process image ////////
 
-	int gdal_have_ndv;
-	double gdal_ndv = GDALGetRasterNoDataValue(src_band, &gdal_have_ndv);
-	if(gdal_have_ndv) {
-		valid_range.ndv = (double *)realloc_or_die(valid_range.ndv,
-			sizeof(double) * (valid_range.num_ndv+1));
-		valid_range.ndv[valid_range.num_ndv] = gdal_ndv;
-		valid_range.num_ndv++;
-	}
+	// FIXME
+	//int gdal_have_ndv;
+	//double gdal_ndv = GDALGetRasterNoDataValue(src_band, &gdal_have_ndv);
+	//if(gdal_have_ndv) {
+	//	valid_range.ndv = (double *)realloc_or_die(valid_range.ndv,
+	//		sizeof(double) * (valid_range.num_ndv+1));
+	//	valid_range.ndv[valid_range.num_ndv] = gdal_ndv;
+	//	valid_range.num_ndv++;
+	//}
 
 	double *inbuf_prev = (double *)malloc_or_die(sizeof(double) * w);
 	double *inbuf_this = (double *)malloc_or_die(sizeof(double) * w);
 	double *inbuf_next = (double *)malloc_or_die(sizeof(double) * w);
-	char *inbuf_ndv_prev = (char *)malloc_or_die(w);
-	char *inbuf_ndv_this = (char *)malloc_or_die(w);
-	char *inbuf_ndv_next = (char *)malloc_or_die(w);
+	uint8_t *inbuf_ndv_prev = (uint8_t *)malloc_or_die(w);
+	uint8_t *inbuf_ndv_this = (uint8_t *)malloc_or_die(w);
+	uint8_t *inbuf_ndv_next = (uint8_t *)malloc_or_die(w);
 
-	unsigned char **outbuf = (unsigned char **)malloc_or_die(sizeof(unsigned char *) * out_numbands);
+	uint8_t **outbuf = (uint8_t **)malloc_or_die(sizeof(uint8_t *) * out_numbands);
 	for(i=0; i<out_numbands; i++) {
-		outbuf[i] = (unsigned char *)malloc_or_die(w);
+		outbuf[i] = (uint8_t *)malloc_or_die(w);
 	}
-	unsigned char *pixel = (unsigned char *)malloc_or_die(out_numbands);
+	uint8_t *pixel = (uint8_t *)malloc_or_die(out_numbands);
 
 	double *invaffine_tierow_above=NULL, *invaffine_tierow_below=NULL;
 	if(do_shade && !constant_invaffine) {
@@ -420,9 +384,9 @@ int main(int argc, char *argv[]) {
 			GDALRasterIO(src_band, GF_Read, 0, 0, w, 1, inbuf_prev, w, 1, GDT_Float64, 0, 0);
 			GDALRasterIO(src_band, GF_Read, 0, 0, w, 1, inbuf_this, w, 1, GDT_Float64, 0, 0);
 			GDALRasterIO(src_band, GF_Read, 0, 1, w, 1, inbuf_next, w, 1, GDT_Float64, 0, 0);
-			check_ndv(inbuf_prev, inbuf_ndv_prev, w, &valid_range);
-			check_ndv(inbuf_this, inbuf_ndv_this, w, &valid_range);
-			check_ndv(inbuf_next, inbuf_ndv_next, w, &valid_range);
+			array_check_ndv(&ndv_def, 0, inbuf_prev, NULL, inbuf_ndv_prev, w);
+			array_check_ndv(&ndv_def, 0, inbuf_this, NULL, inbuf_ndv_this, w);
+			array_check_ndv(&ndv_def, 0, inbuf_next, NULL, inbuf_ndv_next, w);
 			scale_values(inbuf_prev, w, src_scale, src_offset);
 			scale_values(inbuf_this, w, src_scale, src_offset);
 			scale_values(inbuf_next, w, src_scale, src_offset);
@@ -431,7 +395,7 @@ int main(int argc, char *argv[]) {
 			inbuf_prev = inbuf_this;
 			inbuf_this = inbuf_next;
 			inbuf_next = swapd;
-			char *swapc = inbuf_ndv_prev;
+			uint8_t *swapc = inbuf_ndv_prev;
 			inbuf_ndv_prev = inbuf_ndv_this;
 			inbuf_ndv_this = inbuf_ndv_next;
 			inbuf_ndv_next = swapc;
@@ -440,7 +404,7 @@ int main(int argc, char *argv[]) {
 			} else {
 				GDALRasterIO(src_band, GF_Read, 0, row+1, w, 1, inbuf_next, w, 1, GDT_Float64, 0, 0);
 			}
-			check_ndv(inbuf_next, inbuf_ndv_next, w, &valid_range);
+			array_check_ndv(&ndv_def, 0, inbuf_next, NULL, inbuf_ndv_next, w);
 			scale_values(inbuf_next, w, src_scale, src_offset);
 		}
 		if(tex_bands) {
@@ -615,29 +579,6 @@ int main(int argc, char *argv[]) {
 	return 0;
 }
 
-void check_ndv(double *vals, char *is_ndv, int width, data_range_t *valid_range) {
-	int i, j;
-	for(i=0; i<width; i++) is_ndv[i] = 0;
-	if(valid_range->use_min) {
-		double min = valid_range->min_val;
-		for(i=0; i<width; i++) {
-			if(vals[i] < min) is_ndv[i] = 1;
-		}
-	}
-	if(valid_range->use_max) {
-		double max = valid_range->max_val;
-		for(i=0; i<width; i++) {
-			if(vals[i] > max) is_ndv[i] = 1;
-		}
-	}
-	for(j=0; j<valid_range->num_ndv; j++) {
-		double ndv = valid_range->ndv[j];
-		for(i=0; i<width; i++) {
-			if(vals[i] == ndv) is_ndv[i] = 1;
-		}
-	}
-}
-
 void scale_values(double *vals, int w, double scale, double offset) {
 	double *p = vals;
 	while(w--) {
@@ -668,9 +609,9 @@ palette_t *parse_palette(const char * const *lines) {
 		} else {
 			num++;
 			p->vals = (float *)realloc_or_die(p->vals, num*sizeof(float));
-			p->reds   = (unsigned char *)realloc_or_die(p->reds,   num);
-			p->greens = (unsigned char *)realloc_or_die(p->greens, num);
-			p->blues  = (unsigned char *)realloc_or_die(p->blues,  num);
+			p->reds   = (uint8_t *)realloc_or_die(p->reds,   num);
+			p->greens = (uint8_t *)realloc_or_die(p->greens, num);
+			p->blues  = (uint8_t *)realloc_or_die(p->blues,  num);
 			p->vals  [num-1] = val;
 			p->reds  [num-1] = r;
 			p->greens[num-1] = g;
@@ -713,13 +654,13 @@ palette_t *read_default_palette() {
 	return parse_palette(DEFAULT_PALETTE);
 }
 
-void get_nan_color(unsigned char *buf, palette_t *pal) {
+void get_nan_color(uint8_t *buf, palette_t *pal) {
 	buf[0] = pal->nan_red;
 	buf[1] = pal->nan_green;
 	buf[2] = pal->nan_blue;
 }
 
-void get_palette_color(unsigned char *buf, float val, palette_t *pal) {
+void get_palette_color(uint8_t *buf, float val, palette_t *pal) {
 	int i;
 	float v1, v2, alpha;
 

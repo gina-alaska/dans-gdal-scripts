@@ -30,6 +30,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 void usage(const char *cmdname); // externally defined
 
 void print_ndv_usage() {
+	// FIXME
+	printf("\
+No-data values:\n\
+  -ndv\n\
+  -valid\n\
+");
 }
 
 static void add_arg_to_list(int *argc_ptr, char ***argv_ptr, char *new_arg) {
@@ -47,7 +53,7 @@ static void add_minmax(ndv_range_t *r, char *minmax_string) {
 	char *delim = strstr(minmax_string, "..");
 	if(delim) {
 		*delim = 0;
-		char s2 = delim + 2;
+		char *s2 = delim + 2;
 
 		// FIXME - allow -Inf, Inf
 		min = strtod(minmax_string, &endptr);
@@ -129,17 +135,17 @@ ndv_def_t init_ndv_options(int *argc_ptr, char ***argv_ptr) {
 	}
 
 	for(int i=0; i<nd.nranges; i++) {
-		ndv_range_t range = nd.ranges[range_idx];
+		ndv_range_t range = nd.ranges[i];
 		printf("%d: %d bands\n", i, range.nbands);
 		for(int j=0; j<range.nbands; j++) {
-			printf("%d,%d = [%d,%d]\n", i, j, range.min[j], range.max[j]);
+			printf("%d,%d = [%lf,%lf]\n", i, j, range.min[j], range.max[j]);
 		}
 	}
 
 	*argc_ptr = argc_out;
 	*argv_ptr = argv_out;
 
-	return opt;
+	return nd;
 }
 
 void array_check_ndv(
@@ -163,14 +169,14 @@ void array_check_ndv(
 		if(in_dbl) {
 			for(int i=0; i<num_samples; i++) {
 				uint8_t valid = (in_dbl[i] >= min) && (in_dbl[i] <= max);
-				mask_out[i] ||= (valid ? 1 : 0);
+				mask_out[i] |= (valid ? 1 : 0);
 			}
 		} else {
 			uint8_t min_byte = (uint8_t)MAX(ceil (min), 0);
 			uint8_t max_byte = (uint8_t)MIN(floor(max), 255);
 			for(int i=0; i<num_samples; i++) {
 				uint8_t valid = (in_byte[i] >= min_byte) && (in_byte[i] <= max_byte);
-				mask_out[i] ||= (valid ? 1 : 0);
+				mask_out[i] |= (valid ? 1 : 0);
 			}
 		}
 	}
