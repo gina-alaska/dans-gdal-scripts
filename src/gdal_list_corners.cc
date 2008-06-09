@@ -28,6 +28,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "polygon.h"
 #include "debugplot.h"
 #include "georef.h"
+#include "ndv.h"
 #include "mask.h"
 #include "rectangle_finder.h"
 
@@ -36,6 +37,8 @@ void usage(const char *cmdname) {
 	printf("\n");
 	
 	print_georef_usage();
+	printf("\n");
+	print_ndv_usage();
 
 	printf("\
 \n\
@@ -43,9 +46,6 @@ Inspection:\n\
   -inspect-rect4              Attempt to find 4-sided bounding polygon\n\
   -fuzzy-match                Try to exclude logos and other extraneous\n\
                               pixels from bounding polygon\n\
-  -nodataval 'val [val ...]'  Specify value of no-data pixels\n\
-  -ndv-toler val              Tolerance for deciding if a pixel\n\
-                              matches nodataval\n\
   -b band_id -b band_id ...   Bands to inspect (default is all bands)\n\
   -erosion                    Erode pixels that don't have two consecutive\n\
                               neighbors\n\
@@ -70,9 +70,6 @@ int main(int argc, char **argv) {
 
 	int inspect_rect4 = 0;
 	int fuzzy_match = 0;
-	int num_ndv = 0;
-	double *ndv_list = NULL;
-	double ndv_tolerance = 0;
 	char *debug_report = NULL;
 	char *mask_out_fn = NULL;
 	int inspect_numbands = 0;
@@ -92,6 +89,7 @@ int main(int argc, char **argv) {
 	dup2(2, 1);
 
 	geo_opts_t geo_opts = init_geo_options(&argc, &argv);
+	ndv_def_t ndv_def = init_ndv_options(&argc, &argv);
 
 	int argp = 1;
 	while(argp < argc) {
@@ -104,15 +102,6 @@ int main(int argc, char **argv) {
 				inspect_rect4++;
 			} else if(!strcmp(arg, "-fuzzy-match")) {
 				fuzzy_match++;
-			} else if(!strcmp(arg, "-nodataval")) {
-				if(argp == argc) usage(argv[0]);
-				int result = parse_list_of_doubles(argv[argp++], &num_ndv, &ndv_list);
-				if(result) fatal_error("input to -nodataval must be space-separated list of numbers");
-			} else if(!strcmp(arg, "-ndv-toler")) {
-				if(argp == argc) usage(argv[0]);
-				char *endptr;
-				ndv_tolerance = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
 			} else if(!strcmp(arg, "-b")) {
 				if(argp == argc) usage(argv[0]);
 				char *endptr;
@@ -154,13 +143,12 @@ int main(int argc, char **argv) {
 	}
 
 	if(!do_inspect) {
-		if(fuzzy_match)   fatal_error("-fuzzy-match option can only be used with -inspect-rect4 option");
-		if(num_ndv)       fatal_error("-nodataval option can only be used with -inspect-rect4 option");
-		if(ndv_tolerance) fatal_error("-ndv-toler option can only be used with -inspect-rect4 option");
-		if(debug_report)  fatal_error("-report option can only be used with -inspect-rect4 option");
-		if(mask_out_fn)   fatal_error("-mask-out option can only be used with -inspect-rect4 option");
+		if(fuzzy_match)      fatal_error("-fuzzy-match option can only be used with -inspect-rect4 option");
+		if(ndv_def.nranges)  fatal_error("NDV options can only be used with -inspect-rect4 option");
+		if(debug_report)     fatal_error("-report option can only be used with -inspect-rect4 option");
+		if(mask_out_fn)      fatal_error("-mask-out option can only be used with -inspect-rect4 option");
 		if(inspect_numbands) fatal_error("-b option can only be used with -inspect-rect4 option");
-		if(do_erosion)    fatal_error("-erosion option can only be used with -inspect-rect4 option");
+		if(do_erosion)       fatal_error("-erosion option can only be used with -inspect-rect4 option");
 	}
 
 	CPLPushErrorHandler(CPLQuietErrorHandler);
@@ -170,7 +158,9 @@ int main(int argc, char **argv) {
 	report_image_t *dbuf = NULL;
 	unsigned char *mask = NULL;
 	if(do_inspect) {
-		setup_ndv_list(ds, inspect_numbands, inspect_bandids, &num_ndv, &ndv_list);
+		if(!ndv_def.nranges) {
+			add_ndv_from_raster(&ndv_def, ds, inspect_numbands, inspect_bandids);
+		}
 
 		if(debug_report) {
 			dbuf = create_plot(georef.w, georef.h);
@@ -178,7 +168,7 @@ int main(int argc, char **argv) {
 		}
 
 		mask = get_mask_for_dataset(ds, inspect_numbands, inspect_bandids,
-			num_ndv, ndv_list, ndv_tolerance, dbuf);
+			&ndv_def, dbuf);
 
 		if(do_erosion) {
 			erode_mask(mask, georef.w, georef.h);

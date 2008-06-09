@@ -46,7 +46,7 @@ static void add_arg_to_list(int *argc_ptr, char ***argv_ptr, char *new_arg) {
 
 // this modifies its input
 static void add_minmax(ndv_range_t *r, char *minmax_string) {
-	printf("minmax [%s]\n", minmax_string);
+	//printf("minmax [%s]\n", minmax_string);
 
 	char *endptr;
 	double min, max;
@@ -73,7 +73,7 @@ static void add_minmax(ndv_range_t *r, char *minmax_string) {
 }
 
 static void add_ndv_range(ndv_def_t *nd, const char *range_string) {
-	printf("range [%s]\n", range_string);
+	//printf("range [%s]\n", range_string);
 
 	ndv_range_t r;
 	r.min = r.max = NULL;
@@ -202,15 +202,15 @@ void array_check_ndv(
 		}
 		if(in_dbl) {
 			for(int i=0; i<num_samples; i++) {
-				uint8_t valid = (in_dbl[i] >= min) && (in_dbl[i] <= max);
-				mask_out[i] |= (valid ? 1 : 0);
+				uint8_t match = (in_dbl[i] >= min) && (in_dbl[i] <= max);
+				if(match) mask_out[i] = 1;
 			}
 		} else {
 			uint8_t min_byte = (uint8_t)MAX(ceil (min), 0);
 			uint8_t max_byte = (uint8_t)MIN(floor(max), 255);
 			for(int i=0; i<num_samples; i++) {
-				uint8_t valid = (in_byte[i] >= min_byte) && (in_byte[i] <= max_byte);
-				mask_out[i] |= (valid ? 1 : 0);
+				uint8_t match = (in_byte[i] >= min_byte) && (in_byte[i] <= max_byte);
+				if(match) mask_out[i] = 1;
 			}
 		}
 	}

@@ -28,6 +28,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "polygon.h"
 #include "debugplot.h"
 #include "georef.h"
+#include "ndv.h"
 #include "mask.h"
 #include "mask-tracer.h"
 #include "dp.h"
@@ -55,6 +56,8 @@ void usage(const char *cmdname) {
 	printf("\n");
 	
 	print_georef_usage();
+	printf("\n");
+	print_ndv_usage();
 
 	printf("\
 \n\
@@ -63,9 +66,6 @@ Behavior:\n\
                                (default is to generate a single polygon that\n\
                                surrounds all pixels that don't match\n\
                                the no-data-value)\n\
-  -nodataval 'val [val ...]'   Specify value of no-data pixels\n\
-  -ndv-toler val               Tolerance for deciding if a pixel\n\
-                               matches nodataval\n\
   -b band_id -b band_id ...    Bands to inspect (default is all bands)\n\
   -invert                      Trace no-data pixels rather than data pixels\n\
   -erosion                     Erode pixels that don't have two consecutive\n\
@@ -168,9 +168,6 @@ geom_output_t *add_geom_output(geom_output_list_t *list, int out_cs) {
 int main(int argc, char **argv) {
 	const char *input_raster_fn = NULL;
 	int classify = 0;
-	int num_ndv = 0;
-	double *ndv_list = NULL;
-	double ndv_tolerance = 0;
 	const char *debug_report = NULL;
 	int inspect_numbands = 0;
 	int *inspect_bandids = NULL;
@@ -192,6 +189,7 @@ int main(int argc, char **argv) {
 	if(argc == 1) usage(argv[0]);
 
 	geo_opts_t geo_opts = init_geo_options(&argc, &argv);
+	ndv_def_t ndv_def = init_ndv_options(&argc, &argv);
 
 	int argp = 1;
 	while(argp < argc) {
@@ -202,10 +200,6 @@ int main(int argc, char **argv) {
 				VERBOSE++;
 			} else if(!strcmp(arg, "-classify")) {
 				classify = 1;
-			} else if(!strcmp(arg, "-nodataval")) {
-				if(argp == argc) usage(argv[0]);
-				int result = parse_list_of_doubles(argv[argp++], &num_ndv, &ndv_list);
-				if(result) fatal_error("input to -nodataval must be space-separated list of numbers");
 			} else if(!strcmp(arg, "-report")) {
 				if(argp == argc) usage(argv[0]);
 				debug_report = argv[argp++];
@@ -276,11 +270,6 @@ int main(int argc, char **argv) {
 				char *endptr;
 				llproj_toler = strtod(argv[argp++], &endptr);
 				if(*endptr) usage(argv[0]);
-			} else if(!strcmp(arg, "-ndv-toler")) {
-				if(argp == argc) usage(argv[0]);
-				char *endptr;
-				ndv_tolerance = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
 			} else usage(argv[0]);
 		} else {
 			if(input_raster_fn) usage(argv[0]);
@@ -298,7 +287,7 @@ int main(int argc, char **argv) {
 		"-major-ring and -no-donuts options cannot both be used at the same time");
 
 	if(classify) {
-		if(num_ndv) fatal_error("-classify option is not compatible with -nodataval option");
+		if(ndv_def.nranges) fatal_error("-classify option is not compatible with NDV options");
 		if(do_invert) fatal_error("-classify option is not compatible with -invert option");
 		if(mask_out_fn) fatal_error("-classify option is not compatible with -mask-out option");
 	}
@@ -317,7 +306,9 @@ int main(int argc, char **argv) {
 
 	// FIXME - optional NDV for classify
 	if(!classify) {
-		setup_ndv_list(ds, inspect_numbands, inspect_bandids, &num_ndv, &ndv_list);
+		if(!ndv_def.nranges) {
+			add_ndv_from_raster(&ndv_def, ds, inspect_numbands, inspect_bandids);
+		}
 	}
 
 	CPLPushErrorHandler(CPLQuietErrorHandler);
@@ -354,8 +345,9 @@ int main(int argc, char **argv) {
 			color_table = GDALGetRasterColorTable(band);
 		}
 	} else {
-		mask = get_mask_for_dataset(ds, inspect_numbands, inspect_bandids,
-			num_ndv, ndv_list, ndv_tolerance, dbuf);
+		mask = get_mask_for_dataset(
+			ds, inspect_numbands, inspect_bandids,
+			&ndv_def, dbuf);
 	}
 
 	for(int go_idx=0; go_idx<geom_outputs.num; go_idx++) {

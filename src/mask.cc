@@ -28,9 +28,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "mask.h"
 #include "polygon.h"
 #include "debugplot.h"
+#include "ndv.h"
 
 unsigned char *get_mask_for_dataset(GDALDatasetH ds, int bandlist_size, int *bandlist, 
-int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
+ndv_def_t *ndv_def, report_image_t *dbuf) {
 	int i, j;
 
 	int w = GDALGetRasterXSize(ds);
@@ -61,25 +62,15 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 		if(VERBOSE) printf("band %d: block size = %d,%d, use_8bit=%d\n",
 			band_idx, blocksize_x, blocksize_y, use_8bit);
 
-		double ndv_lo_dbl = ndv_list[bandlist_idx] - ndv_tolerance;
-		double ndv_hi_dbl = ndv_list[bandlist_idx] + ndv_tolerance;
-		unsigned char ndv_lo_8bit = (unsigned char)MAX(ceil (ndv_lo_dbl), 0);
-		unsigned char ndv_hi_8bit = (unsigned char)MIN(floor(ndv_hi_dbl), 255);
-
-		if(VERBOSE) {
-			if(use_8bit) {
-				printf("ndv_range = [%d,%d]\n", (int)ndv_lo_8bit, (int)ndv_hi_8bit);
-			} else {
-				printf("ndv_range = [%.15f,%.15f]\n", ndv_lo_dbl, ndv_hi_dbl);
-			}
-		}
-
 		void *block_buf;
 		if(use_8bit) {
 			block_buf = malloc_or_die(blocksize_x*blocksize_y);
 		} else {
 			block_buf = malloc_or_die(blocksize_x*blocksize_y*sizeof(double));
 		}
+
+		uint8_t *row_ndv = (uint8_t *)malloc(blocksize_x);
+
 		int boff_x, boff_y;
 		for(boff_y=0; boff_y<h; boff_y+=blocksize_y) {
 			int bsize_y = blocksize_y;
@@ -109,41 +100,60 @@ int num_ndv, double *ndv_list, double ndv_tolerance, report_image_t *dbuf) {
 				}
 				for(j=0; j<bsize_y; j++) {
 					int y = j + boff_y;
-					int is_dbuf_stride_y = dbuf && ((y % dbuf->stride_y) == 0);
+					int is_dbuf_stride_y = dbuf && (bandlist_idx==0) && ((y % dbuf->stride_y) == 0);
 					unsigned char *mp = mask + (w+2)*(y+1) + boff_x+1;
-					for(i=0; i<bsize_x; i++) {
-						int debug_color;
-						int is_ndv;
-						if(use_8bit) {
-							unsigned char val = *(p_8bit++);
-							is_ndv = (val >= ndv_lo_8bit && val <= ndv_hi_8bit);
-							debug_color = (int)val;
-						} else {
-							double val = *(p_dbl++);
-							is_ndv = (val >= ndv_lo_dbl && val <= ndv_hi_dbl);
-							debug_color = (int)val;
-						}
-						if(!is_ndv) {
-							*mp = 1;
 
-							int is_dbuf_stride = is_dbuf_stride_y && ((i % dbuf->stride_x) == 0);
-							if(is_dbuf_stride) {
-								int x = i + boff_x;
-								int db_v = 100;
-								db_v += debug_color / 2;
-								if(db_v < 100) db_v = 100;
-								if(db_v > 254) db_v = 254;
-								unsigned char r = (unsigned char)(db_v*.75);
-								plot_point(dbuf, x, y, r, db_v, db_v);
-							}
+					array_check_ndv(ndv_def, bandlist_idx, p_dbl, p_8bit, row_ndv, bsize_x);
+
+					for(i=0; i<bsize_x; i++) {
+						int is_dbuf_stride = is_dbuf_stride_y && ((i % dbuf->stride_x) == 0);
+						if(is_dbuf_stride) {
+							int debug_color = use_8bit ? (int)(*p_8bit) : (int)(*p_dbl);
+							int x = i + boff_x;
+							int db_v = 100;
+							db_v += debug_color / 2;
+							if(db_v < 100) db_v = 100;
+							if(db_v > 254) db_v = 254;
+							unsigned char r = (unsigned char)(db_v*.75);
+							plot_point(dbuf, x, y, r, db_v, db_v);
 						}
-						mp++;
+
+						if(use_8bit) p_8bit++;
+						else         p_dbl++;
+					}
+
+					if(!bandlist_idx) {
+						for(i=0; i<bsize_x; i++) {
+							*(mp++) = row_ndv[i] ? 0 : 1;
+						}
+					} else if(ndv_def->invert) {
+						for(i=0; i<bsize_x; i++) {
+							if(row_ndv[i]) *mp = 0;
+							mp++;
+						}
+					} else {
+						for(i=0; i<bsize_x; i++) {
+							if(!row_ndv[i]) *mp = 1;
+							mp++;
+						}
 					}
 				}
 			}
 		}
 
 		free(block_buf);
+		free(row_ndv);
+	}
+
+	if(dbuf) {
+		for(int y=0; y<h; y+=dbuf->stride_y) {
+		for(int x=0; x<w; x+=dbuf->stride_x) {
+			unsigned char is_valid = mask[(w+2)*(y+1) + x+1];
+			if(!is_valid) {
+				plot_point(dbuf, x, y, 0, 0, 0);
+			}
+		}
+		}
 	}
 
 	GDALTermProgress(1, NULL, NULL);
