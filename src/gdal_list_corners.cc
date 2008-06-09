@@ -156,7 +156,7 @@ int main(int argc, char **argv) {
 	georef_t georef = init_georef(&geo_opts, ds);
 
 	report_image_t *dbuf = NULL;
-	unsigned char *mask = NULL;
+	uint8_t *mask = NULL;
 	if(do_inspect) {
 		if(!ndv_def.nranges) {
 			add_ndv_from_raster(&ndv_def, ds, inspect_numbands, inspect_bandids);

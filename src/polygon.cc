@@ -641,14 +641,14 @@ void mask_from_mpoly(mpoly_t *mpoly, int w, int h, const char *fn) {
 	FILE *fout = fopen(fn, "wb");
 	if(!fout) fatal_error("cannot open mask output");
 	fprintf(fout, "P4\n%d %d\n", w, h);
-	unsigned char *buf = (unsigned char *)malloc_or_die((w+7)/8);
+	uint8_t *buf = (uint8_t *)malloc_or_die((w+7)/8);
 	for(y=0; y<h; y++) {
 		memset(buf, 0, (w+7)/8);
-		unsigned char *p = buf;
-		unsigned char bitp = 128;
+		uint8_t *p = buf;
+		uint8_t bitp = 128;
 		row_crossings_t *r = rows+y;
 		for(i=0; i<w; i++) {
-			unsigned char v = 1;
+			uint8_t v = 1;
 			// not the fastest way...
 			for(j=0; j<r->num_crossings; j++) {
 				if(i >= r->crossings[j]) v = !v;

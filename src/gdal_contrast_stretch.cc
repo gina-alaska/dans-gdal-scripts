@@ -52,7 +52,7 @@ int main(int argc, char *argv[]) {
 	const char *src_fn = NULL;
 	const char *dst_fn = NULL;
 	const char *output_format = NULL;
-	unsigned char ndv = 0;
+	uint8_t ndv = 0;
 	char use_ndv = 0;
 
 	char mode_histeq = 0;
@@ -237,7 +237,7 @@ int main(int argc, char *argv[]) {
 	int blocksize_x, blocksize_y;
 	GDALGetBlockSize(src_bands[0], &blocksize_x, &blocksize_y);
 	GUInt16 *buf_in = (GUInt16 *)malloc_or_die(sizeof(GUInt16)*blocksize_x*blocksize_y);
-	unsigned char *buf_out = (unsigned char *)malloc_or_die(blocksize_x*blocksize_y);
+	uint8_t *buf_out = (uint8_t *)malloc_or_die(blocksize_x*blocksize_y);
 
 	int boff_x, boff_y;
 	for(boff_y=0; boff_y<h; boff_y+=blocksize_y) {
@@ -259,7 +259,7 @@ int main(int argc, char *argv[]) {
 
 				int *xform = xform_table[band_idx];
 				GUInt16 *p_in = buf_in;
-				unsigned char *p_out = buf_out;
+				uint8_t *p_out = buf_out;
 
 				int bx, by;
 				for(by=0; by<bsize_y; by++) {

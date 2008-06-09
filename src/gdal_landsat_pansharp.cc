@@ -214,7 +214,7 @@ int main(int argc, char *argv[]) {
 	}
 	double *pan_buf = (double *)malloc_or_die(sizeof(double) * w);
 	double *rgb_buf = (double *)malloc_or_die(sizeof(double) * w);
-	unsigned char *out_buf = (unsigned char *)malloc_or_die(sizeof(unsigned char) * w);
+	uint8_t *out_buf = (uint8_t *)malloc_or_die(sizeof(uint8_t) * w);
 	double *scale_buf = (double *)malloc_or_die(sizeof(double) * w);
 
 	int row;
@@ -258,14 +258,14 @@ int main(int argc, char *argv[]) {
 
 			for(col=0; col<w; col++) {
 				if(use_ndv && rgb_buf[col] == ndv) {
-					out_buf[col] = (unsigned char)ndv;
+					out_buf[col] = (uint8_t)ndv;
 				} else {
 					double dbl_val = rgb_buf[col] * scale_buf[col];
 
-					unsigned char byte_val = 
+					uint8_t byte_val = 
 						dbl_val < 0 ? 0 :
 						dbl_val > 255.0 ? 255 :
-						(unsigned char)dbl_val;
+						(uint8_t)dbl_val;
 
 					// avoid ndv in output
 					if(use_ndv && byte_val == ndv) {

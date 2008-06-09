@@ -49,7 +49,7 @@ double ang_diff(double a1, double a2) {
 	return d<=180.0 ? d : 360.0-d;
 }
 
-ring_t calc_rect4_from_convex_hull(unsigned char *mask, int w, int h, report_image_t *dbuf) {
+ring_t calc_rect4_from_convex_hull(uint8_t *mask, int w, int h, report_image_t *dbuf) {
 	int i, j;
 
 	int *chrows_left = (int *)malloc_or_die(sizeof(int) * h);
@@ -61,7 +61,7 @@ ring_t calc_rect4_from_convex_hull(unsigned char *mask, int w, int h, report_ima
 	for(j=0; j<h; j++) {
 		int left = w;
 		int right = -1;
-		unsigned char *mp = mask + (w+2)*(j+1) + 1;
+		uint8_t *mp = mask + (w+2)*(j+1) + 1;
 		for(i=0; i<w; i++) {
 			if(*(mp++)) {
 				if(left > i) left = i;
@@ -314,7 +314,7 @@ ring_t calc_rect4_from_convex_hull(unsigned char *mask, int w, int h, report_ima
 //	return v;
 //}
 
-static int ringdiff(ring_t *r1, ring_t *r2, unsigned char *mask, int w, int h) {
+static int ringdiff(ring_t *r1, ring_t *r2, uint8_t *mask, int w, int h) {
 	mpoly_t mp1, mp2;
 	mp1.num_rings = mp2.num_rings = 1;
 	mp1.rings = r1;
@@ -361,7 +361,7 @@ static int ringdiff(ring_t *r1, ring_t *r2, unsigned char *mask, int w, int h) {
 			
 			int gain=1, penalty=2; // FIXME - arbitrary
 			for(int x=x_from; x<x_to; x++) {
-				unsigned char m = (y>=0 && y<h && x>=0 && x<w)
+				uint8_t m = (y>=0 && y<h && x>=0 && x<w)
 					? mask[(w+2)*(y+1) + (x+1)] : 0;
 				if(in1) tally += m ? -penalty : gain;
 				if(in2) tally += m ? gain : -penalty;
@@ -372,7 +372,7 @@ static int ringdiff(ring_t *r1, ring_t *r2, unsigned char *mask, int w, int h) {
 		//	int in1 = is_in_crossings(row1, x);
 		//	int in2 = is_in_crossings(row2, x);
 		//	if((in1 && !in2) || (in2 && !in1)) {
-		//		unsigned char m = (y>=0 && y<h && x>=0 && x<w)
+		//		uint8_t m = (y>=0 && y<h && x>=0 && x<w)
 		//			? mask[(w+2)*(y+1) + (x+1)] : 0;
 		//		if(in1) tally += m ? -1 :  1;
 		//		if(in2) tally += m ?  1 : -1;
@@ -421,7 +421,7 @@ static void perturb(ring_t *in, ring_t *out, int amt) {
 }
 
 /*
-static ring_t anneal(ring_t *input, int recurse, unsigned char *mask, int w, int h) {
+static ring_t anneal(ring_t *input, int recurse, uint8_t *mask, int w, int h) {
 	ring_t best = duplicate_ring(input);
 	ring_t pert = duplicate_ring(input);
 
@@ -463,7 +463,7 @@ static ring_t anneal(ring_t *input, int recurse, unsigned char *mask, int w, int
 }
 */
 
-static ring_t anneal(ring_t *input, unsigned char *mask, int w, int h) {
+static ring_t anneal(ring_t *input, uint8_t *mask, int w, int h) {
 	ring_t best = duplicate_ring(input);
 	ring_t pert = duplicate_ring(input);
 
@@ -481,7 +481,7 @@ static ring_t anneal(ring_t *input, unsigned char *mask, int w, int h) {
 	return best;
 }
 
-ring_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *dbuf, int use_ai) {
+ring_t calc_rect4_from_mask(uint8_t *mask, int w, int h, report_image_t *dbuf, int use_ai) {
 	ring_t best = calc_rect4_from_convex_hull(mask, w, h, dbuf);
 
 	if(use_ai) {

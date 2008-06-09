@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 typedef int pixquad_t;
 
 int dbg_idx = 0;
-static void debug_write_mask(unsigned char *mask, int w, int h) {
+static void debug_write_mask(uint8_t *mask, int w, int h) {
 	char fn[1000];
 	sprintf(fn, "zz-debug-%04d.pgm", dbg_idx++);
 	FILE *fh = fopen(fn, "w");
@@ -131,11 +131,11 @@ static int is_inside_crossings(row_crossings_t *c, int x) {
 }
 */
 
-static inline pixquad_t get_quad(unsigned char *mask, int w, int h, int x, int y, int select_color) {
+static inline pixquad_t get_quad(uint8_t *mask, int w, int h, int x, int y, int select_color) {
 	// 1 2
 	// 8 4
-	unsigned char *uprow = mask + (y  )*(w+2);
-	unsigned char *dnrow = mask + (y+1)*(w+2);
+	uint8_t *uprow = mask + (y  )*(w+2);
+	uint8_t *dnrow = mask + (y+1)*(w+2);
 	pixquad_t quad =
 		(uprow[x  ]     ) + // y-1, x-1
 		(uprow[x+1] << 1) + // y-1, x
@@ -149,7 +149,7 @@ static inline pixquad_t rotate_quad(pixquad_t q, int dir) {
 	return ((q + (q<<4)) >> dir) & 0xf;
 }
 
-static ring_t trace_single_mpoly(unsigned char *mask, int w, int h,
+static ring_t trace_single_mpoly(uint8_t *mask, int w, int h,
 int initial_x, int initial_y, int select_color) {
 	//printf("trace_single_mpoly enter (%d,%d)\n", initial_x, initial_y);
 
@@ -215,7 +215,7 @@ int initial_x, int initial_y, int select_color) {
 	return ring;
 }
 
-static int recursive_trace(unsigned char *mask, int w, int h,
+static int recursive_trace(uint8_t *mask, int w, int h,
 ring_t *bounds, int depth, mpoly_t *out_poly, int parent_id, 
 long min_area, int no_donuts) {
 	//printf("recursive_trace enter: depth=%d\n", depth);
@@ -264,8 +264,8 @@ long min_area, int no_donuts) {
 				GDALTermProgress((double)y/(double)(bound_bottom-bound_top-1), NULL, NULL);
 			}
 
-			unsigned char *uprow = mask + (y  )*(w+2);
-			unsigned char *dnrow = mask + (y+1)*(w+2);
+			uint8_t *uprow = mask + (y  )*(w+2);
+			uint8_t *dnrow = mask + (y+1)*(w+2);
 
 			// make sure the range (y-1,y)*(x-1,x) is in bounds
 			crossings_intersection(&cross_both, 
@@ -277,8 +277,8 @@ long min_area, int no_donuts) {
 				int to   =   cross_both.crossings[cidx*2+1];
 
 				// find the first possible quad that could match
-				unsigned char *mc1 = (unsigned char *)memchr(uprow+from, select_color, to-from);
-				unsigned char *mc2 = (unsigned char *)memchr(dnrow+from, select_color, to-from);
+				uint8_t *mc1 = (uint8_t *)memchr(uprow+from, select_color, to-from);
+				uint8_t *mc2 = (uint8_t *)memchr(dnrow+from, select_color, to-from);
 				int ic1 = mc1 ? (mc1-uprow)-1 : to;
 				int ic2 = mc2 ? (mc2-dnrow)-1 : to;
 				if(ic2 < ic1) ic1 = ic2;
@@ -332,7 +332,7 @@ long min_area, int no_donuts) {
 	for(int y=bound_top; y<bound_bottom; y++) {
 		row_crossings_t *r = crossings + (y-bound_top);
 		if(depth>0) {
-			unsigned char *maskrow = mask + (y+1)*(w+2);
+			uint8_t *maskrow = mask + (y+1)*(w+2);
 			for(int cidx=0; cidx<r->num_crossings/2; cidx++) {
 				int from = r->crossings[cidx*2  ];
 				int to   = r->crossings[cidx*2+1];
@@ -357,18 +357,18 @@ long min_area, int no_donuts) {
 }
 
 // this function has the side effect of erasing the mask
-mpoly_t trace_mask(unsigned char *mask_8bit, int w, int h, long min_area, int no_donuts) {
+mpoly_t trace_mask(uint8_t *mask_8bit, int w, int h, long min_area, int no_donuts) {
 	if(VERBOSE >= 4) debug_write_mask(mask_8bit, w, h);
 
 	/*
-	unsigned char *mask_8bit = (unsigned char *)malloc_or_die((w+2)*(h+2));
+	uint8_t *mask_8bit = (uint8_t *)malloc_or_die((w+2)*(h+2));
 	// FIXME - only need to clear borders
 	memset(mask_8bit, 0, (w+2)*(h+2));
 	for(int y=0; y<h; y++) {
 		int mask_rowlen = (w+7)/8;
-		unsigned char mask_bitp = 1;
-		unsigned char *mask_bytep = mask_1bit + mask_rowlen*y;
-		unsigned char *outp = mask_8bit + (y+1)*(w+2) + 1;
+		uint8_t mask_bitp = 1;
+		uint8_t *mask_bytep = mask_1bit + mask_rowlen*y;
+		uint8_t *outp = mask_8bit + (y+1)*(w+2) + 1;
 		for(int x=0; x<w; x++) {
 			*(outp++) = (*mask_bytep & mask_bitp) ? 1 : 0;
 			mask_bitp <<= 1;

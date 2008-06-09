@@ -122,7 +122,7 @@ int main(int argc, char *argv[]) {
 	int chunk_size = 200;
 
 	// FIXME - handle other datatypes
-	unsigned char *buf = (unsigned char *)malloc_or_die(w * chunk_size);
+	uint8_t *buf = (uint8_t *)malloc_or_die(w * chunk_size);
 
 	int row;
 	for(row=0; row<h; row+=chunk_size) {

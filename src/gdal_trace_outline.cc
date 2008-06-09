@@ -118,7 +118,7 @@ gdal_trace_outline raster.tif -classify -out-cs en -ogr-out outline.shp\n\
 	exit(1);
 }
 
-mpoly_t calc_ring_from_mask(unsigned char *mask, int w, int h,
+mpoly_t calc_ring_from_mask(uint8_t *mask, int w, int h,
 	report_image_t *dbuf, int major_ring_only, int no_donuts,
 	long min_ring_area, double bevel_size);
 
@@ -329,9 +329,9 @@ int main(int argc, char **argv) {
 		dbuf->mode = PLOT_CONTOURS;
 	}
 
-	const unsigned char *raster = NULL;
-	unsigned char *mask = NULL;
-	unsigned char usage_array[256];
+	const uint8_t *raster = NULL;
+	uint8_t *mask = NULL;
+	uint8_t usage_array[256];
 	GDALColorTableH color_table = NULL;
 	if(classify) {
 		if(inspect_numbands != 1) {
@@ -421,7 +421,7 @@ int main(int argc, char **argv) {
 			}
 
 			mask = get_mask_for_8bit_raster(georef.w, georef.h,
-				raster, (unsigned char)class_id);
+				raster, (uint8_t)class_id);
 		} else {
 			if(class_id != 0) continue;
 		}
@@ -585,7 +585,7 @@ int main(int argc, char **argv) {
 	return 0;
 }
 
-mpoly_t calc_ring_from_mask(unsigned char *mask, int w, int h,
+mpoly_t calc_ring_from_mask(uint8_t *mask, int w, int h,
 report_image_t *dbuf, int major_ring_only, int no_donuts, 
 long min_ring_area, double bevel_size) {
 	if(major_ring_only) no_donuts = 1;

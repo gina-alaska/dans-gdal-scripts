@@ -47,7 +47,7 @@ report_image_t *create_plot(double w, double h) {
 	if(dbuf->stride_x < 1) dbuf->stride_x = 1;
 	if(dbuf->stride_y < 1) dbuf->stride_y = 1;
 
-	dbuf->img = (unsigned char *)malloc_or_die(dbuf->img_w*dbuf->img_h*3);
+	dbuf->img = (uint8_t *)malloc_or_die(dbuf->img_w*dbuf->img_h*3);
 	int i;
 	for(i=0; i<dbuf->img_w*dbuf->img_h*3; i++) dbuf->img[i] = 0;
 	
@@ -61,7 +61,7 @@ void write_plot(report_image_t *dbuf, const char *fn) {
 	fclose(fout);
 }
 
-void plot_point_big(report_image_t *dbuf, double x, double y, unsigned char r, unsigned char g, unsigned char b) {
+void plot_point_big(report_image_t *dbuf, double x, double y, uint8_t r, uint8_t g, uint8_t b) {
 	int center_x = (int)(x / dbuf->canvas_w * (double)(dbuf->img_w-1) + .5);
 	int center_y = (int)(y / dbuf->canvas_h * (double)(dbuf->img_h-1) + .5);
 	int dx, dy;
@@ -69,23 +69,23 @@ void plot_point_big(report_image_t *dbuf, double x, double y, unsigned char r, u
 		int plot_x = center_x + dx;
 		int plot_y = center_y + dy;
 		if(plot_x>=0 && plot_y>=0 && plot_x<dbuf->img_w && plot_y<dbuf->img_h) {
-			unsigned char *p = dbuf->img + (plot_x + dbuf->img_w*plot_y)*3;
+			uint8_t *p = dbuf->img + (plot_x + dbuf->img_w*plot_y)*3;
 			*(p++) = r; *(p++) = g; *(p++) = b;
 		}
 	}
 }
 
-void plot_point(report_image_t *dbuf, double x, double y, unsigned char r, unsigned char g, unsigned char b) {
+void plot_point(report_image_t *dbuf, double x, double y, uint8_t r, uint8_t g, uint8_t b) {
 	int plot_x = (int)(x / dbuf->canvas_w * (double)(dbuf->img_w-1) + .5);
 	int plot_y = (int)(y / dbuf->canvas_h * (double)(dbuf->img_h-1) + .5);
 	if(plot_x>=0 && plot_y>=0 && plot_x<dbuf->img_w && plot_y<dbuf->img_h) {
-		unsigned char *p = dbuf->img + (plot_x + dbuf->img_w*plot_y)*3;
+		uint8_t *p = dbuf->img + (plot_x + dbuf->img_w*plot_y)*3;
 		*(p++) = r; *(p++) = g; *(p++) = b;
 	}
 }
 
 void plot_line(report_image_t *dbuf, vertex_t p0, vertex_t p1, 
-unsigned char r, unsigned char g, unsigned char b) {
+uint8_t r, uint8_t g, uint8_t b) {
 	double dx = (p1.x-p0.x) / dbuf->canvas_w * (double)dbuf->img_w;
 	double dy = (p1.y-p0.y) / dbuf->canvas_h * (double)dbuf->img_h;
 	double len = sqrt(dx*dx + dy*dy) + 2.0;
