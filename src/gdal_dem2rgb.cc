@@ -347,15 +347,9 @@ int main(int argc, char *argv[]) {
 
 	//////// process image ////////
 
-	// FIXME
-	//int gdal_have_ndv;
-	//double gdal_ndv = GDALGetRasterNoDataValue(src_band, &gdal_have_ndv);
-	//if(gdal_have_ndv) {
-	//	valid_range.ndv = (double *)realloc_or_die(valid_range.ndv,
-	//		sizeof(double) * (valid_range.num_ndv+1));
-	//	valid_range.ndv[valid_range.num_ndv] = gdal_ndv;
-	//	valid_range.num_ndv++;
-	//}
+	if(!ndv_def.nranges) {
+		add_ndv_from_raster(&ndv_def, src_ds, 1, &band_id);
+	}
 
 	double *inbuf_prev = (double *)malloc_or_die(sizeof(double) * w);
 	double *inbuf_this = (double *)malloc_or_die(sizeof(double) * w);

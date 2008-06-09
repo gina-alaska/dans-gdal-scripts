@@ -41,6 +41,7 @@ typedef struct {
 
 void print_ndv_usage();
 ndv_def_t init_ndv_options(int *argc_ptr, char ***argv_ptr);
+void add_ndv_from_raster(ndv_def_t *nd, GDALDatasetH ds, int bandlist_size, int *bandlist);
 void array_check_ndv(
 	ndv_def_t *nd, int band, double *in_dbl, uint8_t *in_byte,
 	uint8_t *mask_out, int num_samples

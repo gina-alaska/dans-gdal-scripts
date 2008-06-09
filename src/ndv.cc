@@ -134,18 +134,52 @@ ndv_def_t init_ndv_options(int *argc_ptr, char ***argv_ptr) {
 		nd.invert = got_dv;
 	}
 
-	for(int i=0; i<nd.nranges; i++) {
-		ndv_range_t range = nd.ranges[i];
-		printf("%d: %d bands\n", i, range.nbands);
-		for(int j=0; j<range.nbands; j++) {
-			printf("%d,%d = [%lf,%lf]\n", i, j, range.min[j], range.max[j]);
-		}
-	}
+	//for(int i=0; i<nd.nranges; i++) {
+	//	ndv_range_t range = nd.ranges[i];
+	//	printf("%d: %d bands\n", i, range.nbands);
+	//	for(int j=0; j<range.nbands; j++) {
+	//		printf("%d,%d = [%lf,%lf]\n", i, j, range.min[j], range.max[j]);
+	//	}
+	//}
 
 	*argc_ptr = argc_out;
 	*argv_ptr = argv_out;
 
 	return nd;
+}
+
+void add_ndv_from_raster(ndv_def_t *nd, GDALDatasetH ds, int bandlist_size, int *bandlist) {
+	ndv_range_t r;
+	r.nbands = bandlist_size;
+	r.min = (double *)malloc_or_die(sizeof(double) * r.nbands);
+	r.max = (double *)malloc_or_die(sizeof(double) * r.nbands);
+	int got_error = 0;
+
+	int band_count = GDALGetRasterCount(ds);
+	int bandlist_idx;
+	for(bandlist_idx=0; bandlist_idx<bandlist_size; bandlist_idx++) {
+		int band_idx = bandlist[bandlist_idx];
+		if(band_idx < 1 || band_idx > band_count) fatal_error("bandid out of range");
+
+		GDALRasterBandH band = GDALGetRasterBand(ds, band_idx);
+
+		int success;
+		double val = GDALGetRasterNoDataValue(band, &success);
+		if(success) {
+			r.min[bandlist_idx] = r.max[bandlist_idx] = val;
+		} else {
+			got_error = 1;
+		}
+	}
+
+	if(got_error) {
+		free(r.min);
+		free(r.max);
+		//fatal_error("could not determine NDV");
+	} else {
+		nd->ranges = (ndv_range_t *)realloc_or_die(nd->ranges, sizeof(ndv_range_t) * (nd->nranges+1));
+		nd->ranges[nd->nranges++] = r;
+	}
 }
 
 void array_check_ndv(
