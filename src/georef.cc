@@ -41,7 +41,7 @@ Geocoding:\n\
 ");
 }
 
-void _add_arg_to_list(int *argc_ptr, char ***argv_ptr, char *new_arg) {
+static void add_arg_to_list(int *argc_ptr, char ***argv_ptr, char *new_arg) {
 	*argv_ptr= (char **)realloc_or_die(*argv_ptr, sizeof(char *) * (*argc_ptr+1));
 	(*argv_ptr)[*argc_ptr] = new_arg;
 	(*argc_ptr)++;
@@ -53,7 +53,7 @@ geo_opts_t init_geo_options(int *argc_ptr, char ***argv_ptr) {
 
 	int argc_out = 0;
 	char **argv_out = NULL;
-	_add_arg_to_list(&argc_out, &argv_out, argv[0]);
+	add_arg_to_list(&argc_out, &argv_out, argv[0]);
 
 	geo_opts_t opt;
 	opt.s_srs = NULL;
@@ -104,10 +104,10 @@ geo_opts_t init_geo_options(int *argc_ptr, char ***argv_ptr) {
 				opt.res_y = strtod(argv[argp++], &endptr);
 				if(*endptr) usage(argv[0]);
 			} else {
-				_add_arg_to_list(&argc_out, &argv_out, arg);
+				add_arg_to_list(&argc_out, &argv_out, arg);
 			}
 		} else {
-			_add_arg_to_list(&argc_out, &argv_out, arg);
+			add_arg_to_list(&argc_out, &argv_out, arg);
 		}
 	}
 
