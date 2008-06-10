@@ -135,6 +135,7 @@ int main(int argc, char *argv[]) {
 				palette_fn = argv[argp++];
 				if(!strcmp(palette_fn, "data24bit")) {
 					data24bit = 1;
+					palette_fn = NULL;
 				}
 			} else if(!strcmp(arg, "-default-palette")) {
 				use_default_palette = 1;

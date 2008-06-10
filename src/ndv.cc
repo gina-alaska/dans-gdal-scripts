@@ -33,10 +33,10 @@ void print_ndv_usage() {
 	// FIXME
 	printf("\
 No-data values:\n\
-  -ndv val                          Set a no-data value\n\
-  -ndv 'val val ...'                Set a no-data value using all input bands\n\
-  -ndv 'min..max min..max ...'      Set a range of no-data values (-Inf and Inf are allowed)\n\
-  -valid 'min..max min..max ...'    Set a range of valid data values\n\
+  -ndv val                                Set a no-data value\n\
+  -ndv 'val val ...'                      Set a no-data value using all input bands\n\
+  -ndv 'min..max min..max ...'            Set a range of no-data values (-Inf and Inf are allowed)\n\
+  -valid-range 'min..max min..max ...'    Set a range of valid data values\n\
 ");
 }
 
@@ -118,7 +118,7 @@ ndv_def_t init_ndv_options(int *argc_ptr, char ***argv_ptr) {
 				if(argp == argc) usage(argv[0]);
 				add_ndv_range(&nd, argv[argp++]);
 				got_ndv = 1;
-			} else if(!strcmp(arg, "-valid")) {
+			} else if(!strcmp(arg, "-valid-range")) {
 				if(argp == argc) usage(argv[0]);
 				add_ndv_range(&nd, argv[argp++]);
 				got_dv = 1;
@@ -131,7 +131,7 @@ ndv_def_t init_ndv_options(int *argc_ptr, char ***argv_ptr) {
 	}
 
 	if(got_ndv && got_dv) {
-		fatal_error("you cannot use both -ndv and -valid options");
+		fatal_error("you cannot use both -ndv and -valid-range options");
 	} else {
 		nd.invert = got_dv;
 	}
