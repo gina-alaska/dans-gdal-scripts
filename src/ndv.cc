@@ -33,8 +33,10 @@ void print_ndv_usage() {
 	// FIXME
 	printf("\
 No-data values:\n\
-  -ndv\n\
-  -valid\n\
+  -ndv val                          Set a no-data value\n\
+  -ndv 'val val ...'                Set a no-data value using all input bands\n\
+  -ndv 'min..max min..max ...'      Set a range of no-data values (-Inf and Inf are allowed)\n\
+  -valid 'min..max min..max ...'    Set a range of valid data values\n\
 ");
 }
 
