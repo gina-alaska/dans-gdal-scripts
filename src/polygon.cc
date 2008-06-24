@@ -226,20 +226,52 @@ OGRGeometryH mpoly_to_ogr(mpoly_t *mpoly_in) {
 }
 
 mpoly_t ogr_to_mpoly(OGRGeometryH geom_in) {
-	mpoly_t mpoly_out;
 
-	mpoly_out.num_rings = OGR_G_GetGeometryCount(geom_in);
-	if(mpoly_out.num_rings < 1) fatal_error("num_rings<1 in ogr_to_mpoly");
+	OGRwkbGeometryType type = OGR_G_GetGeometryType(geom_in);
+	if(type == wkbPolygon) {
+		mpoly_t mpoly_out;
+		mpoly_out.num_rings = OGR_G_GetGeometryCount(geom_in);
+		if(mpoly_out.num_rings < 1) fatal_error("num_rings<1 in ogr_to_mpoly");
 
-	mpoly_out.rings = (ring_t *)malloc_or_die(sizeof(ring_t) * mpoly_out.num_rings);
+		mpoly_out.rings = (ring_t *)malloc_or_die(sizeof(ring_t) * mpoly_out.num_rings);
 
-	for(int i=0; i<mpoly_out.num_rings; i++) {
-		mpoly_out.rings[i] = ogr_to_ring(OGR_G_GetGeometryRef(geom_in, i));
-		mpoly_out.rings[i].is_hole = (i>0);
-		mpoly_out.rings[i].parent_id = (i>0) ? 0 : -1;
+		for(int i=0; i<mpoly_out.num_rings; i++) {
+			mpoly_out.rings[i] = ogr_to_ring(OGR_G_GetGeometryRef(geom_in, i));
+			mpoly_out.rings[i].is_hole = (i>0);
+			mpoly_out.rings[i].parent_id = (i>0) ? 0 : -1;
+		}
+
+		return mpoly_out;
+	} else if(type == wkbMultiPolygon || type == wkbGeometryCollection) {
+		int num_geom = OGR_G_GetGeometryCount(geom_in);
+		mpoly_t *polys = (mpoly_t *)malloc_or_die(sizeof(mpoly_t) * num_geom);
+		int total_rings = 0;
+		for(int i=0; i<num_geom; i++) {
+			OGRGeometryH g = OGR_G_GetGeometryRef(geom_in, i);
+			polys[i] = ogr_to_mpoly(g);
+			total_rings += polys[i].num_rings;
+		}
+
+		mpoly_t mpoly_out;
+		mpoly_out.num_rings = total_rings;
+		if(mpoly_out.num_rings < 1) fatal_error("num_rings<1 in ogr_to_mpoly");
+		mpoly_out.rings = (ring_t *)malloc_or_die(sizeof(ring_t) * mpoly_out.num_rings);
+
+		int o = 0;
+		for(int i=0; i<num_geom; i++) {
+			for(int j=0; j<polys[i].num_rings; j++) {
+				ring_t ring = polys[i].rings[j];
+				if(ring.is_hole) ring.parent_id += o;
+				mpoly_out.rings[o+j] = ring;
+			}
+			o += polys[i].num_rings;
+			free(polys[i].rings);
+		}
+		free(polys);
+		return mpoly_out;
+	} else {
+		fatal_error("not a polygon type: %d\n", type);
 	}
-
-	return mpoly_out;
 }
 
 void split_mpoly_to_polys(mpoly_t *mpoly_in, int *num_polys, mpoly_t **polys) {
