@@ -33,6 +33,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "mask-tracer.h"
 #include "dp.h"
 #include "excursion_pincher.h"
+#include "hough.h"
 
 #include <ogrsf_frmts.h>
 #include <cpl_string.h>
@@ -443,6 +444,8 @@ int main(int argc, char **argv) {
 		}
 
 		if(feature_poly.num_rings && do_pinch_excursions) {
+			do_hough(&feature_poly);
+			/*
 			if(reduction_tolerance > 0) {
 				// FIXME
 				mpoly_t reduced_poly = compute_reduced_pointset(&feature_poly, 
@@ -455,6 +458,7 @@ int main(int argc, char **argv) {
 			for(int ridx=0; ridx<feature_poly.num_rings; ridx++) {
 				feature_poly.rings[ridx] = pinch_excursions(feature_poly.rings + ridx);
 			}
+			*/
 		}
 
 		if(feature_poly.num_rings && reduction_tolerance > 0) {
