@@ -109,7 +109,7 @@ ring_t calc_rect4_from_convex_hull(uint8_t *mask, int w, int h, report_image_t *
 					int bdist = best_dx*best_dx + best_dy*best_dy;
 					if(pdist < bdist) continue;
 				}
-				//if(VERBOSE) printf("%d %d   %.15f\n", i, j, atan2((double)pix_dy, (double)pix_dx)*180.0/PI);
+				//if(VERBOSE) printf("%d %d   %.15f\n", i, j, atan2((double)pix_dy, (double)pix_dx)*180.0/M_PI);
 				best_dx = pix_dx; best_dy = pix_dy;
 				best_x = i; best_y = j;
 			}
@@ -134,7 +134,7 @@ ring_t calc_rect4_from_convex_hull(uint8_t *mask, int w, int h, report_image_t *
 		edge_t e = all_edges[i];
 		double dx = e.p1.x - e.p0.x;
 		double dy = e.p1.y - e.p0.y;
-		e.angle = atan2(dy, dx)*180.0/PI;
+		e.angle = atan2(dy, dx)*180.0/M_PI;
 		e.seg_len = sqrt(dx*dx + dy*dy);
 		e.group = -1;
 		all_edges[i] = e;
@@ -215,14 +215,14 @@ ring_t calc_rect4_from_convex_hull(uint8_t *mask, int w, int h, report_image_t *
 			fatal_error("group out of range (i=%d, g=%d, num_groups=%d)", i, eg, num_groups);
 		}
 		groups[eg].arc_len += e.seg_len;
-		groups[eg].wx += e.seg_len * cos(e.angle / 180.0 * PI);
-		groups[eg].wy += e.seg_len * sin(e.angle / 180.0 * PI);
+		groups[eg].wx += e.seg_len * cos(e.angle / 180.0 * M_PI);
+		groups[eg].wy += e.seg_len * sin(e.angle / 180.0 * M_PI);
 	}
 	for(i=0; i<num_groups; i++) {
 		if(VERBOSE) printf("group %d: l=%.15f\n", i, groups[i].arc_len);
 		if(groups[i].arc_len > (w+h)/10) { // FIXME - arbitrary
 			groups[i].use = 1;
-			groups[i].avg_ang = atan2(groups[i].wy, groups[i].wx) * 180.0 / PI;
+			groups[i].avg_ang = atan2(groups[i].wy, groups[i].wx) * 180.0 / M_PI;
 		} else {
 			groups[i].use = 0;
 		}

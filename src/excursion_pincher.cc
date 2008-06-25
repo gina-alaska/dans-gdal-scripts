@@ -133,11 +133,11 @@ static int is_almost_colinear(ring_t *ring, int v1_idx, int v2_idx, int v3_idx, 
 	if(dist_from_line > dist_from_seg * 0.1) return 0; // FIXME - arbitrary
 	double ang1 = atan2(d21y, d21x);
 	double ang2 = atan2(d43y, d43x);
-	double max_diff = PI / 180.0 * 5.0; // FIXME - arbitrary
+	double max_diff = M_PI / 180.0 * 5.0; // FIXME - arbitrary
 	return 
 		fabs(ang1 - ang2) < max_diff ||
-		fabs(ang1 - ang2 + 2.0*PI) < max_diff ||
-		fabs(ang1 - ang2 - 2.0*PI) < max_diff;
+		fabs(ang1 - ang2 + 2.0*M_PI) < max_diff ||
+		fabs(ang1 - ang2 - 2.0*M_PI) < max_diff;
 }
 
 static int intcompare(const void *ap, const void *bp) {
@@ -232,7 +232,7 @@ static ring_t pinch_excursions_once(ring_t *ring) {
 		double string_perim = calc_string_perimeter(ring, vidx, vnext);
 		double chord = vert_dist(ring->pts[vidx], ring->pts[vnext]);
 		// don't allow excursions longer than a semicircle
-		if(string_perim < ring_perim/2 && string_perim > chord * PI/2.0) {
+		if(string_perim < ring_perim/2 && string_perim > chord * M_PI/2.0) {
 			printf("pinch %d:(%lf,%lf) .. %d:(%lf,%lf) - (%lf and %lf)\n", 
 				vidx, ring->pts[vidx].x, ring->pts[vidx].y,
 				vnext, ring->pts[vnext].x, ring->pts[vnext].y,

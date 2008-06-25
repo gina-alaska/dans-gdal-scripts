@@ -62,11 +62,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #  define  __attribute__(x)  /*NOTHING*/
 #endif
 
-#ifndef PI
-#define PI 3.141592653
+#ifndef M_PI
+#define M_PI 3.1415926535897932385
 #endif
 
-#define D2R (3.141592653 / 180.0)
+#define D2R (M_PI / 180.0)
 
 extern int VERBOSE;
 
