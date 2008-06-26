@@ -256,7 +256,8 @@ static int refine_seg(ring_t *ring, bool *keep_orig, int from, int to) {
 	if(to>from) mid = (from+to)/2;
 	else mid = ((from+to+npts)/2)%npts;
 
-	double best_area = 0;
+	double best_area = 1e50; // FIXME
+	int got_improvement = 0;
 
 	for(int i=(from+1)%npts; i!=to; i=(i+1)%npts) {
 		//if(i != mid) continue; // FIXME
@@ -285,12 +286,13 @@ static int refine_seg(ring_t *ring, bool *keep_orig, int from, int to) {
 		}
 		//printf("a2 = %g\n", area);
 
-		if(area > best_area) {
+		if(area < best_area) {
+			got_improvement = 1;
 			best_area = area;
 			memcpy(keep_orig, keep_new, sizeof(bool) * npts);
 		}
 	}
-	return best_area == 0;
+	return !got_improvement;
 }
 
 
