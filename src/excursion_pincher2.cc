@@ -132,6 +132,7 @@ static int find_next_convex(ring_t *ring, int start_idx, int limit_idx, double s
 	for(int i=(start_idx+1)%npts; i!=limit_idx; i=(i+1)%npts) {
 		vertex_t v1 = pts[i];
 		double segang = seg_ang(v0, v1);
+//printf("start_ang=%g*PI, seg_ang=%g*PI\n", start_ang/M_PI, segang/M_PI);
 		double angdiff = segang - start_ang;
 		while(angdiff < 0) angdiff += 2.0 * M_PI;
 		while(angdiff >= 2.0 * M_PI) angdiff -= 2.0 * M_PI;
@@ -141,8 +142,15 @@ static int find_next_convex(ring_t *ring, int start_idx, int limit_idx, double s
 			best_segang = segang;
 		}
 	}
-	if(ang_out) *ang_out = best_segang;
-	return best_vert;
+	if(best_vert < 0) {
+		return limit_idx;
+	} else if(min_angdiff >= M_PI) {
+		//fatal_error("point on wrong side of half-plane (ang=%g*PI)", min_angdiff/M_PI);
+		return -1;
+	} else {
+		if(ang_out) *ang_out = best_segang;
+		return best_vert;
+	}
 }
 
 static bool *find_chull(ring_t *ring) {
@@ -151,11 +159,12 @@ static bool *find_chull(ring_t *ring) {
 
 	int start_idx = find_bottom_pt(ring);
 	keep[start_idx] = true;
-	double ang = -M_PI;
+	double ang = 0;
 	int idx = start_idx;
 	for(;;) {
 		idx = find_next_convex(ring, idx, start_idx, ang, &ang);
-		if(idx < 0) break;
+		if(idx < 0) fatal_error("could not get convex hull");
+		if(idx == start_idx) break;
 		keep[idx] = true;
 	}
 
@@ -174,28 +183,132 @@ static double subring_area(ring_t *ring, int from, int to) {
 		double y0 = pts[i].y;
 		double x1 = pts[i2].x;
 		double y1 = pts[i2].y;
-		accum += x0*y1 - x1*y0;
+		accum -= x0*y1 - x1*y0;
 		if(i == to) break;
+	}
+	if(accum < 0) {
+		// FIXME
+		printf("subring_area was negative\n");
+		//fatal_error("subring_area was negative");
 	}
 	return accum / 2.0;
 }
 
-static void refine(ring_t *ring, bool *keep) {
+static int next_keep(int npts, bool *keep, int i) {
+	for(int j=(i+1)%npts; j!=i; j=(j+1)%npts) {
+		if(keep[j]) return j;
+	}
+	return i;
+}
+
+static int prev_keep(int npts, bool *keep, int i) {
+	for(int j=(i+npts-1)%npts; j!=i; j=(j+npts-1)%npts) {
+		if(keep[j]) return j;
+	}
+	return i;
+}
+
+static int reach_point(ring_t *ring, bool *keep, int from, int to, double ang) {
 	int npts = ring->npts;
 	vertex_t *pts = ring->pts;
+
+	int idx = from;
+	for(;;) {
+		idx = find_next_convex(ring, idx, to, ang, &ang);
+		if(idx < 0) return 1;
+		keep[idx] = true;
+		if(idx == to) break;
+	}
+	for(int pk=from;;) {
+		int nk = next_keep(npts, keep, pk);
+		if(nk == to) return 0;
+
+		for(int i=0; i<npts; i++) {
+			int i2 = (i+1)%npts;
+			if(i==pk || i==nk || i2==pk || i2==nk) continue;
+			if(line_intersects_line(pts[pk], pts[nk], pts[i], pts[i2], 0)) return 1;
+		}
+
+		pk = nk;
+	}
+}
+
+/*
+static int chord_crosses_arc(ring_t *ring, int c0, int c1, int from, int to) {
+	int npts = ring->npts;
+	vertex_t *pts = ring->pts;
+
+	for(int i=from; i!=to; i=(i+1)%npts) {
+		int i2 = (i+1)%npts;
+		if(i==c0 || i==c1 || i2==c0 || i2==c1) continue;
+		if(line_intersects_line(pts[c0], pts[c1], pts[i], pts[i2], 0)) return 1;
+	}
+	return 0;
+}
+*/
+
+static int refine_seg(ring_t *ring, bool *keep_orig, int from, int to) {
+	int npts = ring->npts;
+	vertex_t *pts = ring->pts;
+	bool *keep_new = (bool *)malloc_or_die(sizeof(bool) * npts);
+
+	int mid; // FIXME
+	if(to>from) mid = (from+to)/2;
+	else mid = ((from+to+npts)/2)%npts;
+
+	double best_area = 0;
+
+	for(int i=(from+1)%npts; i!=to; i=(i+1)%npts) {
+		//if(i != mid) continue; // FIXME
+		memcpy(keep_new, keep_orig, sizeof(bool) * npts);
+		keep_new[i] = true;
+
+		double ang = seg_ang(pts[from], pts[to]);
+		int error = reach_point(ring, keep_new, from, i, ang);
+		if(error) {
+			continue; // FIXME
+			fatal_error("could not reach middle point");
+		}
+
+		int pk = prev_keep(npts, keep_new, i);
+		if(pk == i) fatal_error("pk == i");
+		ang = seg_ang(pts[i], pts[pk]);
+		error = reach_point(ring, keep_new, i, to, ang);
+		if(error) continue;
+
+		double area = 0;
+		for(int pk=from;;) {
+			int nk = next_keep(npts, keep_new, pk);
+			if(nk == to) break;
+			area += subring_area(ring, pk, nk);
+			pk = nk;
+		}
+		//printf("a2 = %g\n", area);
+
+		if(area > best_area) {
+			best_area = area;
+			memcpy(keep_orig, keep_new, sizeof(bool) * npts);
+		}
+	}
+	return best_area == 0;
+}
+
+
+static void refine_ring(ring_t *ring, bool *keep) {
+	int npts = ring->npts;
+	int nref=0; // FIXME
 	for(int i=0; i<npts; i++) {
 		if(!keep[i]) continue;
 		for(;;) {
-			int j;
-			for(j=(i+1)%npts; j!=i; j=(j+1)%npts) {
-				if(keep[j]) break;
-			}
+			int j = next_keep(npts, keep, i);
 			double area = subring_area(ring, i, j);
-			area = fabs(area); // FIXME
-			printf("area = %g\n", area);
-			if(area > 1000) {
-				if(j>i) keep[(i+j)/2] = true;
-				else keep[((i+j+npts)/2)%npts] = true;
+			//printf("area = %g\n", area);
+			if(area > 1000) { // FIXME
+				int error = refine_seg(ring, keep, i, j);
+				if(error) break;
+				nref++;
+				printf("nref=%d\n", nref);
+				//if(nref > 0) return; // FIXME
 			} else {
 				break;
 			}
@@ -218,7 +331,7 @@ ring_t pinch_excursions(ring_t *ring, report_image_t *dbuf) {
 
 	bool *keep = find_chull(ring);
 
-	refine(ring, keep);
+	refine_ring(ring, keep);
 
 	int nkeep = 0;
 	for(int i=0; i<npts; i++) {
