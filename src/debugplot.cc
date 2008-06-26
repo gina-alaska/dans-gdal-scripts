@@ -76,8 +76,8 @@ void plot_point_big(report_image_t *dbuf, double x, double y, uint8_t r, uint8_t
 }
 
 void plot_point(report_image_t *dbuf, double x, double y, uint8_t r, uint8_t g, uint8_t b) {
-	int plot_x = (int)(x / dbuf->canvas_w * (double)(dbuf->img_w-1) + .5);
-	int plot_y = (int)(y / dbuf->canvas_h * (double)(dbuf->img_h-1) + .5);
+	int plot_x = (int)round(x / dbuf->canvas_w * (double)(dbuf->img_w-1));
+	int plot_y = (int)round(y / dbuf->canvas_h * (double)(dbuf->img_h-1));
 	if(plot_x>=0 && plot_y>=0 && plot_x<dbuf->img_w && plot_y<dbuf->img_h) {
 		uint8_t *p = dbuf->img + (plot_x + dbuf->img_w*plot_y)*3;
 		*(p++) = r; *(p++) = g; *(p++) = b;

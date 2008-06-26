@@ -32,8 +32,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "mask.h"
 #include "mask-tracer.h"
 #include "dp.h"
-#include "excursion_pincher.h"
-#include "hough.h"
+#include "excursion_pincher2.h"
 
 #include <ogrsf_frmts.h>
 #include <cpl_string.h>
@@ -327,7 +326,7 @@ int main(int argc, char **argv) {
 	report_image_t *dbuf = NULL;
 	if(debug_report) {
 		dbuf = create_plot(georef.w, georef.h);
-		dbuf->mode = PLOT_CONTOURS;
+		dbuf->mode = PLOT_PINCH;
 	}
 
 	const uint8_t *raster = NULL;
@@ -444,7 +443,7 @@ int main(int argc, char **argv) {
 		}
 
 		if(feature_poly.num_rings && do_pinch_excursions) {
-			do_hough(&feature_poly);
+			//do_hough(&feature_poly);
 			/*
 			if(reduction_tolerance > 0) {
 				// FIXME
@@ -459,6 +458,9 @@ int main(int argc, char **argv) {
 				feature_poly.rings[ridx] = pinch_excursions(feature_poly.rings + ridx);
 			}
 			*/
+			for(int ridx=0; ridx<feature_poly.num_rings; ridx++) {
+				feature_poly.rings[ridx] = pinch_excursions(feature_poly.rings + ridx, dbuf);
+			}
 		}
 
 		if(feature_poly.num_rings && reduction_tolerance > 0) {
@@ -617,7 +619,7 @@ long min_ring_area, double bevel_size) {
 		}
 		int num_filtered_rings = 0;
 		for(int i=0; i<mp.num_rings; i++) {
-			double area = polygon_area(mp.rings+i);
+			double area = ring_area(mp.rings+i);
 			if(VERBOSE) if(area > 10) printf("ring %d has area %.15f\n", i, area);
 			if(area >= min_ring_area) {
 				parent_map[i] = num_filtered_rings;
@@ -647,7 +649,7 @@ long min_ring_area, double bevel_size) {
 		double biggest_area = 0;
 		int best_idx = 0;
 		for(int i=0; i<mp.num_rings; i++) {
-			double area = polygon_area(mp.rings+i);
+			double area = ring_area(mp.rings+i);
 			if(area > biggest_area) {
 				biggest_area = area;
 				best_idx = i;

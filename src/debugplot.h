@@ -31,8 +31,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "polygon.h"
 
 #define PLOT_RECT4 1
-#define PLOT_DESCENDERS 2
-#define PLOT_CONTOURS 3
+#define PLOT_CONTOURS 2
+#define PLOT_PINCH 3
 typedef struct {
 	unsigned char *img;
 	double canvas_w, canvas_h;

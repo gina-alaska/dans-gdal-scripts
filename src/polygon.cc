@@ -438,7 +438,7 @@ void line_line_intersection(
 	(*p_out).y = p1.y + ua*(p2.y-p1.y);
 }
 
-double polygon_area(ring_t *c) {
+double ring_oriented_area(ring_t *c) {
 	double accum = 0;
 	int i;
 	for(i=0; i<c->npts; i++) {
@@ -448,7 +448,15 @@ double polygon_area(ring_t *c) {
 		double y1 = c->pts[(i+1)%c->npts].y;
 		accum += x0*y1 - x1*y0;
 	}
-	return fabs(accum) / 2.0;
+	return accum / 2.0;
+}
+
+int ring_is_ccw(ring_t *c) {
+	return ring_oriented_area(c) > 0;
+}
+
+double ring_area(ring_t *c) {
+	return fabs(ring_oriented_area(c));
 }
 
 static int ring_contains_point(ring_t *ring, double px, double py) {
