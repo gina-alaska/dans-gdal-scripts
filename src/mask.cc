@@ -108,11 +108,10 @@ ndv_def_t *ndv_def, report_image_t *dbuf) {
 					for(i=0; i<bsize_x; i++) {
 						int is_dbuf_stride = is_dbuf_stride_y && ((i % dbuf->stride_x) == 0);
 						if(is_dbuf_stride) {
-							int debug_color = use_8bit ? (int)(*p_8bit) : (int)(*p_dbl);
+							int val = use_8bit ? (int)(*p_8bit) : (int)(*p_dbl);
 							int x = i + boff_x;
-							int db_v = 100;
-							db_v += debug_color / 2;
-							if(db_v < 100) db_v = 100;
+							int db_v = 50 + val/3;
+							if(db_v < 50) db_v = 50;
 							if(db_v > 254) db_v = 254;
 							uint8_t r = (uint8_t)(db_v*.75);
 							plot_point(dbuf, x, y, r, db_v, db_v);
@@ -217,8 +216,8 @@ uint8_t *read_dataset_8bit(GDALDatasetH ds, int band_idx, uint8_t *usage_array, 
 					int is_dbuf_stride = is_dbuf_stride_y && ((i % dbuf->stride_x) == 0);
 					if(is_dbuf_stride) {
 						int x = i + boff_x;
-						uint8_t db_v = 100 + (val/2);
-						if(db_v < 100) db_v = 100;
+						uint8_t db_v = 50 + val/3;
+						if(db_v < 50) db_v = 50;
 						if(db_v > 254) db_v = 254;
 						uint8_t r = (uint8_t)(db_v*.75);
 						plot_point(dbuf, x, y, r, db_v, db_v);

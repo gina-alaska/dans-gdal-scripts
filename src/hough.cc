@@ -30,11 +30,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // See http://en.wikipedia.org/wiki/Hough_transform
 
-#ifdef MAX
-#undef MAX
-#endif
-#define MAX(a, b) ((a)>(b)?(a):(b))
-
 typedef float accum_t;
 
 typedef struct {

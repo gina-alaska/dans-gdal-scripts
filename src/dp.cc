@@ -26,27 +26,16 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "common.h"
 #include "polygon.h"
+#include "dp.h"
+
+// Implementation of Douglas-Peucker polyline reduction algorithm
+// rewrite of code from http://www.3dsoftware.com/Cartography/Programming/PolyLineReduction
+// (and adapted from src/linework/dp.c in SwathViewer)
+// Modifications were made to ensure valid topology of output
 
 #define EPSILON 10E-10
-
-typedef struct {
-	int begin;
-	int end;
-	char is_problem;
-} segment_t;
-
-typedef struct {
-	segment_t *segs;
-	int num_segs;
-} reduced_ring_t;
-
-reduced_ring_t reduce_linestring_detail(ring_t *orig_string, double res);
-double get_dist_to_seg(double seg_vec_x, double seg_vec_y, 
-	vertex_t *seg_vert1, vertex_t *seg_vert2, vertex_t *test_vert);
-ring_t make_ring_from_segs(ring_t *c_in, reduced_ring_t *r_in);
-mpoly_t reduction_to_mpoly(mpoly_t *in_mpoly, reduced_ring_t *reduced_rings);
-void fix_topology(mpoly_t *mpoly, reduced_ring_t *reduced_rings);
-char segs_cross(ring_t *c1, segment_t *s1, ring_t *c2, segment_t *s2);
+// FIXME - it is possible to factor out the sqrt call
+#define VECLEN(x,y) sqrt((x)*(x)+(y)*(y))
 
 mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance) {
 	if(VERBOSE) printf("reducing...\n");
@@ -60,7 +49,7 @@ mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance) {
 
 	int c_idx;
 	for(c_idx=0; c_idx<in_mpoly->num_rings; c_idx++) {
-		reduced_rings[c_idx] = reduce_linestring_detail(&in_mpoly->rings[c_idx], tolerance);
+		reduced_rings[c_idx] = compute_reduced_ring(&in_mpoly->rings[c_idx], tolerance);
 	}
 
 	fix_topology(in_mpoly, reduced_rings);
@@ -68,13 +57,42 @@ mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance) {
 	return reduction_to_mpoly(in_mpoly, reduced_rings);
 }
 
-// Implementation of Douglas-Peucker polyline reduction algorithm
-// rewrite of code from http://www.3dsoftware.com/Cartography/Programming/PolyLineReduction
-// (and adapted from src/linework/dp.c in SwathViewer)
+static inline double get_dist_to_seg(double seg_vec_x, double seg_vec_y, 
+vertex_t *seg_vert1, vertex_t *seg_vert2, vertex_t *test_vert) {
+	double vert_vec_x = test_vert->x - seg_vert1->x;
+	double vert_vec_y = test_vert->y - seg_vert1->y;
+	double scalar_prod = vert_vec_x*seg_vec_x + vert_vec_y*seg_vec_y;
+	if(scalar_prod < 0.0) {
+		// past beginning of segment - distance from segment
+		// is equal to distance from first endpoint of segment
+		return VECLEN(vert_vec_x, vert_vec_y);
+	} else {
+		vert_vec_x = seg_vert2->x - test_vert->x;
+		vert_vec_y = seg_vert2->y - test_vert->y;
+		scalar_prod = vert_vec_x*seg_vec_x + vert_vec_y*seg_vec_y;
+		if(scalar_prod < 0.0) {
+			// past end of segment - distance from segment
+			// is equal to distance from second endpoint of segment
+			return VECLEN(vert_vec_x, vert_vec_y);
+		} else {
+			double c_squared = vert_vec_x*vert_vec_x + vert_vec_y*vert_vec_y;
+			double a_squared = scalar_prod * scalar_prod;
+			double b_squared = c_squared - a_squared;
+			if(b_squared < 0) {
+				if(fabs(b_squared) < a_squared * EPSILON) {
+					b_squared = 0; // correct for round-off error
+				} else {
+					fatal_error("a_squared > c_squared");
+				}
+			}
+			// use pythagorean theorem to find distance from
+			// vertex to segment
+			return sqrt(b_squared);
+		}
+	}
+}
 
-#define VECLEN(x,y) sqrt((x)*(x)+(y)*(y))
-
-reduced_ring_t reduce_linestring_detail(ring_t *orig_string, double res) {
+reduced_ring_t compute_reduced_ring(ring_t *orig_string, double res) {
 //printf("enter dp\n");
 
 	int num_in = orig_string->npts;
@@ -175,42 +193,7 @@ reduced_ring_t reduce_linestring_detail(ring_t *orig_string, double res) {
 	return ret;
 }
 
-inline double get_dist_to_seg(double seg_vec_x, double seg_vec_y, 
-vertex_t *seg_vert1, vertex_t *seg_vert2, vertex_t *test_vert) {
-	double vert_vec_x = test_vert->x - seg_vert1->x;
-	double vert_vec_y = test_vert->y - seg_vert1->y;
-	double scalar_prod = vert_vec_x*seg_vec_x + vert_vec_y*seg_vec_y;
-	if(scalar_prod < 0.0) {
-		// past beginning of segment - distance from segment
-		// is equal to distance from first endpoint of segment
-		return VECLEN(vert_vec_x, vert_vec_y);
-	} else {
-		vert_vec_x = seg_vert2->x - test_vert->x;
-		vert_vec_y = seg_vert2->y - test_vert->y;
-		scalar_prod = vert_vec_x*seg_vec_x + vert_vec_y*seg_vec_y;
-		if(scalar_prod < 0.0) {
-			// past end of segment - distance from segment
-			// is equal to distance from second endpoint of segment
-			return VECLEN(vert_vec_x, vert_vec_y);
-		} else {
-			double c_squared = vert_vec_x*vert_vec_x + vert_vec_y*vert_vec_y;
-			double a_squared = scalar_prod * scalar_prod;
-			double b_squared = c_squared - a_squared;
-			if(b_squared < 0) {
-				if(fabs(b_squared) < a_squared * EPSILON) {
-					b_squared = 0; // correct for round-off error
-				} else {
-					fatal_error("a_squared > c_squared");
-				}
-			}
-			// use pythagorean theorem to find distance from
-			// vertex to segment
-			return sqrt(b_squared);
-		}
-	}
-}
-
-ring_t make_ring_from_segs(ring_t *c_in, reduced_ring_t *r_in) {
+static ring_t make_ring_from_segs(ring_t *c_in, reduced_ring_t *r_in) {
 	int i;
 	char *keep_pts = (char *)malloc_or_die(c_in->npts);
 	for(i=0; i<c_in->npts; i++) keep_pts[i] = 0;
@@ -330,6 +313,23 @@ mpoly_t reduction_to_mpoly(mpoly_t *in_mpoly, reduced_ring_t *reduced_rings) {
 		in_mpoly->num_rings, num_out_rings, total_npts_in, total_npts_out);
 
 	return (mpoly_t){ num_out_rings, out_rings };
+}
+
+static inline char segs_cross(ring_t *c1, segment_t *s1, ring_t *c2, segment_t *s2) {
+	if(c1 == c2) {
+		// don't test crossing if segments are identical or neighbors
+		if(
+			(s1->begin == s2->begin) ||
+			(s1->begin == s2->end) ||
+			(s1->end == s2->begin) ||
+			(s1->end == s2->end)
+		) return 0;
+	}
+	
+	return line_intersects_line(
+		c1->pts[s1->begin], c1->pts[s1->end  ],
+		c2->pts[s2->begin], c2->pts[s2->end  ],
+		1);
 }
 
 void fix_topology(mpoly_t *mpoly, reduced_ring_t *reduced_rings) {
@@ -462,21 +462,4 @@ void fix_topology(mpoly_t *mpoly, reduced_ring_t *reduced_rings) {
 	if(have_problems) {
 		printf("WARNING: Could not fix all topology problems.\n  Please inspect output shapefile manually.\n");
 	}
-}
-
-inline char segs_cross(ring_t *c1, segment_t *s1, ring_t *c2, segment_t *s2) {
-	if(c1 == c2) {
-		// don't test crossing if segments are identical or neighbors
-		if(
-			(s1->begin == s2->begin) ||
-			(s1->begin == s2->end) ||
-			(s1->end == s2->begin) ||
-			(s1->end == s2->end)
-		) return 0;
-	}
-	
-	return line_intersects_line(
-		c1->pts[s1->begin], c1->pts[s1->end  ],
-		c2->pts[s2->begin], c2->pts[s2->end  ],
-		1);
 }

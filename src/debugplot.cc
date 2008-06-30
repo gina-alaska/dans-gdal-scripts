@@ -48,8 +48,7 @@ report_image_t *create_plot(double w, double h) {
 	if(dbuf->stride_y < 1) dbuf->stride_y = 1;
 
 	dbuf->img = (uint8_t *)malloc_or_die(dbuf->img_w*dbuf->img_h*3);
-	int i;
-	for(i=0; i<dbuf->img_w*dbuf->img_h*3; i++) dbuf->img[i] = 0;
+	memset(dbuf->img, 0, dbuf->img_w*dbuf->img_h*3);
 	
 	return dbuf;
 }
@@ -64,8 +63,7 @@ void write_plot(report_image_t *dbuf, const char *fn) {
 void plot_point_big(report_image_t *dbuf, double x, double y, uint8_t r, uint8_t g, uint8_t b) {
 	int center_x = (int)(x / dbuf->canvas_w * (double)(dbuf->img_w-1) + .5);
 	int center_y = (int)(y / dbuf->canvas_h * (double)(dbuf->img_h-1) + .5);
-	int dx, dy;
-	for(dx=-1; dx<=1; dx++) for(dy=-1; dy<=1; dy++) {
+	for(int dx=-1; dx<=1; dx++) for(int dy=-1; dy<=1; dy++) {
 		int plot_x = center_x + dx;
 		int plot_y = center_y + dy;
 		if(plot_x>=0 && plot_y>=0 && plot_x<dbuf->img_w && plot_y<dbuf->img_h) {
@@ -89,33 +87,40 @@ uint8_t r, uint8_t g, uint8_t b) {
 	double dx = (p1.x-p0.x) / dbuf->canvas_w * (double)dbuf->img_w;
 	double dy = (p1.y-p0.y) / dbuf->canvas_h * (double)dbuf->img_h;
 	double len = sqrt(dx*dx + dy*dy) + 2.0;
-	double alpha;
-	for(alpha=0; alpha<=1; alpha+=1.0/len) {
+	for(double alpha=0; alpha<=1; alpha+=1.0/len) {
 		double x = p0.x+(p1.x-p0.x)*alpha;
 		double y = p0.y+(p1.y-p0.y)*alpha;
 		plot_point(dbuf, x, y, r, g, b);
 	}
 }
 
-void debug_plot_rings(mpoly_t *mpoly, report_image_t *dbuf) {
+void debug_plot_ring(report_image_t *dbuf, ring_t *ring, uint8_t r, uint8_t g, uint8_t b) {
+	for(int i=0; i<ring->npts; i++) {
+		vertex_t p0 = ring->pts[i];
+		vertex_t p1 = ring->pts[(i+1)%ring->npts];
+		plot_line(dbuf, p0, p1, r, g, b);
+		plot_point(dbuf, p0.x, p0.y, 255, 255, 255);
+		plot_point(dbuf, p1.x, p1.y, 255, 255, 255);
+	}
+}
+
+
+void debug_plot_mpoly(report_image_t *dbuf, mpoly_t *mpoly) {
 	if(VERBOSE) printf("plotting...\n");
 
-	int i, j;
-	for(i=0; i<mpoly->num_rings; i++) {
+	for(int i=0; i<mpoly->num_rings; i++) {
 		int v = (i%62)+1;
 		int r = ((v&1) ? 150 : 0) + ((v&8) ? 100 : 0);
 		int g = ((v&2) ? 150 : 0) + ((v&16) ? 100 : 0);
 		int b = ((v&4) ? 150 : 0) + ((v&32) ? 100 : 0);
-		ring_t c = mpoly->rings[i];
-		if(c.is_hole) { r=255; g=0; b=0; }
+		ring_t *ring = mpoly->rings + i;
+		if(ring->is_hole) { r=255; g=0; b=0; }
 		else { r=255; g=255; b=0; }
-		if(VERBOSE) printf("ring %d: %d pts color=%02x%02x%02x\n", i, c.npts, r, g, b);
-		for(j=0; j<c.npts; j++) {
-			vertex_t p0 = c.pts[j];
-			vertex_t p1 = c.pts[(j+1)%c.npts];
-			plot_line(dbuf, p0, p1, r, g, b);
-			plot_point(dbuf, p0.x, p0.y, 255, 255, 255);
-			plot_point(dbuf, p1.x, p1.y, 255, 255, 255);
+		if(VERBOSE) printf("ring %d: %d pts color=%02x%02x%02x\n", i, ring->npts, r, g, b);
+		debug_plot_ring(dbuf, ring, r, g, b);
+		for(int j=0; j<ring->npts; j++) {
+			vertex_t p = ring->pts[j];
+			plot_point(dbuf, p.x, p.y, 255, 255, 255);
 		}
 	}
 }

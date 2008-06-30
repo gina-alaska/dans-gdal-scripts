@@ -40,6 +40,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #undef PACKAGE_NAME
 #undef PACKAGE_BUGREPORT
 
+#include <config.h>
+#include <math.h>
+#include <stdio.h>
+
 #if HAVE_INTTYPES_H
 #  include <inttypes.h>
 #endif
@@ -52,10 +56,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #  include <string.h>
 #endif
 
-#include <stdio.h>
-
-#include <config.h>
-#include <math.h>
+#if HAVE_STDBOOL_H
+#  include <stdbool.h>
+#endif
 
 /* see http://www.unixwiz.net/techtips/gnu-c-attributes.html */
 #ifndef __GNUC__
@@ -67,6 +70,21 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 
 #define D2R (M_PI / 180.0)
+
+#ifdef MIN
+#undef MIN
+#endif
+#define MIN(a,b) ((a)<(b)?(a):(b))
+
+#ifdef MAX
+#undef MAX
+#endif
+#define MAX(a,b) ((a)>(b)?(a):(b))
+
+// if there is no stdbool.h...
+#ifndef __bool_true_false_are_defined
+enum bool {false, true};
+#endif
 
 extern int VERBOSE;
 

@@ -28,21 +28,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "polygon.h"
 #include "debugplot.h"
 
-#ifdef MIN
-#undef MIN
-#endif
-#define MIN(a,b) ((a)<(b)?(a):(b))
-
-#ifndef bool
-#define uint8_t bool
-#endif
-#ifndef false
-#define false 0
-#endif
-#ifndef true
-#define true (!false)
-#endif
-
 /*
 static inline double sqlen(vertex_t v0, vertex_t v1) {
 	double dx = v1.x - v0.x;
@@ -318,7 +303,7 @@ static void refine_ring(ring_t *ring, bool *keep) {
 	}
 }
 
-ring_t pinch_excursions(ring_t *ring, report_image_t *dbuf) {
+static ring_t pinch_ring_excursions(ring_t *ring, report_image_t *dbuf) {
 	int npts = ring->npts;
 	vertex_t *pts = ring->pts;
 
@@ -348,11 +333,17 @@ ring_t pinch_excursions(ring_t *ring, report_image_t *dbuf) {
 		if(keep[i]) outring.pts[oidx++] = pts[i];
 	}
 
-	for(int i=0; i<outring.npts; i++) {
-		vertex_t v0 = outring.pts[i];
-		vertex_t v1 = outring.pts[(i+1)%outring.npts];
-		plot_line(dbuf, v0, v1, 255, 0, 0);
-	}
+	debug_plot_ring(dbuf, &outring, 255, 0, 0);
 
 	return outring;
+}
+
+mpoly_t pinch_excursions(mpoly_t *mp_in, report_image_t *dbuf) {
+	mpoly_t mp_out;
+	mp_out.num_rings = mp_in->num_rings;
+	mp_out.rings = (ring_t *)malloc_or_die(sizeof(ring_t) * mp_out.num_rings);
+	for(int r_idx=0; r_idx<mp_in->num_rings; r_idx++) {
+		mp_out.rings[r_idx] = pinch_ring_excursions(mp_in->rings+r_idx, dbuf);
+	}
+	return mp_out;
 }

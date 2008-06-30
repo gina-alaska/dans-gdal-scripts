@@ -47,6 +47,7 @@ void plot_point_big(report_image_t *dbuf, double x, double y, unsigned char r, u
 void plot_point(report_image_t *dbuf, double x, double y, unsigned char r, unsigned char g, unsigned char b);
 void plot_line(report_image_t *dbuf, vertex_t p0, vertex_t p1, 
 	unsigned char r, unsigned char g, unsigned char b);
-void debug_plot_rings(mpoly_t *mpoly, report_image_t *dbuf);
+void debug_plot_ring(report_image_t *dbuf, ring_t *ring, uint8_t r, uint8_t g, uint8_t b);
+void debug_plot_mpoly(report_image_t *dbuf, mpoly_t *mpoly);
 
 #endif // ifndef DEBUGPLOT_H

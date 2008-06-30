@@ -249,7 +249,7 @@ static ring_t pinch_excursions_once(ring_t *ring) {
 	return out;
 }
 
-ring_t pinch_excursions(ring_t *ring) {
+static ring_t pinch_ring_excursions(ring_t *ring) {
 	ring_t last;
 	ring_t next = *ring;
 	do {
@@ -258,6 +258,18 @@ ring_t pinch_excursions(ring_t *ring) {
 		printf("pinched %d => %d pts\n", last.npts, next.npts);
 	} while(last.npts != next.npts);
 	return next;
+}
+
+mpoly_t pinch_excursions(mpoly_t *mp_in, report_image_t *dbuf) {
+	mpoly_t mp_red = compute_reduced_pointset(mp_in, 1.01);
+
+	mpoly_t mp_out;
+	mp_out.num_rings = mp_red.num_rings;
+	mp_out.rings = (ring_t *)malloc_or_die(sizeof(ring_t) * mp_out.num_rings);
+	for(int r_idx=0; r_idx<mp_red.num_rings; r_idx++) {
+		mp_out.rings[r_idx] = pinch_ring_excursions(mp_red.rings+r_idx);
+	}
+	return mp_out;
 }
 
 /////////////////////////// version 2

@@ -28,16 +28,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "polygon.h"
 #include "georef.h"
 
-#ifdef MIN
-#undef MIN
-#endif
-#define MIN(a,b) ((a)<(b)?(a):(b))
-
-#ifdef MAX
-#undef MAX
-#endif
-#define MAX(a,b) ((a)>(b)?(a):(b))
-
 mpoly_t empty_polygon() {
 	mpoly_t empty;
 	empty.num_rings = 0;

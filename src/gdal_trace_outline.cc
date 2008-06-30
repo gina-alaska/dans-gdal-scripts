@@ -32,7 +32,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "mask.h"
 #include "mask-tracer.h"
 #include "dp.h"
-#include "excursion_pincher2.h"
+#include "excursion_pincher.h"
 
 #include <ogrsf_frmts.h>
 #include <cpl_string.h>
@@ -443,24 +443,7 @@ int main(int argc, char **argv) {
 		}
 
 		if(feature_poly.num_rings && do_pinch_excursions) {
-			//do_hough(&feature_poly);
-			/*
-			if(reduction_tolerance > 0) {
-				// FIXME
-				mpoly_t reduced_poly = compute_reduced_pointset(&feature_poly, 
-					MIN(reduction_tolerance, 1.01));
-				free_mpoly(&feature_poly);
-				feature_poly = reduced_poly;
-			}
-
-			// FIXME - free old rings, verify topology
-			for(int ridx=0; ridx<feature_poly.num_rings; ridx++) {
-				feature_poly.rings[ridx] = pinch_excursions(feature_poly.rings + ridx);
-			}
-			*/
-			for(int ridx=0; ridx<feature_poly.num_rings; ridx++) {
-				feature_poly.rings[ridx] = pinch_excursions(feature_poly.rings + ridx, dbuf);
-			}
+			feature_poly = pinch_excursions(&feature_poly, dbuf);
 		}
 
 		if(feature_poly.num_rings && reduction_tolerance > 0) {
@@ -481,7 +464,7 @@ int main(int argc, char **argv) {
 				num_outer, num_inner, total_pts);
 
 			if(dbuf && dbuf->mode == PLOT_CONTOURS) {
-				debug_plot_rings(&feature_poly, dbuf);
+				debug_plot_mpoly(dbuf, &feature_poly);
 			}
 
 			if(do_geom_output && feature_poly.num_rings) {
