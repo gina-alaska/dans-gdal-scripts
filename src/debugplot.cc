@@ -99,8 +99,6 @@ void debug_plot_ring(report_image_t *dbuf, ring_t *ring, uint8_t r, uint8_t g, u
 		vertex_t p0 = ring->pts[i];
 		vertex_t p1 = ring->pts[(i+1)%ring->npts];
 		plot_line(dbuf, p0, p1, r, g, b);
-		plot_point(dbuf, p0.x, p0.y, 255, 255, 255);
-		plot_point(dbuf, p1.x, p1.y, 255, 255, 255);
 	}
 }
 

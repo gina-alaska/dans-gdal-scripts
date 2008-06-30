@@ -156,6 +156,12 @@ static bool *find_chull(ring_t *ring) {
 	return keep;
 }
 
+static inline double seg_len(vertex_t v0, vertex_t v1) {
+	double dx = v1.x - v0.x;
+	double dy = v1.y - v0.y;
+	return sqrt(dx*dx + dy*dy);
+}
+
 static double subring_area(ring_t *ring, int from, int to) {
 	int npts = ring->npts;
 	vertex_t *pts = ring->pts;
@@ -235,14 +241,18 @@ static int chord_crosses_arc(ring_t *ring, int c0, int c1, int from, int to) {
 static int refine_seg(ring_t *ring, bool *keep_orig, int from, int to) {
 	int npts = ring->npts;
 	vertex_t *pts = ring->pts;
+
+	double start_area = subring_area(ring, from, to);
+	double start_perim = seg_len(pts[from], pts[to]);
+
 	bool *keep_new = (bool *)malloc_or_die(sizeof(bool) * npts);
+	bool *keep_best = (bool *)malloc_or_die(sizeof(bool) * npts);
 
 	int mid; // FIXME
 	if(to>from) mid = (from+to)/2;
 	else mid = ((from+to+npts)/2)%npts;
 
-	double best_area = 1e50; // FIXME
-	int got_improvement = 0;
+	double best_improvement = 0;
 
 	for(int i=(from+1)%npts; i!=to; i=(i+1)%npts) {
 		//if(i != mid) continue; // FIXME
@@ -263,21 +273,31 @@ static int refine_seg(ring_t *ring, bool *keep_orig, int from, int to) {
 		if(error) continue;
 
 		double area = 0;
+		double perim = 0;
 		for(int pk=from;;) {
 			int nk = next_keep(npts, keep_new, pk);
-			if(nk == to) break;
 			area += subring_area(ring, pk, nk);
+			perim += seg_len(pts[pk], pts[nk]);
+			if(nk == to) break;
 			pk = nk;
 		}
-		//printf("a2 = %g\n", area);
 
-		if(area < best_area) {
-			got_improvement = 1;
-			best_area = area;
-			memcpy(keep_orig, keep_new, sizeof(bool) * npts);
+		double improvement = (start_area / (area+1.0)) / pow(perim / start_perim, 2);
+		//double improvement = (start_area - area) / pow(perim - start_perim, .5);
+		printf("improvement=%g, start_area=%g, area=%g, perim=%g, start_perim=%g\n",
+			improvement, start_area, area, perim, start_perim);
+
+		if(improvement > best_improvement) {
+			best_improvement = improvement;
+			memcpy(keep_best, keep_new, sizeof(bool) * npts);
 		}
 	}
-	return !got_improvement;
+	if(best_improvement < 1) best_improvement = 0; // FIXME
+	if(best_improvement) {
+		printf("best_improvement = %g\n", best_improvement);
+		memcpy(keep_orig, keep_best, sizeof(bool) * npts);
+	}
+	return !best_improvement;
 }
 
 
