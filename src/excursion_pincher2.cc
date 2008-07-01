@@ -114,23 +114,25 @@ static int find_next_convex(ring_t *ring, int start_idx, int limit_idx, double s
 	double min_angdiff = M_PI;
 	int best_vert = -1;
 	double best_segang = 0;
-	for(int i=(start_idx+1)%npts; i!=limit_idx; i=(i+1)%npts) {
+	for(int i=(start_idx+1)%npts; ; i=(i+1)%npts) {
+		if(i == start_idx) break;
 		vertex_t v1 = pts[i];
 		double segang = seg_ang(v0, v1);
 //printf("start_ang=%g*PI, seg_ang=%g*PI\n", start_ang/M_PI, segang/M_PI);
 		double angdiff = segang - start_ang;
-		while(angdiff <  -M_PI) angdiff += 2.0 * M_PI;
-		while(angdiff >=  M_PI) angdiff -= 2.0 * M_PI;
+		while(angdiff <= -M_PI) angdiff += 2.0 * M_PI;
+		while(angdiff >   M_PI) angdiff -= 2.0 * M_PI;
 		if(angdiff < min_angdiff) {
 			min_angdiff = angdiff;
 			best_vert = i;
 			best_segang = segang;
 		}
+		if(i == limit_idx) break;
 	}
 	if(best_vert < 0) {
 		return limit_idx;
-	} else if(min_angdiff >= M_PI || min_angdiff < 0) {
-		//printf("point on wrong side of half-plane (ang=%g*PI)\n", min_angdiff/M_PI);
+	} else if(min_angdiff < 0) {
+		//printf("point on wrong side of half-plane (ang=%g*PI) idx=%d\n", min_angdiff/M_PI, best_vert);
 		return -1;
 	} else {
 		if(ang_out) *ang_out = best_segang;
@@ -147,7 +149,9 @@ static bool *find_chull(ring_t *ring) {
 	double ang = 0;
 	int idx = start_idx;
 	for(;;) {
+		printf("idx=%d, npts=%d\n", idx, ring->npts);
 		idx = find_next_convex(ring, idx, start_idx, ang, &ang);
+		printf("idx2=%d\n", idx);
 		if(idx < 0) fatal_error("could not get convex hull");
 		if(idx == start_idx) break;
 		keep[idx] = true;
@@ -207,7 +211,7 @@ static int reach_point(ring_t *ring, bool *keep, int from, int to, double ang) {
 	vertex_t *pts = ring->pts;
 
 	// FIXME
-	int special = from==3100;//(pts[from].x == 55 && pts[from].y == 925);
+	int special = from==3142 && to==3158;
 	if(special) {
 		printf("special at from=%d to=%d\n", from, to);
 		break_here();
@@ -328,6 +332,12 @@ static int refine_seg(ring_t *ring, bool *keep_orig, int from, int to) {
 	}
 	if(best_improvement) {
 		printf("best_improvement = %g\n", best_improvement);
+		printf("tagged %d (%g,%g) as keep between %d and %d\n", best_touchpt,
+			pts[best_touchpt].x, pts[best_touchpt].y, from, to);
+		for(int i=0; i<npts; i++) {
+			if(keep_best[i] && !keep_orig[i]) printf("  rubberband touches %d (%g, %g)\n", i, pts[i].x, pts[i].y);
+		}
+
 		memcpy(keep_orig, keep_best, sizeof(bool) * npts);
 		return best_touchpt;
 	} else {
@@ -348,7 +358,6 @@ static void refine_ring(ring_t *ring, bool *keep, bool *touchpts) {
 			if(area > 1) { // FIXME
 				int touchpt = refine_seg(ring, keep, i, j);
 				if(touchpt < 0) break;
-				printf("tagged %d as keep\n", touchpt);
 				touchpts[touchpt] = true;
 				nref++;
 				printf("nref=%d\n", nref);
@@ -392,11 +401,13 @@ static ring_t pinch_ring_excursions(ring_t *ring, report_image_t *dbuf) {
 		if(keep[i]) outring.pts[oidx++] = pts[i];
 	}
 
-	debug_plot_ring(dbuf, &outring, 128, 0, 0);
-	for(int i=0; i<npts; i++) {
-		if(touchpts[i]) {
-			vertex_t p = pts[i];
-			plot_point_big(dbuf, p.x, p.y, 255, 255, 255);
+	if(dbuf) {
+		debug_plot_ring(dbuf, &outring, 128, 0, 0);
+		for(int i=0; i<npts; i++) {
+			if(touchpts[i]) {
+				vertex_t p = pts[i];
+				plot_point_big(dbuf, p.x, p.y, 255, 255, 255);
+			}
 		}
 	}
 
