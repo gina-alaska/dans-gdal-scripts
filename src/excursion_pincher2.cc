@@ -174,9 +174,12 @@ static double subring_area(ring_t *ring, int from, int to) {
 		double y0 = pts[i].y;
 		double x1 = pts[i2].x;
 		double y1 = pts[i2].y;
-		accum -= x0*y1 - x1*y0;
+		accum += x1*y0 - x0*y1;
 		if(i == to) break;
 	}
+	//if(fabs(accum - round(accum)) > 1e-9) {
+	//	fatal_error("accum not integer in subring_area (%g)", accum);
+	//}
 	if(accum < 0) {
 		fatal_error("subring_area was negative");
 	}
@@ -197,13 +200,26 @@ static int prev_keep(int npts, bool *keep, int i) {
 	return i;
 }
 
+void break_here() { printf("break\n"); } // FIXME
+
 static int reach_point(ring_t *ring, bool *keep, int from, int to, double ang) {
 	int npts = ring->npts;
 	vertex_t *pts = ring->pts;
 
+	// FIXME
+	int special = from==3100;//(pts[from].x == 55 && pts[from].y == 925);
+	if(special) {
+		printf("special at from=%d to=%d\n", from, to);
+		break_here();
+	}
+
 	int idx = from;
 	for(;;) {
 		idx = find_next_convex(ring, idx, to, ang, &ang);
+		if(special) {
+			printf("next convex = %d\n", idx);
+			if(idx >= 0) printf("  %g,%g\n", pts[idx].x, pts[idx].y);
+		}
 		if(idx < 0) return 1;
 		keep[idx] = true;
 		if(idx == to) break;
@@ -212,12 +228,28 @@ static int reach_point(ring_t *ring, bool *keep, int from, int to, double ang) {
 		int nk = next_keep(npts, keep, pk);
 		if(nk == to) return 0;
 
+		double min_x = MIN(pts[pk].x, pts[nk].x);
+		double max_x = MAX(pts[pk].x, pts[nk].x);
+		double min_y = MIN(pts[pk].y, pts[nk].y);
+		double max_y = MAX(pts[pk].y, pts[nk].y);
+
 		// FIXME - this is the slowest part
 		// FIXME - also test for crossings between keep-segs
 		for(int i=0; i<npts; i++) {
 			int i2 = i+1<npts ? i+1 : 0;
 			if(i==pk || i==nk || i2==pk || i2==nk) continue;
-			if(line_intersects_line(pts[pk], pts[nk], pts[i], pts[i2], 0)) return 1;
+			vertex_t p1 = pts[i];
+			vertex_t p2 = pts[i2];
+			// this test is copied here from line_intersects_line to save
+			// the time penalty of a function call for the common case of
+			// the bbox not matching
+			if(
+				max_x < MIN(p1.x, p2.x) ||
+				min_x > MAX(p1.x, p2.x) ||
+				max_y < MIN(p1.y, p2.y) ||
+				min_y > MAX(p1.y, p2.y)
+			) continue;
+			if(line_intersects_line(pts[pk], pts[nk], p1, p2, 0)) return 1;
 		}
 
 		pk = nk;
@@ -280,10 +312,13 @@ static int refine_seg(ring_t *ring, bool *keep_orig, int from, int to) {
 			pk = nk;
 		}
 
-		double improvement = (start_area / (area+1.0)) / pow(perim / start_perim, 2);
-		//double improvement = (start_area - area) / pow(perim - start_perim, .5);
+		//double improvement = (start_area - area) - 50.0*(perim - start_perim);
+		//double improvement = (start_area / (area+1.0)) / pow(perim / start_perim, 2);
+		double improvement = (start_area - area) / pow(perim - start_perim, .5);
+		//double improvement = (start_area - area) / pow(perim - start_perim, 2);
 		printf("improvement=%g, start_area=%g, area=%g, perim=%g, start_perim=%g\n",
 			improvement, start_area, area, perim, start_perim);
+		if(improvement < 100) improvement = 0; // FIXME
 
 		if(improvement > best_improvement) {
 			best_improvement = improvement;
@@ -291,7 +326,6 @@ static int refine_seg(ring_t *ring, bool *keep_orig, int from, int to) {
 			best_touchpt = testpt;
 		}
 	}
-	if(best_improvement < 1) best_improvement = 0; // FIXME
 	if(best_improvement) {
 		printf("best_improvement = %g\n", best_improvement);
 		memcpy(keep_orig, keep_best, sizeof(bool) * npts);
@@ -311,9 +345,10 @@ static void refine_ring(ring_t *ring, bool *keep, bool *touchpts) {
 			int j = next_keep(npts, keep, i);
 			double area = subring_area(ring, i, j);
 			//printf("area = %g\n", area);
-			if(area > 1000) { // FIXME
+			if(area > 1) { // FIXME
 				int touchpt = refine_seg(ring, keep, i, j);
 				if(touchpt < 0) break;
+				printf("tagged %d as keep\n", touchpt);
 				touchpts[touchpt] = true;
 				nref++;
 				printf("nref=%d\n", nref);
