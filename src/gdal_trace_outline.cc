@@ -326,7 +326,7 @@ int main(int argc, char **argv) {
 	report_image_t *dbuf = NULL;
 	if(debug_report) {
 		dbuf = create_plot(georef.w, georef.h);
-		dbuf->mode = PLOT_PINCH;
+		dbuf->mode = do_pinch_excursions ? PLOT_PINCH : PLOT_CONTOURS;
 	}
 
 	const uint8_t *raster = NULL;
