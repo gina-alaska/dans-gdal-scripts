@@ -149,9 +149,7 @@ static bool *find_chull(ring_t *ring) {
 	double ang = 0;
 	int idx = start_idx;
 	for(;;) {
-		printf("idx=%d, npts=%d\n", idx, ring->npts);
 		idx = find_next_convex(ring, idx, start_idx, ang, &ang);
-		printf("idx2=%d\n", idx);
 		if(idx < 0) fatal_error("could not get convex hull");
 		if(idx == start_idx) break;
 		keep[idx] = true;
@@ -204,26 +202,13 @@ static int prev_keep(int npts, bool *keep, int i) {
 	return i;
 }
 
-void break_here() { printf("break\n"); } // FIXME
-
 static int reach_point(ring_t *ring, bool *keep, int from, int to, double ang) {
 	int npts = ring->npts;
 	vertex_t *pts = ring->pts;
 
-	// FIXME
-	int special = from==3142 && to==3158;
-	if(special) {
-		printf("special at from=%d to=%d\n", from, to);
-		break_here();
-	}
-
 	int idx = from;
 	for(;;) {
 		idx = find_next_convex(ring, idx, to, ang, &ang);
-		if(special) {
-			printf("next convex = %d\n", idx);
-			if(idx >= 0) printf("  %g,%g\n", pts[idx].x, pts[idx].y);
-		}
 		if(idx < 0) return 1;
 		keep[idx] = true;
 		if(idx == to) break;
@@ -241,7 +226,6 @@ static int reach_point(ring_t *ring, bool *keep, int from, int to, double ang) {
 		// FIXME - also test for crossings between keep-segs
 		for(int i=0; i<npts; i++) {
 			int i2 = i+1<npts ? i+1 : 0;
-			if(i==pk || i==nk || i2==pk || i2==nk) continue;
 			vertex_t p1 = pts[i];
 			vertex_t p2 = pts[i2];
 			// this test is copied here from line_intersects_line to save
@@ -253,6 +237,7 @@ static int reach_point(ring_t *ring, bool *keep, int from, int to, double ang) {
 				max_y < MIN(p1.y, p2.y) ||
 				min_y > MAX(p1.y, p2.y)
 			) continue;
+			if(i==pk || i==nk || i2==pk || i2==nk) continue;
 			if(line_intersects_line(pts[pk], pts[nk], p1, p2, 0)) return 1;
 		}
 
@@ -317,12 +302,12 @@ static int refine_seg(ring_t *ring, bool *keep_orig, int from, int to) {
 		}
 
 		//double improvement = (start_area - area) - 50.0*(perim - start_perim);
-		//double improvement = (start_area / (area+1.0)) / pow(perim / start_perim, 2);
-		double improvement = (start_area - area) / pow(perim - start_perim, .5);
-		//double improvement = (start_area - area) / pow(perim - start_perim, 2);
-		printf("improvement=%g, start_area=%g, area=%g, perim=%g, start_perim=%g\n",
+		double improvement = ((start_area+2.0) / (area+2.0)) / pow(perim / start_perim, 2) - 2.0;
+		//double improvement = (start_area - area) / pow(perim - start_perim, .5) - 100.0;
+		//double improvement = (start_area - area) / pow(perim - start_perim, 2) - 100.0;
+
+		if(VERBOSE >= 2) printf("improvement=%g, start_area=%g, area=%g, perim=%g, start_perim=%g\n",
 			improvement, start_area, area, perim, start_perim);
-		if(improvement < 100) improvement = 0; // FIXME
 
 		if(improvement > best_improvement) {
 			best_improvement = improvement;
@@ -331,11 +316,14 @@ static int refine_seg(ring_t *ring, bool *keep_orig, int from, int to) {
 		}
 	}
 	if(best_improvement) {
-		printf("best_improvement = %g\n", best_improvement);
-		printf("tagged %d (%g,%g) as keep between %d and %d\n", best_touchpt,
-			pts[best_touchpt].x, pts[best_touchpt].y, from, to);
-		for(int i=0; i<npts; i++) {
-			if(keep_best[i] && !keep_orig[i]) printf("  rubberband touches %d (%g, %g)\n", i, pts[i].x, pts[i].y);
+		if(VERBOSE) {
+			printf("best_improvement = %g\n", best_improvement);
+			printf("tagged %d (%g,%g) as keep between %d and %d\n", best_touchpt,
+				pts[best_touchpt].x, pts[best_touchpt].y, from, to);
+			for(int i=0; i<npts; i++) {
+				if(keep_best[i] && !keep_orig[i]) printf(
+					"  rubberband touches %d (%g, %g)\n", i, pts[i].x, pts[i].y);
+			}
 		}
 
 		memcpy(keep_orig, keep_best, sizeof(bool) * npts);
@@ -348,20 +336,16 @@ static int refine_seg(ring_t *ring, bool *keep_orig, int from, int to) {
 
 static void refine_ring(ring_t *ring, bool *keep, bool *touchpts) {
 	int npts = ring->npts;
-	int nref=0; // FIXME
 	for(int i=0; i<npts; i++) {
 		if(!keep[i]) continue;
 		for(;;) {
 			int j = next_keep(npts, keep, i);
 			double area = subring_area(ring, i, j);
 			//printf("area = %g\n", area);
-			if(area > 1) { // FIXME
+			if(area > 0) {
 				int touchpt = refine_seg(ring, keep, i, j);
 				if(touchpt < 0) break;
 				touchpts[touchpt] = true;
-				nref++;
-				printf("nref=%d\n", nref);
-				//if(nref > 0) return; // FIXME
 			} else {
 				break;
 			}
@@ -414,7 +398,7 @@ static ring_t pinch_ring_excursions(ring_t *ring, report_image_t *dbuf) {
 	return outring;
 }
 
-mpoly_t pinch_excursions(mpoly_t *mp_in, report_image_t *dbuf) {
+mpoly_t pinch_excursions2(mpoly_t *mp_in, report_image_t *dbuf) {
 	mpoly_t mp_out;
 	mp_out.num_rings = mp_in->num_rings;
 	mp_out.rings = (ring_t *)malloc_or_die(sizeof(ring_t) * mp_out.num_rings);

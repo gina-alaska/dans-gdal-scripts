@@ -443,7 +443,10 @@ int main(int argc, char **argv) {
 		}
 
 		if(feature_poly.num_rings && do_pinch_excursions) {
-			feature_poly = pinch_excursions(&feature_poly, dbuf);
+			printf("Pinching excursions...\n");
+			//feature_poly = pinch_excursions(&feature_poly, NULL);
+			feature_poly = pinch_excursions2(&feature_poly, dbuf);
+			printf("Done pinching excursions.\n");
 		}
 
 		if(feature_poly.num_rings && reduction_tolerance > 0) {
