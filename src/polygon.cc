@@ -753,6 +753,8 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 	mpoly_t *ll_poly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
 	ll_poly->num_rings = xy_poly->num_rings;
 	ll_poly->rings = (ring_t *)malloc_or_die(sizeof(ring_t) * ll_poly->num_rings);
+	
+	double max_error = georef->w*georef->w + georef->h*georef->h;
 
 	int r_idx;
 	for(r_idx=0; r_idx<xy_poly->num_rings; r_idx++) {
@@ -770,6 +772,8 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 			ll_ring.pts[v_idx].x = lon;
 			ll_ring.pts[v_idx].y = lat;
 		}
+
+		int num_consec = 0;
 
 		for(v_idx=0; v_idx<ll_ring.npts; ) {
 			if(xy_ring.npts != ll_ring.npts) fatal_error("xy_ring.npts != ll_ring.npts");
@@ -794,6 +798,8 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 			double dx = xy_m.x - xy_m_test.x;
 			double dy = xy_m.y - xy_m_test.y;
 			double sqr_error = dx*dx + dy*dy;
+			// if the midpoint is this far off then something is seriously wrong
+			if(sqr_error > max_error) fatal_error("projection error in mpoly_xy2ll_with_interp");
 
 			//if(VERBOSE) {
 			//	printf("%d,%d (delta=%lf,%lf)\n", r_idx, v_idx, dx, dy);
@@ -803,6 +809,8 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 
 			int need_midpt = toler && sqr_error > toler*toler;
 			if(need_midpt) {
+				if(num_consec++ > 20) fatal_error("convergence error in mpoly_xy2ll_with_interp");
+//printf("(%g,%g) vs (%g,%g) with ll (%g,%g)\n", xy_m.x, xy_m.y, xy_m_test.x, xy_m_test.y, ll_m_interp.x, ll_m_interp.y);
 				vertex_t ll_m_proj;
 				xy2ll(georef, 
 					xy_m.x, xy_m.y,
@@ -820,6 +828,7 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 				ll_ring.pts[v_idx+1] = ll_m_proj;
 			} else {
 				v_idx++;
+				num_consec = 0;
 			}
 		}
 
