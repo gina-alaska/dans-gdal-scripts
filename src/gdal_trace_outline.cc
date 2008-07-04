@@ -438,15 +438,15 @@ int main(int argc, char **argv) {
 			major_ring_only, no_donuts, min_ring_area, bevel_size);
 		free(mask);
 
-		if(mask_out_fn) {
-			mask_from_mpoly(&feature_poly, georef.w, georef.h, mask_out_fn);
-		}
-
 		if(feature_poly.num_rings && do_pinch_excursions) {
 			printf("Pinching excursions...\n");
 			//feature_poly = pinch_excursions(&feature_poly, NULL);
 			feature_poly = pinch_excursions2(&feature_poly, dbuf);
 			printf("Done pinching excursions.\n");
+		}
+
+		if(mask_out_fn) {
+			mask_from_mpoly(&feature_poly, georef.w, georef.h, mask_out_fn);
 		}
 
 		if(feature_poly.num_rings && reduction_tolerance > 0) {
