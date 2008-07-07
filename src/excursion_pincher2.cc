@@ -94,6 +94,12 @@ static inline double seg_ang(vertex_t v0, vertex_t v1) {
 	return atan2(dy, dx);
 }
 
+static inline double seg_len(vertex_t v0, vertex_t v1) {
+	double dx = v1.x - v0.x;
+	double dy = v1.y - v0.y;
+	return sqrt(dx*dx + dy*dy);
+}
+
 static int find_bottom_pt(ring_t *ring) {
 	double min = 0;
 	int min_idx = -1;
@@ -120,8 +126,8 @@ static int find_next_convex(ring_t *ring, int start_idx, int limit_idx, double s
 		double segang = seg_ang(v0, v1);
 //printf("start_ang=%g*PI, seg_ang=%g*PI\n", start_ang/M_PI, segang/M_PI);
 		double angdiff = segang - start_ang;
-		while(angdiff <= -M_PI) angdiff += 2.0 * M_PI;
-		while(angdiff >   M_PI) angdiff -= 2.0 * M_PI;
+		while(angdiff < 0) angdiff += 2.0 * M_PI;
+		while(angdiff >= 2.0*M_PI) angdiff -= 2.0 * M_PI;
 		if(angdiff < min_angdiff) {
 			min_angdiff = angdiff;
 			best_vert = i;
@@ -131,8 +137,8 @@ static int find_next_convex(ring_t *ring, int start_idx, int limit_idx, double s
 	}
 	if(best_vert < 0) {
 		return limit_idx;
-	} else if(min_angdiff < 0) {
-		//printf("point on wrong side of half-plane (ang=%g*PI) idx=%d\n", min_angdiff/M_PI, best_vert);
+	} else if(min_angdiff >= M_PI) {
+		printf("point on wrong side of half-plane (ang=%g*PI) idx=%d\n", min_angdiff/M_PI, best_vert);
 		return -1;
 	} else {
 		if(ang_out) *ang_out = best_segang;
@@ -156,12 +162,6 @@ static bool *find_chull(ring_t *ring) {
 	}
 
 	return keep;
-}
-
-static inline double seg_len(vertex_t v0, vertex_t v1) {
-	double dx = v1.x - v0.x;
-	double dy = v1.y - v0.y;
-	return sqrt(dx*dx + dy*dy);
 }
 
 static double subring_area(ring_t *ring, int from, int to) {
@@ -206,43 +206,100 @@ static int reach_point(ring_t *ring, bool *keep, int from, int to, double ang) {
 	int npts = ring->npts;
 	vertex_t *pts = ring->pts;
 
+	printf("  reach %d and %d\n", from, to);
+	printf("  %g,%g : %g,%g ang=%g*PI\n",
+		pts[from].x, pts[from].y, pts[to].x, pts[to].y, ang/M_PI);
+
 	int idx = from;
 	for(;;) {
 		idx = find_next_convex(ring, idx, to, ang, &ang);
-		if(idx < 0) return 1;
+		if(idx < 0) return -1;
 		keep[idx] = true;
 		if(idx == to) break;
 	}
 	for(int pk=from;;) {
 		int nk = next_keep(npts, keep, pk);
-		if(nk == to) return 0;
 
 		double min_x = MIN(pts[pk].x, pts[nk].x);
 		double max_x = MAX(pts[pk].x, pts[nk].x);
 		double min_y = MIN(pts[pk].y, pts[nk].y);
 		double max_y = MAX(pts[pk].y, pts[nk].y);
 
+if(nk == 51) {
+printf("break\n");
+printf("pk=%d nk=%d\n", pk, nk);
+}
 		// FIXME - this is the slowest part
-		// FIXME - also test for crossings between keep-segs
 		for(int i=0; i<npts; i++) {
 			int i2 = i+1<npts ? i+1 : 0;
 			vertex_t p1 = pts[i];
 			vertex_t p2 = pts[i2];
-			// this test is copied here from line_intersects_line to save
+			// the bbox test is copied here from line_intersects_line to save
 			// the time penalty of a function call for the common case of
 			// the bbox not matching
-			if(
+			if(!(
 				max_x < MIN(p1.x, p2.x) ||
 				min_x > MAX(p1.x, p2.x) ||
 				max_y < MIN(p1.y, p2.y) ||
-				min_y > MAX(p1.y, p2.y)
-			) continue;
-			if(i==pk || i==nk || i2==pk || i2==nk) continue;
-			if(line_intersects_line(pts[pk], pts[nk], p1, p2, 0)) return 1;
+				min_y > MAX(p1.y, p2.y) ||
+				i==pk || i==nk || i2==pk || i2==nk
+			)) {
+				if(line_intersects_line(pts[pk], pts[nk], p1, p2, 0)) {
+					printf("line intersects line\n");
+					return -1;
+				}
+			}
+		}
+		for(int i=nk; ; ) {
+			int i2 = next_keep(npts, keep, i);
+			vertex_t p1 = pts[i];
+			vertex_t p2 = pts[i2];
+			// the bbox test is copied here from line_intersects_line to save
+			// the time penalty of a function call for the common case of
+			// the bbox not matching
+			if(!(
+				max_x < MIN(p1.x, p2.x) ||
+				min_x > MAX(p1.x, p2.x) ||
+				max_y < MIN(p1.y, p2.y) ||
+				min_y > MAX(p1.y, p2.y) ||
+				i==pk || i==nk || i2==pk || i2==nk
+			)) {
+				if(line_intersects_line(pts[pk], pts[nk], p1, p2, 0)) {
+					printf("line intersects line\n");
+					return -1;
+				}
+			}
+			i = i2;
+			if(i == nk) break;
 		}
 
 		pk = nk;
+		if(pk == to) return 0;
 	}
+}
+
+static int add_tiepoint(ring_t *ring, bool *keep, int mid) {
+	int npts = ring->npts;
+	vertex_t *pts = ring->pts;
+
+	keep[mid] = true;
+	int left = prev_keep(npts, keep, mid);
+	int right = next_keep(npts, keep, mid);
+	printf("adding %d between %d and %d\n", mid, left, right);
+	printf("%g,%g : %g,%g : %g,%g\n",
+		pts[mid].x, pts[mid].y, pts[left].x, pts[left].y, pts[right].x, pts[right].y);
+
+	double ang = seg_ang(pts[left], pts[right]);
+	int error = reach_point(ring, keep, left, mid, ang);
+	if(error) return -1;
+
+	int pk = prev_keep(npts, keep, mid);
+	if(pk == mid) fatal_error("pk == mid");
+	ang = seg_ang(pts[mid], pts[pk]);
+	error = reach_point(ring, keep, mid, right, ang);
+	if(error) return -1;
+
+	return 0;
 }
 
 /*
@@ -259,6 +316,79 @@ static int chord_crosses_arc(ring_t *ring, int c0, int c1, int from, int to) {
 }
 */
 
+// distance of p3 from line (p1,p2)
+static double dist_to_seg(vertex_t p1, vertex_t p2, vertex_t p3) {
+	double d21x = p2.x - p1.x; double d21y = p2.y - p1.y;
+	double d13x = p1.x - p3.x; double d13y = p1.y - p3.y;
+	// from http://mathworld.wolfram.com/Point-LineDistance2-Dimensional.html
+	double dist_from_line = fabs(d21x*d13y - d13x*d21y) / sqrt(d21x*d21x + d21y*d21y);
+	return dist_from_line;
+}
+
+static int is_mostly_linear(ring_t *ring, int from, int to) {
+	int npts = ring->npts;
+	vertex_t *pts = ring->pts;
+
+	vertex_t p1 = pts[from];
+	vertex_t p2 = pts[to];
+	for(int i=(from+1)%npts; i!=to; i=(i+1)%npts) {
+		double dist = dist_to_seg(p1, p2, pts[i]);
+		if(dist > 1.0) return 0;
+	}
+
+	return 1;
+}
+
+static int keep_linears(ring_t *ring, bool *keep_orig, int from, int to, bool *touchpts) {
+	int npts = ring->npts;
+	vertex_t *pts = ring->pts;
+
+	if(to == (from+1)%npts) return 0;
+
+	bool *keep_new = (bool *)malloc_or_die(sizeof(bool) * npts);
+
+	double min_length = 20; // FIXME
+
+	for(int l_idx=from; l_idx!=to; l_idx=(l_idx+1)%npts) {
+		int longest = l_idx;
+		double perim = 0;
+		for(int r_idx=(l_idx+1)%npts; ; r_idx=(r_idx+1)%npts) {
+			perim += seg_len(pts[(r_idx+npts-1)%npts], pts[r_idx]);
+			if(perim > min_length && is_mostly_linear(ring, l_idx, r_idx)) {
+				longest = r_idx;
+			} else {
+				break;
+			}
+			if(r_idx == to) break;
+		}
+		if(longest != l_idx) {
+			memcpy(keep_new, keep_orig, sizeof(bool) * npts);
+			int error = 0;
+			if(l_idx != from) {
+				if(add_tiepoint(ring, keep_new, l_idx) < 0) error++;
+			}
+if(error) fatal_error("oops"); // FIXME
+			if(longest != to) {
+				if(add_tiepoint(ring, keep_new, longest) < 0) error++;
+			}
+if(error) fatal_error("oops"); // FIXME
+			if(!error) {
+				touchpts[l_idx] = true;
+				touchpts[longest] = true;
+				for(int i=l_idx; ; i=(i+1)%npts) {
+					keep_new[i] = true;
+					if(i == longest) break;
+				}
+				memcpy(keep_orig, keep_new, sizeof(bool) * npts);
+				free(keep_new);
+				return 1;
+			}
+		}
+	}
+	free(keep_new);
+	return 0;
+}
+
 static int refine_seg(ring_t *ring, bool *keep_orig, int from, int to) {
 	int npts = ring->npts;
 	vertex_t *pts = ring->pts;
@@ -269,42 +399,51 @@ static int refine_seg(ring_t *ring, bool *keep_orig, int from, int to) {
 	bool *keep_new = (bool *)malloc_or_die(sizeof(bool) * npts);
 	bool *keep_best = (bool *)malloc_or_die(sizeof(bool) * npts);
 
-	//int mid; // FIXME
-	//if(to>from) mid = (from+to)/2;
-	//else mid = ((from+to+npts)/2)%npts;
-
 	double best_improvement = 0;
 	int best_touchpt = -1;
 
 	for(int testpt=(from+1)%npts; testpt!=to; testpt=(testpt+1)%npts) {
-		//if(testpt != mid) continue; // FIXME
 		memcpy(keep_new, keep_orig, sizeof(bool) * npts);
-		keep_new[testpt] = true;
 
-		double ang = seg_ang(pts[from], pts[to]);
-		int error = reach_point(ring, keep_new, from, testpt, ang);
-		if(error) continue;
+		if(add_tiepoint(ring, keep_new, testpt) < 0) continue;
 
-		int pk = prev_keep(npts, keep_new, testpt);
-		if(pk == testpt) fatal_error("pk == testpt");
-		ang = seg_ang(pts[testpt], pts[pk]);
-		error = reach_point(ring, keep_new, testpt, to, ang);
-		if(error) continue;
-
-		double area = 0;
-		double perim = 0;
+		double left_area = 0;
+		double left_perim = 0;
 		for(int pk=from;;) {
 			int nk = next_keep(npts, keep_new, pk);
-			area += subring_area(ring, pk, nk);
-			perim += seg_len(pts[pk], pts[nk]);
+			left_area += subring_area(ring, pk, nk);
+			left_perim += seg_len(pts[pk], pts[nk]);
+			if(nk == testpt) break;
+			pk = nk;
+		}
+		double right_area = 0;
+		double right_perim = 0;
+		for(int pk=testpt;;) {
+			int nk = next_keep(npts, keep_new, pk);
+			right_area += subring_area(ring, pk, nk);
+			right_perim += seg_len(pts[pk], pts[nk]);
 			if(nk == to) break;
 			pk = nk;
 		}
+		double area = left_area + right_area;
+		double perim = left_perim + right_perim;
 
 		//double improvement = (start_area - area) - 50.0*(perim - start_perim);
 		double improvement = ((start_area+2.0) / (area+2.0)) / pow(perim / start_perim, 2) - 2.0;
 		//double improvement = (start_area - area) / pow(perim - start_perim, .5) - 100.0;
 		//double improvement = (start_area - area) / pow(perim - start_perim, 2) - 100.0;
+
+		/*
+		double min_linear = 10;
+		if(left_perim > min_linear && left_area /left_perim < 0.55) {
+			if(is_mostly_linear(ring, keep_new, from, testpt))
+				improvement += left_perim - min_linear;
+		}
+		if(right_perim > min_linear && right_area/right_perim < 0.55) {
+			if(is_mostly_linear(ring, keep_new, testpt, to))
+				improvement += right_perim - min_linear;
+		}
+		*/
 
 		if(VERBOSE >= 2) printf("improvement=%g, start_area=%g, area=%g, perim=%g, start_perim=%g\n",
 			improvement, start_area, area, perim, start_perim);
@@ -327,12 +466,13 @@ static int refine_seg(ring_t *ring, bool *keep_orig, int from, int to) {
 		}
 
 		memcpy(keep_orig, keep_best, sizeof(bool) * npts);
-		return best_touchpt;
 	} else {
-		return -1;
+		best_touchpt = -1;
 	}
+	free(keep_new);
+	free(keep_best);
+	return best_touchpt;
 }
-
 
 static void refine_ring(ring_t *ring, bool *keep, bool *touchpts) {
 	int npts = ring->npts;
@@ -341,14 +481,19 @@ static void refine_ring(ring_t *ring, bool *keep, bool *touchpts) {
 		for(;;) {
 			int j = next_keep(npts, keep, i);
 			double area = subring_area(ring, i, j);
-			//printf("area = %g\n", area);
+			printf("area = %g, refining segment %d,%d\n", area, i, j);
 			if(area > 0) {
+printf("do linear\n");
+				int did_linear = keep_linears(ring, keep, i, j, touchpts);
+				if(did_linear) continue;
+printf("do refine\n");
 				int touchpt = refine_seg(ring, keep, i, j);
-				if(touchpt < 0) break;
-				touchpts[touchpt] = true;
-			} else {
-				break;
+				if(touchpt >= 0) {
+					touchpts[touchpt] = true;
+					continue;
+				}
 			}
+			break;
 		}
 	}
 }
@@ -385,7 +530,7 @@ static ring_t pinch_ring_excursions(ring_t *ring, report_image_t *dbuf) {
 		if(keep[i]) outring.pts[oidx++] = pts[i];
 	}
 
-	if(dbuf) {
+	if(dbuf && dbuf->mode == PLOT_PINCH) {
 		debug_plot_ring(dbuf, &outring, 128, 0, 0);
 		for(int i=0; i<npts; i++) {
 			if(touchpts[i]) {
