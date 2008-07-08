@@ -490,14 +490,15 @@ static void refine_ring(ring_t *ring, bool *keep, bool *touchpts) {
 	for(int i=0; i<npts; i++) {
 		if(!keep[i]) continue;
 		for(;;) {
+		// FIXME quick loop if j==i+1
 			int j = next_keep(npts, keep, i);
 			double area = subring_area(ring, i, j);
-			if(DEBUG) printf("area = %g, refining segment %d,%d\n", area, i, j);
+			if(VERBOSE) printf("area = %g, refining segment %d,%d\n", area, i, j);
 			if(area > 0) {
-if(DEBUG) printf("do linear\n");
+if(VERBOSE) printf("do linear\n");
 				int did_linear = keep_linears(ring, keep, i, j, touchpts);
 				if(did_linear) continue;
-if(DEBUG) printf("do refine\n");
+if(VERBOSE) printf("do refine\n");
 				int touchpt = refine_seg(ring, keep, i, j);
 				if(touchpt >= 0) {
 					touchpts[touchpt] = true;
