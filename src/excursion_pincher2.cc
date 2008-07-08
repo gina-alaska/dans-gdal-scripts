@@ -28,6 +28,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "polygon.h"
 #include "debugplot.h"
 
+#define DEBUG 0
+
 /*
 static inline double sqlen(vertex_t v0, vertex_t v1) {
 	double dx = v1.x - v0.x;
@@ -118,6 +120,7 @@ static int find_next_convex(ring_t *ring, int start_idx, int limit_idx, double s
 	vertex_t *pts = ring->pts;
 	vertex_t v0 = pts[start_idx];
 	double min_angdiff = M_PI;
+	double last_ad = -999;
 	int best_vert = -1;
 	double best_segang = 0;
 	for(int i=(start_idx+1)%npts; ; i=(i+1)%npts) {
@@ -128,6 +131,15 @@ static int find_next_convex(ring_t *ring, int start_idx, int limit_idx, double s
 		double angdiff = segang - start_ang;
 		while(angdiff < 0) angdiff += 2.0 * M_PI;
 		while(angdiff >= 2.0*M_PI) angdiff -= 2.0 * M_PI;
+		// FIXME - this about this some more
+		if(last_ad != -999 && ((last_ad<M_PI) != (angdiff<M_PI))) {
+			if(DEBUG) printf("test for seg crosses initial ray (%g*PI and %g*PI)\n", last_ad, angdiff);
+			if(fabs(last_ad-angdiff) > M_PI) {
+				if(DEBUG) printf("seg crosses initial ray (%g*PI and %g*PI)\n", last_ad, angdiff);
+				return -1;
+			}
+		}
+		last_ad = angdiff;
 		if(angdiff < min_angdiff) {
 			min_angdiff = angdiff;
 			best_vert = i;
@@ -138,7 +150,7 @@ static int find_next_convex(ring_t *ring, int start_idx, int limit_idx, double s
 	if(best_vert < 0) {
 		return limit_idx;
 	} else if(min_angdiff >= M_PI) {
-		printf("point on wrong side of half-plane (ang=%g*PI) idx=%d\n", min_angdiff/M_PI, best_vert);
+		if(DEBUG) printf("point on wrong side of half-plane (ang=%g*PI) idx=%d\n", min_angdiff/M_PI, best_vert);
 		return -1;
 	} else {
 		if(ang_out) *ang_out = best_segang;
@@ -206,8 +218,8 @@ static int reach_point(ring_t *ring, bool *keep, int from, int to, double ang) {
 	int npts = ring->npts;
 	vertex_t *pts = ring->pts;
 
-	printf("  reach %d and %d\n", from, to);
-	printf("  %g,%g : %g,%g ang=%g*PI\n",
+	if(DEBUG) printf("  reach %d and %d\n", from, to);
+	if(DEBUG) printf("  %g,%g : %g,%g ang=%g*PI\n",
 		pts[from].x, pts[from].y, pts[to].x, pts[to].y, ang/M_PI);
 
 	int idx = from;
@@ -217,19 +229,17 @@ static int reach_point(ring_t *ring, bool *keep, int from, int to, double ang) {
 		keep[idx] = true;
 		if(idx == to) break;
 	}
-	for(int pk=from;;) {
+	for(int pk=from; pk!=to;) {
 		int nk = next_keep(npts, keep, pk);
+		if(DEBUG) printf("test seg %g,%g : %g,%g\n", pts[pk].x, pts[pk].y, pts[nk].x, pts[nk].y);
 
 		double min_x = MIN(pts[pk].x, pts[nk].x);
 		double max_x = MAX(pts[pk].x, pts[nk].x);
 		double min_y = MIN(pts[pk].y, pts[nk].y);
 		double max_y = MAX(pts[pk].y, pts[nk].y);
 
-if(nk == 51) {
-printf("break\n");
-printf("pk=%d nk=%d\n", pk, nk);
-}
 		// FIXME - this is the slowest part
+		// FIXME - doesn't handle crossing across a vertex here or in dp.c
 		for(int i=0; i<npts; i++) {
 			int i2 = i+1<npts ? i+1 : 0;
 			vertex_t p1 = pts[i];
@@ -245,7 +255,7 @@ printf("pk=%d nk=%d\n", pk, nk);
 				i==pk || i==nk || i2==pk || i2==nk
 			)) {
 				if(line_intersects_line(pts[pk], pts[nk], p1, p2, 0)) {
-					printf("line intersects line\n");
+					if(DEBUG) printf("line intersects line\n");
 					return -1;
 				}
 			}
@@ -265,7 +275,7 @@ printf("pk=%d nk=%d\n", pk, nk);
 				i==pk || i==nk || i2==pk || i2==nk
 			)) {
 				if(line_intersects_line(pts[pk], pts[nk], p1, p2, 0)) {
-					printf("line intersects line\n");
+					if(DEBUG) printf("line intersects line\n");
 					return -1;
 				}
 			}
@@ -274,8 +284,9 @@ printf("pk=%d nk=%d\n", pk, nk);
 		}
 
 		pk = nk;
-		if(pk == to) return 0;
 	}
+	if(DEBUG) printf("pass\n");
+	return 0;
 }
 
 static int add_tiepoint(ring_t *ring, bool *keep, int mid) {
@@ -285,8 +296,8 @@ static int add_tiepoint(ring_t *ring, bool *keep, int mid) {
 	keep[mid] = true;
 	int left = prev_keep(npts, keep, mid);
 	int right = next_keep(npts, keep, mid);
-	printf("adding %d between %d and %d\n", mid, left, right);
-	printf("%g,%g : %g,%g : %g,%g\n",
+	if(DEBUG) printf("adding %d between %d and %d\n", mid, left, right);
+	if(DEBUG) printf("%g,%g : %g,%g : %g,%g\n",
 		pts[mid].x, pts[mid].y, pts[left].x, pts[left].y, pts[right].x, pts[right].y);
 
 	double ang = seg_ang(pts[left], pts[right]);
@@ -367,11 +378,11 @@ static int keep_linears(ring_t *ring, bool *keep_orig, int from, int to, bool *t
 			if(l_idx != from) {
 				if(add_tiepoint(ring, keep_new, l_idx) < 0) error++;
 			}
-if(error) fatal_error("oops"); // FIXME
+//if(error) fatal_error("oops"); // FIXME
 			if(longest != to) {
 				if(add_tiepoint(ring, keep_new, longest) < 0) error++;
 			}
-if(error) fatal_error("oops"); // FIXME
+//if(error) fatal_error("oops"); // FIXME
 			if(!error) {
 				touchpts[l_idx] = true;
 				touchpts[longest] = true;
@@ -481,12 +492,12 @@ static void refine_ring(ring_t *ring, bool *keep, bool *touchpts) {
 		for(;;) {
 			int j = next_keep(npts, keep, i);
 			double area = subring_area(ring, i, j);
-			printf("area = %g, refining segment %d,%d\n", area, i, j);
+			if(DEBUG) printf("area = %g, refining segment %d,%d\n", area, i, j);
 			if(area > 0) {
-printf("do linear\n");
+if(DEBUG) printf("do linear\n");
 				int did_linear = keep_linears(ring, keep, i, j, touchpts);
 				if(did_linear) continue;
-printf("do refine\n");
+if(DEBUG) printf("do refine\n");
 				int touchpt = refine_seg(ring, keep, i, j);
 				if(touchpt >= 0) {
 					touchpts[touchpt] = true;
@@ -539,6 +550,9 @@ static ring_t pinch_ring_excursions(ring_t *ring, report_image_t *dbuf) {
 			}
 		}
 	}
+
+	free(keep);
+	free(touchpts);
 
 	return outring;
 }
