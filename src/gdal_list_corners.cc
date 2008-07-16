@@ -197,6 +197,14 @@ int main(int argc, char **argv) {
 		}
 		fprintf(yaml_fh, "num_bands: %d\n", band_count);
 		fprintf(yaml_fh, "datatype: %s\n", datatypes);
+
+		char **metadata = GDALGetMetadata(ds, "");
+		if(metadata) {
+			fprintf(yaml_fh, "metadata:\n");
+			for(char **p=metadata; *p; p++) {
+				fprintf(yaml_fh, "  - '%s'\n", *p);
+			}
+		}
 	}
 
 	if(georef.s_srs && strlen(georef.s_srs)) {
