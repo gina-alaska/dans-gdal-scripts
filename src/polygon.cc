@@ -754,7 +754,9 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 	ll_poly->num_rings = xy_poly->num_rings;
 	ll_poly->rings = (ring_t *)malloc_or_die(sizeof(ring_t) * ll_poly->num_rings);
 	
-	double max_error = georef->w*georef->w + georef->h*georef->h;
+	double max_error = 
+		(double)georef->w*(double)georef->w + // must explicitly cast to double to avoid overflow
+		(double)georef->h*(double)georef->h;
 
 	int r_idx;
 	for(r_idx=0; r_idx<xy_poly->num_rings; r_idx++) {
@@ -799,7 +801,9 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 			double dy = xy_m.y - xy_m_test.y;
 			double sqr_error = dx*dx + dy*dy;
 			// if the midpoint is this far off then something is seriously wrong
-			if(sqr_error > max_error) fatal_error("projection error in mpoly_xy2ll_with_interp");
+			if(sqr_error > max_error) fatal_error(
+				"projection error in mpoly_xy2ll_with_interp [%lf,%lf:%lf,%lf:%lf,%lf:%lf>%lf]",
+				xy_m.x, xy_m.y, xy_m_test.x, xy_m_test.y, ll_m_interp.x, ll_m_interp.y, sqr_error, max_error);
 
 			//if(VERBOSE) {
 			//	printf("%d,%d (delta=%lf,%lf)\n", r_idx, v_idx, dx, dy);
