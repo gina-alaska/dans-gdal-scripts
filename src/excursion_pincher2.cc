@@ -71,7 +71,7 @@ static int find_next_convex(ring_t *ring, int start_idx, int limit_idx, double s
 		double angdiff = segang - start_ang;
 		while(angdiff < 0) angdiff += 2.0 * M_PI;
 		while(angdiff >= 2.0*M_PI) angdiff -= 2.0 * M_PI;
-		// FIXME - this about this some more
+		// FIXME - think about this some more
 		if(last_ad != -999 && ((last_ad<M_PI) != (angdiff<M_PI))) {
 			if(DEBUG) printf("test for seg crosses initial ray (%g*PI and %g*PI)\n", last_ad, angdiff);
 			if(fabs(last_ad-angdiff) > M_PI) {
