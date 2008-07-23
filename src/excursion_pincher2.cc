@@ -483,7 +483,7 @@ static ring_t pinch_ring_excursions(ring_t *ring, report_image_t *dbuf) {
 	}
 
 	if(dbuf && dbuf->mode == PLOT_PINCH) {
-		debug_plot_ring(dbuf, &outring, 128, 0, 0);
+		debug_plot_ring(dbuf, &outring, 255, 0, 0);
 		for(int i=0; i<npts; i++) {
 			if(touchpts[i]) {
 				vertex_t p = pts[i];
@@ -566,7 +566,7 @@ mpoly_t pinch_excursions2(mpoly_t *mp_in, report_image_t *dbuf) {
 				free_ring(&mp_out.rings[r1_idx]);
 				mp_out.rings[r1_idx] = r3;
 				if(dbuf && dbuf->mode == PLOT_PINCH) {
-					debug_plot_ring(dbuf, &mp_out.rings[r1_idx], 128, 0, 0);
+					debug_plot_ring(dbuf, &mp_out.rings[r1_idx], 255, 128, 0);
 				}
 				goto REDO_R1; // indexes shifted - reset loop
 			}
