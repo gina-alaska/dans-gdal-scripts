@@ -31,6 +31,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "common.h"
 #include "georef.h"
 
+// returned by ring_ring_relation
+#define RING_CONTAINS 1
+#define RING_CONTAINED_BY 2
+#define RING_CROSSES 3
+#define RING_DISJOINT 4
+
 typedef struct {
 	double x, y;
 } vertex_t;
@@ -65,10 +71,12 @@ void free_ring(ring_t *ring);
 void free_mpoly(mpoly_t *mpoly);
 void insert_point_into_ring(ring_t *ring, int idx);
 void add_point_to_ring(ring_t *ring, vertex_t v);
+void delete_ring_from_mpoly(mpoly_t *mp, int idx);
 bbox_t get_ring_bbox(ring_t *ring);
 bbox_t get_polygon_bbox(mpoly_t *mp);
 bbox_t *make_bboxes(mpoly_t *mp);
 bbox_t union_bbox(bbox_t bb1, bbox_t bb2);
+int bboxes_disjoint(bbox_t *bbox1, bbox_t *bbox2);
 OGRGeometryH mpoly_to_ogr(mpoly_t *mpoly_in);
 mpoly_t ogr_to_mpoly(OGRGeometryH geom_in);
 void split_mpoly_to_polys(mpoly_t *mpoly, int *num_polys, mpoly_t **polys);
@@ -77,6 +85,7 @@ double ring_oriented_area(ring_t *c);
 int ring_is_ccw(ring_t *c);
 double ring_area(ring_t *c);
 int polygon_contains_point(mpoly_t *mp, double px, double py);
+int ring_ring_relation(ring_t *r1, ring_t *r2);
 row_crossings_t *get_row_crossings(mpoly_t *mpoly, int min_y, int num_rows);
 void free_row_crossings(row_crossings_t *rc, int num_rows);
 void mask_from_mpoly(mpoly_t *mpoly, int w, int h, const char *fn);

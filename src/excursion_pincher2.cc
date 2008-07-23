@@ -30,66 +30,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #define DEBUG 0
 
-/*
-static inline double sqlen(vertex_t v0, vertex_t v1) {
-	double dx = v1.x - v0.x;
-	double dy = v1.y - v0.y;
-	return dx*dx + dy*dy;
-}
-
-static int is_seg_good(ring_t *ring, int v0_idx) {
-	double radius = 10.0; // FIXME
-	double rad2 = radius*radius;
-
-	vertex_t *pts = ring->pts;
-	int npts = ring->npts;
-
-	int vl_idx = v0_idx;
-	int vr_idx = (v0_idx+1) % npts;
-	vertex_t v0 = pts[vl_idx];
-	vertex_t v1 = pts[vr_idx];
-	vertex_t center;
-	center.x = (v0.x + v1.x) / 2.0;
-	center.y = (v0.y + v1.y) / 2.0;
-
-	for(;;) {
-		if(sqlen(center, pts[vr_idx]) > rad2) break;
-		vr_idx = (vr_idx+1) % npts;
-		if(vr_idx == vl_idx) return 0; // FIXME
-	}
-	for(;;) {
-		if(sqlen(center, pts[vl_idx]) > rad2) break;
-		vl_idx = (vl_idx+npts-1) % npts;
-		if(vr_idx == vl_idx) return 0; // FIXME
-	}
-
-	double up=0, dn=0, lf=0, rt=0;
-	for(int i=vl_idx; i!=vr_idx; i=(i+1)%npts) {
-		vertex_t v0 = pts[i];
-		vertex_t v1 = pts[(i+1)%npts];
-		double dx = v1.x - v0.x;
-		double dy = v1.y - v0.y;
-		if(dx<0) lf += -dx;
-		if(dx>0) rt +=  dx;
-		if(dy<0) dn += -dy;
-		if(dy>0) up +=  dy;
-	}
-	double loopback = MIN(up,dn) + MIN(lf,rt);
-
-	return loopback == 0;
-}
-
-ring_t pinch_excursions(ring_t *ring, report_image_t *dbuf) {
-	for(int i=0; i<ring->npts; i++) {
-		vertex_t v0 = ring->pts[i];
-		vertex_t v1 = ring->pts[(i+1)%ring->npts];
-		int good = is_seg_good(ring, i);
-		if(good) plot_line(dbuf, v0, v1, 255, 0, 0);
-	}
-	return *ring;
-}
-*/
-
 static inline double seg_ang(vertex_t v0, vertex_t v1) {
 	double dx = v1.x - v0.x;
 	double dy = v1.y - v0.y;
@@ -563,7 +503,39 @@ mpoly_t pinch_excursions2(mpoly_t *mp_in, report_image_t *dbuf) {
 	mp_out.num_rings = mp_in->num_rings;
 	mp_out.rings = (ring_t *)malloc_or_die(sizeof(ring_t) * mp_out.num_rings);
 	for(int r_idx=0; r_idx<mp_in->num_rings; r_idx++) {
-		mp_out.rings[r_idx] = pinch_ring_excursions(mp_in->rings+r_idx, dbuf);
+		// FIXME - put a test for this into usage()
+		if(mp_in->rings[r_idx].is_hole) fatal_error("pincher cannot be used on holes");
+		mp_out.rings[r_idx] = pinch_ring_excursions(&mp_in->rings[r_idx], dbuf);
+	}
+	for(int r1_idx=0; r1_idx<mp_out.num_rings; r1_idx++) {
+		REDO_R1:
+		if(r1_idx >= mp_out.num_rings) break;
+
+		for(int r2_idx=r1_idx+1; r2_idx<mp_out.num_rings; r2_idx++) {
+			REDO_R2:
+			if(r2_idx >= mp_out.num_rings) break;
+
+			int rel = ring_ring_relation(&mp_out.rings[r1_idx], &mp_out.rings[r2_idx]);
+printf("relation of %d and %d is %d\n", r1_idx, r2_idx, rel);
+			if(rel == RING_CONTAINS) {
+printf("deleting %d\n", r2_idx);
+				if(dbuf && dbuf->mode == PLOT_PINCH) {
+					debug_plot_ring(dbuf, &mp_out.rings[r2_idx], 0, 0, 128);
+				}
+				delete_ring_from_mpoly(&mp_out, r2_idx);
+				goto REDO_R2; // indexes shifted - reset loop
+			} else if(rel == RING_CONTAINED_BY) {
+printf("deleting %d\n", r1_idx);
+				if(dbuf && dbuf->mode == PLOT_PINCH) {
+					debug_plot_ring(dbuf, &mp_out.rings[r1_idx], 0, 0, 128);
+				}
+				delete_ring_from_mpoly(&mp_out, r1_idx);
+				goto REDO_R1; // indexes shifted - reset loop
+			} else if(rel == RING_CROSSES) {
+				// FIXME - union them
+				fatal_error("rings cross");
+			}
+		}
 	}
 	// FIXME - fix topology using functions from dp.c
 	return mp_out;

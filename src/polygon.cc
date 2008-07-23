@@ -67,6 +67,13 @@ void add_point_to_ring(ring_t *ring, vertex_t v) {
 	ring->npts++;
 }
 
+void delete_ring_from_mpoly(mpoly_t *mp, int idx) {
+	free_ring(&mp->rings[idx]);
+	memmove(&mp->rings[idx], &mp->rings[idx+1], 
+		sizeof(ring_t) * (mp->num_rings-1-idx));
+	mp->num_rings--;
+}
+
 bbox_t get_ring_bbox(ring_t *ring) {
 	bbox_t bbox;
 
@@ -128,6 +135,15 @@ bbox_t union_bbox(bbox_t bb1, bbox_t bb2) {
 		bb.max_y = MAX(bb1.max_y, bb2.max_y);
 	}
 	return bb;
+}
+
+int bboxes_disjoint(bbox_t *bbox1, bbox_t *bbox2) {
+	return
+		bbox1->empty || bbox2->empty ||
+		bbox1->min_x > bbox2->max_x ||
+		bbox1->min_y > bbox2->max_y ||
+		bbox2->min_x > bbox1->max_x ||
+		bbox2->min_y > bbox1->max_y;
 }
 
 OGRGeometryH ring_to_ogr(ring_t *ring) {
@@ -450,13 +466,15 @@ double ring_area(ring_t *c) {
 }
 
 static int ring_contains_point(ring_t *ring, double px, double py) {
+	int npts = ring->npts;
+	vertex_t *pts = ring->pts;
 	int num_crossings = 0;
 	int i;
-	for(i=0; i<ring->npts; i++) {
-		double x0 = ring->pts[i].x;
-		double y0 = ring->pts[i].y;
-		double x1 = ring->pts[(i+1) % ring->npts].x;
-		double y1 = ring->pts[(i+1) % ring->npts].y;
+	for(i=0; i<npts; i++) {
+		double x0 = pts[i].x;
+		double y0 = pts[i].y;
+		double x1 = pts[(i+1) % npts].x;
+		double y1 = pts[(i+1) % npts].y;
 		// we want to know whether a ray from (px,py) in the (1,0) direction
 		// passes through this segment
 		if(x0 < px && x1 < px) continue;
@@ -487,25 +505,38 @@ int polygon_contains_point(mpoly_t *mp, double px, double py) {
 	return num_crossings & 1;
 }
 
-/*
-// assumes that edges do not cross
-static int ring_contains_ring(ring_t *c1, ring_t *c2) {
-	// NOTE: by assumption, c1 and c2 don't cross
+int ring_ring_relation(ring_t *r1, ring_t *r2) {
+	bbox_t bb1 = get_ring_bbox(r1);
+	bbox_t bb2 = get_ring_bbox(r2);
+	if(bboxes_disjoint(&bb1, &bb2)) return RING_DISJOINT;
 
-	int c2npts = c2->npts;
-	// way faster, but can give false positive if the two polygons
-	// share a common vertex
-	//int c2npts = 1;
-
-	int j;
-	for(j=0; j<c2npts; j++) {
-		double px = c2->pts[j].x;
-		double py = c2->pts[j].y;
-		if(!ring_contains_point(c1, px, py)) return 0;
+	int n1 = r1->npts;
+	int n2 = r2->npts;
+	// test for crossings
+	for(int i1=0; i1<n1; i1++) {
+		vertex_t p1a = r1->pts[i1];
+		vertex_t p1b = r1->pts[(i1+1) % n1];
+		if(
+			(p1a.x < bb2.min_x && p1b.x < bb2.min_x) ||
+			(p1a.y < bb2.min_y && p1b.y < bb2.min_y) ||
+			(p1a.x > bb2.max_x && p1b.x > bb2.max_x) ||
+			(p1a.y > bb2.max_y && p1b.y > bb2.max_y)
+		) continue;
+		for(int i2=0; i2<n2; i2++) {
+			vertex_t p2a = r2->pts[i2];
+			vertex_t p2b = r2->pts[(i2+1) % n2];
+			if(line_intersects_line(p1a, p1b, p2a, p2b, 0)) return RING_CROSSES;
+		}
 	}
-	return 1;
+
+	if(ring_contains_point(
+		r1, r2->pts[0].x, r2->pts[0].y)) return RING_CONTAINS;
+	else if(ring_contains_point(
+		r2, r1->pts[0].x, r1->pts[0].y)) return RING_CONTAINED_BY;
+	else return RING_DISJOINT;
 }
 
+/*
 void compute_containments(mpoly_t *mp) {
 	int i;
 	int nrings = mp->num_rings;
@@ -530,13 +561,7 @@ void compute_containments(mpoly_t *mp) {
 		int j;
 		for(j=0; j<nrings; j++) {
 			bbox_t bbox2 = bboxes[j];
-			if(bbox2.empty) continue;
-			if(
-				bbox1.min_x > bbox2.max_x ||
-				bbox1.min_y > bbox2.max_y ||
-				bbox2.min_x > bbox1.max_x ||
-				bbox2.min_y > bbox1.max_y
-			) continue;
+			if(bboxes_disjoint(&bbox1, &bbox2)) continue;
 
 			int contains = (i != j) && ring_contains_ring(
 				mp->rings + j, mp->rings + i);
