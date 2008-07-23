@@ -77,6 +77,8 @@ bbox_t get_polygon_bbox(mpoly_t *mp);
 bbox_t *make_bboxes(mpoly_t *mp);
 bbox_t union_bbox(bbox_t bb1, bbox_t bb2);
 int bboxes_disjoint(bbox_t *bbox1, bbox_t *bbox2);
+OGRGeometryH ring_to_ogr(ring_t *ring);
+ring_t ogr_to_ring(OGRGeometryH ogr);
 OGRGeometryH mpoly_to_ogr(mpoly_t *mpoly_in);
 mpoly_t ogr_to_mpoly(OGRGeometryH geom_in);
 void split_mpoly_to_polys(mpoly_t *mpoly, int *num_polys, mpoly_t **polys);

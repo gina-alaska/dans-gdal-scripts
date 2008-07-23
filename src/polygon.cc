@@ -157,6 +157,11 @@ OGRGeometryH ring_to_ogr(ring_t *ring) {
 }
 
 ring_t ogr_to_ring(OGRGeometryH ogr) {
+	//OGRwkbGeometryType type = OGR_G_GetGeometryType(ogr);
+	//if(type != wkbLinearRing) {
+	//	fatal_error("type != wkbLinearRing in ogr_to_ring (it was %s)",
+	//		OGR_G_GetGeometryName(ogr));
+	//}
 	ring_t ring;
 	ring.npts = OGR_G_GetPointCount(ogr);
 	if(!ring.npts) fatal_error("ring has no points");
@@ -232,7 +237,6 @@ OGRGeometryH mpoly_to_ogr(mpoly_t *mpoly_in) {
 }
 
 mpoly_t ogr_to_mpoly(OGRGeometryH geom_in) {
-
 	OGRwkbGeometryType type = OGR_G_GetGeometryType(geom_in);
 	if(type == wkbPolygon) {
 		mpoly_t mpoly_out;

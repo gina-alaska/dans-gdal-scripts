@@ -498,6 +498,30 @@ static ring_t pinch_ring_excursions(ring_t *ring, report_image_t *dbuf) {
 	return outring;
 }
 
+static OGRGeometryH ring_to_ogrpoly(ring_t *r) {
+	OGRGeometryH ogr = OGR_G_CreateGeometry(wkbPolygon);
+	OGR_G_AddGeometry(ogr, ring_to_ogr(r));
+	return ogr;
+}
+
+// rings must cross for this function
+static ring_t ring_ring_union(ring_t *r1, ring_t *r2) {
+	OGRGeometryH og1 = ring_to_ogrpoly(r1);
+	OGRGeometryH og2 = ring_to_ogrpoly(r2);
+	OGRGeometryH og3 = OGR_G_Union(og1, og2);
+	if(!og3) fatal_error("OGR_G_Union failed");
+	OGRwkbGeometryType type = OGR_G_GetGeometryType(og3);
+	if(type == wkbPolygon) {
+		// only take outer ring
+		ring_t r3 = ogr_to_ring(OGR_G_GetGeometryRef(og3, 0));
+		r3.is_hole = 0;
+		r3.parent_id = 0;
+		return r3;
+	} else {
+		fatal_error("result of ring union wasn't a wkbPolygon");
+	}
+}
+
 mpoly_t pinch_excursions2(mpoly_t *mp_in, report_image_t *dbuf) {
 	mpoly_t mp_out;
 	mp_out.num_rings = mp_in->num_rings;
@@ -516,24 +540,35 @@ mpoly_t pinch_excursions2(mpoly_t *mp_in, report_image_t *dbuf) {
 			if(r2_idx >= mp_out.num_rings) break;
 
 			int rel = ring_ring_relation(&mp_out.rings[r1_idx], &mp_out.rings[r2_idx]);
-printf("relation of %d and %d is %d\n", r1_idx, r2_idx, rel);
+//printf("relation of %d and %d is %d\n", r1_idx, r2_idx, rel);
 			if(rel == RING_CONTAINS) {
-printf("deleting %d\n", r2_idx);
+//printf("deleting %d\n", r2_idx);
 				if(dbuf && dbuf->mode == PLOT_PINCH) {
 					debug_plot_ring(dbuf, &mp_out.rings[r2_idx], 0, 0, 128);
 				}
 				delete_ring_from_mpoly(&mp_out, r2_idx);
 				goto REDO_R2; // indexes shifted - reset loop
 			} else if(rel == RING_CONTAINED_BY) {
-printf("deleting %d\n", r1_idx);
+//printf("deleting %d\n", r1_idx);
 				if(dbuf && dbuf->mode == PLOT_PINCH) {
 					debug_plot_ring(dbuf, &mp_out.rings[r1_idx], 0, 0, 128);
 				}
 				delete_ring_from_mpoly(&mp_out, r1_idx);
 				goto REDO_R1; // indexes shifted - reset loop
 			} else if(rel == RING_CROSSES) {
-				// FIXME - union them
-				fatal_error("rings cross");
+//printf("merging %d and %d\n", r1_idx, r2_idx);
+				ring_t r3 = ring_ring_union(&mp_out.rings[r1_idx], &mp_out.rings[r2_idx]);
+				if(dbuf && dbuf->mode == PLOT_PINCH) {
+					debug_plot_ring(dbuf, &mp_out.rings[r1_idx], 0, 0, 128);
+					debug_plot_ring(dbuf, &mp_out.rings[r2_idx], 0, 0, 128);
+				}
+				delete_ring_from_mpoly(&mp_out, r2_idx);
+				free_ring(&mp_out.rings[r1_idx]);
+				mp_out.rings[r1_idx] = r3;
+				if(dbuf && dbuf->mode == PLOT_PINCH) {
+					debug_plot_ring(dbuf, &mp_out.rings[r1_idx], 128, 0, 0);
+				}
+				goto REDO_R1; // indexes shifted - reset loop
 			}
 		}
 	}
