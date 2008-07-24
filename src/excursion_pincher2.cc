@@ -482,15 +482,15 @@ static ring_t pinch_ring_excursions(ring_t *ring, report_image_t *dbuf) {
 		if(keep[i]) outring.pts[oidx++] = pts[i];
 	}
 
-	if(dbuf && dbuf->mode == PLOT_PINCH) {
-		debug_plot_ring(dbuf, &outring, 255, 0, 0);
-		for(int i=0; i<npts; i++) {
-			if(touchpts[i]) {
-				vertex_t p = pts[i];
-				plot_point_big(dbuf, p.x, p.y, 255, 255, 255);
-			}
-		}
-	}
+//	if(dbuf && dbuf->mode == PLOT_PINCH) {
+//		debug_plot_ring(dbuf, &outring, 255, 0, 0);
+//		for(int i=0; i<npts; i++) {
+//			if(touchpts[i]) {
+//				vertex_t p = pts[i];
+//				plot_point_big(dbuf, p.x, p.y, 255, 255, 255);
+//			}
+//		}
+//	}
 
 	free(keep);
 	free(touchpts);
@@ -543,35 +543,42 @@ mpoly_t pinch_excursions2(mpoly_t *mp_in, report_image_t *dbuf) {
 //printf("relation of %d and %d is %d\n", r1_idx, r2_idx, rel);
 			if(rel == RING_CONTAINS) {
 //printf("deleting %d\n", r2_idx);
-				if(dbuf && dbuf->mode == PLOT_PINCH) {
-					debug_plot_ring(dbuf, &mp_out.rings[r2_idx], 0, 0, 128);
-				}
+				//if(dbuf && dbuf->mode == PLOT_PINCH) {
+				//	debug_plot_ring(dbuf, &mp_out.rings[r2_idx], 0, 0, 128);
+				//}
 				delete_ring_from_mpoly(&mp_out, r2_idx);
 				goto REDO_R2; // indexes shifted - reset loop
 			} else if(rel == RING_CONTAINED_BY) {
 //printf("deleting %d\n", r1_idx);
-				if(dbuf && dbuf->mode == PLOT_PINCH) {
-					debug_plot_ring(dbuf, &mp_out.rings[r1_idx], 0, 0, 128);
-				}
+				//if(dbuf && dbuf->mode == PLOT_PINCH) {
+				//	debug_plot_ring(dbuf, &mp_out.rings[r1_idx], 0, 0, 128);
+				//}
 				delete_ring_from_mpoly(&mp_out, r1_idx);
 				goto REDO_R1; // indexes shifted - reset loop
 			} else if(rel == RING_CROSSES) {
 //printf("merging %d and %d\n", r1_idx, r2_idx);
 				ring_t r3 = ring_ring_union(&mp_out.rings[r1_idx], &mp_out.rings[r2_idx]);
-				if(dbuf && dbuf->mode == PLOT_PINCH) {
-					debug_plot_ring(dbuf, &mp_out.rings[r1_idx], 0, 0, 128);
-					debug_plot_ring(dbuf, &mp_out.rings[r2_idx], 0, 0, 128);
-				}
+				//if(dbuf && dbuf->mode == PLOT_PINCH) {
+				//	debug_plot_ring(dbuf, &mp_out.rings[r1_idx], 0, 0, 128);
+				//	debug_plot_ring(dbuf, &mp_out.rings[r2_idx], 0, 0, 128);
+				//}
 				delete_ring_from_mpoly(&mp_out, r2_idx);
 				free_ring(&mp_out.rings[r1_idx]);
 				mp_out.rings[r1_idx] = r3;
-				if(dbuf && dbuf->mode == PLOT_PINCH) {
-					debug_plot_ring(dbuf, &mp_out.rings[r1_idx], 255, 128, 0);
-				}
+				//if(dbuf && dbuf->mode == PLOT_PINCH) {
+				//	debug_plot_ring(dbuf, &mp_out.rings[r1_idx], 255, 128, 0);
+				//}
 				goto REDO_R1; // indexes shifted - reset loop
 			}
 		}
 	}
+
+	if(dbuf && dbuf->mode == PLOT_PINCH) {
+		for(int i=0; i<mp_out.num_rings; i++) {
+			debug_plot_ring(dbuf, &mp_out.rings[i], 255, 0, 0);
+		}
+	}
+
 	// FIXME - fix topology using functions from dp.c
 	return mp_out;
 }
