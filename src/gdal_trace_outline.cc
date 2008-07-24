@@ -89,7 +89,7 @@ Output:\n\
                                (pixel coords, easting/northing, or lon/lat)\n\
   -llproj-toler val            Error tolerance for curved lines when\n\
                                using '-out-cs ll'\n\
-                               (in pixels, default is 0.2)\n\
+                               (in pixels, default is 1.0)\n\
   -wkt-out fn.wkt              Output bounds in WKT format\n\
   -wkb-out fn.wkb              Output bounds in WKB format\n\
   -ogr-out fn.shp              Output bounds using an OGR format\n\
@@ -182,7 +182,7 @@ int main(int argc, char **argv) {
 	double reduction_tolerance = 2;
 	int do_erosion = 0;
 	int do_invert = 0;
-	double llproj_toler = .2;
+	double llproj_toler = 1;
 	double bevel_size = .1;
 	int do_pinch_excursions = 0;
 

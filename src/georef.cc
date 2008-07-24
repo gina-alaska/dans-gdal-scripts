@@ -243,7 +243,7 @@ georef_t init_georef(geo_opts_t *opt, GDALDatasetH ds) {
 			// The X-resolution will be fictional anyway since the size of a degree
 			// of longitude varies depending on latitude.
 			double radius = OSRGetSemiMajor(georef.spatial_ref, &err);
-			if(err != OGRERR_NONE) radius = 0;
+			if(err != OGRERR_NONE) fatal_error("could not determine globe radius");
 			georef.res_meters_x = radius * georef.units_val * georef.res_x;
 			georef.res_meters_y = radius * georef.units_val * georef.res_y;
 		}
