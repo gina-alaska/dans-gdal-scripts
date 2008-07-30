@@ -778,6 +778,9 @@ mpoly_t *mpoly_en2xy(georef_t *georef, mpoly_t *en_poly) {
 	return xy_poly;
 }
 
+// This way is very simple and robust, but doesn't know anything
+// about the actual distortion of the projection.
+/*
 mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double toler_pixels) {
 	mpoly_t *ll_poly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
 	ll_poly->num_rings = xy_poly->num_rings;
@@ -790,7 +793,8 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 	double toler_radians = toler_pixels * 
 		MIN(georef->res_meters_x, georef->res_meters_y) / earth_radius;
 	// error is (approximately) proportional to segment length squared
-	double max_seg_len = sqrt(toler_radians); // FIXME - need to multiply this by some constant
+	// FIXME - need to multiply this by some constant
+	double max_seg_len = sqrt(toler_radians);
 
 	int total_midpoints = 0;
 	
@@ -830,6 +834,121 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 
 	if(VERBOSE) {
 		printf("Added %d interpolation midpoints\n", total_midpoints);
+	}
+
+	return ll_poly;
+}
+*/
+
+mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double toler) {
+	mpoly_t *ll_poly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
+	ll_poly->num_rings = xy_poly->num_rings;
+	ll_poly->rings = (ring_t *)malloc_or_die(sizeof(ring_t) * ll_poly->num_rings);
+	
+	double max_error = 
+		(double)georef->w*(double)georef->w + // must explicitly cast to double to avoid overflow
+		(double)georef->h*(double)georef->h;
+
+	int r_idx;
+	for(r_idx=0; r_idx<xy_poly->num_rings; r_idx++) {
+		// make a copy of input - we will modify this
+		ring_t xy_ring = duplicate_ring(xy_poly->rings + r_idx);
+		// this will be the output
+		ring_t ll_ring = duplicate_ring(xy_poly->rings + r_idx);
+
+		int v_idx;
+		for(v_idx=0; v_idx<ll_ring.npts; v_idx++) {
+			double x = xy_ring.pts[v_idx].x;
+			double y = xy_ring.pts[v_idx].y;
+			double lon, lat;
+			xy2ll(georef, x, y, &lon, &lat);
+			ll_ring.pts[v_idx].x = lon;
+			ll_ring.pts[v_idx].y = lat;
+		}
+
+		int num_consec = 0;
+
+		for(v_idx=0; v_idx<ll_ring.npts; ) {
+			if(xy_ring.npts != ll_ring.npts) fatal_error("xy_ring.npts != ll_ring.npts");
+
+			vertex_t *xy1 = xy_ring.pts + v_idx;
+			vertex_t *xy2 = xy_ring.pts + (v_idx + 1) % xy_ring.npts;
+			vertex_t xy_m = (vertex_t) { 
+				(xy1->x + xy2->x)/2.0,
+				(xy1->y + xy2->y)/2.0 };
+
+			vertex_t *ll1 = ll_ring.pts + v_idx;
+			vertex_t *ll2 = ll_ring.pts + (v_idx + 1) % ll_ring.npts;
+
+			int need_midpt = 0;
+
+			if(!need_midpt) {
+				double dx = ll1->x - ll2->x;
+				double dy = ll1->y - ll2->y;
+				double sqr_error = dx*dx + dy*dy;
+				double max_error = 90; // degrees
+
+				need_midpt = sqr_error > max_error*max_error;
+
+				if(VERBOSE && need_midpt) {
+					printf("  inserting midpoint at %d,%d (lon/lat difference %g > %g)\n",
+						r_idx, v_idx, sqrt(sqr_error), max_error);
+				}
+			}
+
+			if(!need_midpt) {
+				vertex_t ll_m_interp;
+				ll_m_interp.x = (ll1->x + ll2->x)/2.0;
+				ll_m_interp.y = (ll1->y + ll2->y)/2.0;
+
+				vertex_t xy_m_test;
+				ll2xy(georef, 
+					ll_m_interp.x, ll_m_interp.y,
+					&xy_m_test.x, &xy_m_test.y);
+
+				double dx = xy_m.x - xy_m_test.x;
+				double dy = xy_m.y - xy_m_test.y;
+				double sqr_error = dx*dx + dy*dy;
+				// if the midpoint is this far off then something is seriously wrong
+				if(sqr_error > max_error) fatal_error(
+					"projection error in mpoly_xy2ll_with_interp [%lf,%lf:%lf,%lf:%lf,%lf:%lf>%lf]",
+					xy_m.x, xy_m.y, xy_m_test.x, xy_m_test.y, ll_m_interp.x, ll_m_interp.y, sqr_error, max_error);
+
+				need_midpt = toler && sqr_error > toler*toler;
+
+				if(VERBOSE && need_midpt) {
+					printf("  inserting midpoint at %d,%d (delta=%lf,%lf > %lf)\n",
+						r_idx, v_idx, dx, dy, toler);
+					printf("    testll=[%lf,%lf] testxy=[%lf,%lf]\n", 
+						ll_m_interp.x, ll_m_interp.y, xy_m_test.x, xy_m_test.y);
+				}
+			}
+
+			if(need_midpt) {
+				if(num_consec++ > 20) fatal_error("convergence error in mpoly_xy2ll_with_interp");
+				vertex_t ll_m_proj;
+				xy2ll(georef, 
+					xy_m.x, xy_m.y,
+					&ll_m_proj.x, &ll_m_proj.y);
+
+				if(VERBOSE) {
+					printf("    xy=[%lf,%lf]:[%lf,%lf]\n", xy1->x, xy1->y, xy2->x, xy2->y);
+					printf("    ll=[%lf,%lf]:[%lf,%lf]\n", ll1->x, ll1->y, ll2->x, ll2->y);
+					printf("    midxy=[%lf,%lf] midll=[%lf,%lf]\n", 
+						xy_m.x, xy_m.y, ll_m_proj.x, ll_m_proj.y);
+				}
+				insert_point_into_ring(&xy_ring, v_idx+1);
+				insert_point_into_ring(&ll_ring, v_idx+1);
+				xy_ring.pts[v_idx+1] = xy_m;
+				ll_ring.pts[v_idx+1] = ll_m_proj;
+			} else {
+				v_idx++;
+				num_consec = 0;
+			}
+		}
+
+		free_ring(&xy_ring);
+		ll_poly->rings[r_idx] = ll_ring;
 	}
 
 	return ll_poly;

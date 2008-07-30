@@ -142,8 +142,12 @@ georef_t init_georef(geo_opts_t *opt, GDALDatasetH ds) {
 		opt->s_srs = NULL;
 		OSRExportToProj4(georef.spatial_ref, &opt->s_srs);
 
-		OGRSpatialReferenceH p2 = OSRNewSpatialReference(NULL);
-		OSRImportFromProj4(p2, "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs");
+		// This way causes problems for datasets that exist on a 0..360 interval
+		// instead of -180..180.
+		//OGRSpatialReferenceH p2 = OSRNewSpatialReference(NULL);
+		//OSRImportFromProj4(p2, "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs");
+		// FIXME - we really need an option to output WGS84 though
+		OGRSpatialReferenceH p2 = OSRCloneGeogCS(georef.spatial_ref);
 
 		georef.fwd_xform = OCTNewCoordinateTransformation(georef.spatial_ref, p2);
 		georef.inv_xform = OCTNewCoordinateTransformation(p2, georef.spatial_ref);
@@ -288,19 +292,23 @@ void en2ll(
 ) {
 	if(!georef->fwd_xform) fatal_error("missing xform");
 
-	if(!OCTTransform(georef->fwd_xform, 1, &east, &north, NULL)) {
+	double u = east;
+	double v = north;
+	if(!OCTTransform(georef->fwd_xform, 1, &u, &v, NULL)) {
 		fatal_error("OCTTransform failed");
 	}
+	double lon = u;
+	double lat = v;
 
-	if(north < -90.0 || north > 90.0) fatal_error("latitude out of range (%lf)", north);
+	if(lat < -90.0 || lat > 90.0) fatal_error("latitude out of range (%lf)", lat);
 	// images in latlong projection that cross the dateline can
 	// have numbers outside of this range...
-	//if(east < -180.0 || east > 180.0) fatal_error("longitude out of range");
+	//if(lon < -180.0 || lon > 180.0) fatal_error("longitude out of range");
 	// but it shouldn't be outside of *this* range no matter what!
-	if(east < -360.0 || east > 540.0) fatal_error("longitude out of range (%lf)", east);
+	if(lon < -360.0 || lon > 540.0) fatal_error("longitude out of range (%lf)", lon);
 
-	*lon_out = east;
-	*lat_out = north;
+	*lon_out = lon;
+	*lat_out = lat;
 }
 
 void ll2en(
@@ -317,12 +325,17 @@ void ll2en(
 	// but it shouldn't be outside of *this* range no matter what!
 	if(lon < -360.0 || lon > 540.0) fatal_error("longitude out of range (%lf)", lon);
 
-	if(!OCTTransform(georef->inv_xform, 1, &lon, &lat, NULL)) {
+	double u = lon;
+	double v = lat;
+	if(!OCTTransform(georef->inv_xform, 1, &u, &v, NULL)) {
 		fatal_error("OCTTransform failed");
 	}
+	double east = u;
+	double north = v;
+	//printf("ll2en :: %g,%g => %g,%g\n", lon, lat, east, north); // FIXME
 
-	*e_out = lon;
-	*n_out = lat;
+	*e_out = east;
+	*n_out = north;
 }
 
 void xy2ll(
