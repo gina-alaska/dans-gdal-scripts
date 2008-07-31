@@ -142,12 +142,19 @@ georef_t init_georef(geo_opts_t *opt, GDALDatasetH ds) {
 		opt->s_srs = NULL;
 		OSRExportToProj4(georef.spatial_ref, &opt->s_srs);
 
-		// This way causes problems for datasets that exist on a 0..360 interval
-		// instead of -180..180.
-		//OGRSpatialReferenceH p2 = OSRNewSpatialReference(NULL);
-		//OSRImportFromProj4(p2, "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs");
-		// FIXME - we really need an option to output WGS84 though
-		OGRSpatialReferenceH p2 = OSRCloneGeogCS(georef.spatial_ref);
+		// FIXME - make this a command-line option
+		char *geo_cs = "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs";
+		//char *geo_cs = NULL;
+
+		OGRSpatialReferenceH p2;
+		if(geo_cs) {
+			p2 = OSRNewSpatialReference(NULL);
+			OSRImportFromProj4(p2, geo_cs);
+			// take only the geographic part of the definition
+			p2 = OSRCloneGeogCS(p2);
+		} else {
+			p2 = OSRCloneGeogCS(georef.spatial_ref);
+		}
 
 		georef.fwd_xform = OCTNewCoordinateTransformation(georef.spatial_ref, p2);
 		georef.inv_xform = OCTNewCoordinateTransformation(p2, georef.spatial_ref);
@@ -224,6 +231,13 @@ georef_t init_georef(geo_opts_t *opt, GDALDatasetH ds) {
 		}
 	}
 
+	if(georef.fwd_affine) {
+		georef.inv_affine = (double *)malloc_or_die(sizeof(double) * 6);
+		if(!GDALInvGeoTransform(georef.fwd_affine, georef.inv_affine)) {
+			fatal_error("affine is not invertible");
+		}
+	}
+
 	georef.res_x = opt->res_x;
 	georef.res_y = opt->res_y;
 	georef.w = opt->w;
@@ -242,22 +256,47 @@ georef_t init_georef(geo_opts_t *opt, GDALDatasetH ds) {
 		} else if(OSRIsGeographic(georef.spatial_ref)) {
 			georef.units_val = OSRGetAngularUnits(georef.spatial_ref, &georef.units_name);
 			//printf("ang units: %s, %lf\n", georef.units_name?georef.units_name:"null", georef.units_val);
-			OGRErr err = OGRERR_NONE;
+
 			// FIXME - what is the best way to convert degrees to meters on ellipsoid?
 			// The X-resolution will be fictional anyway since the size of a degree
 			// of longitude varies depending on latitude.
+			OGRErr err = OGRERR_NONE;
 			double radius = OSRGetSemiMajor(georef.spatial_ref, &err);
 			if(err != OGRERR_NONE) fatal_error("could not determine globe radius");
+
 			georef.res_meters_x = radius * georef.units_val * georef.res_x;
 			georef.res_meters_y = radius * georef.units_val * georef.res_y;
 		}
 	}
 
-	if(georef.fwd_affine) {
-		georef.inv_affine = (double *)malloc_or_die(sizeof(double) * 6);
-		if(!GDALInvGeoTransform(georef.fwd_affine, georef.inv_affine)) {
-			fatal_error("affine is not invertible");
+	// For geographic projections, compute the maximum/minimum longitude.  Coordinates
+	// will be mapped into this range by adding a multiple of georef.lon_loopsize, which
+	// corresponds to 360 degrees.
+	if(georef.spatial_ref && OSRIsGeographic(georef.spatial_ref) && georef.units_val) {
+		double east, north;
+		double min_lon, max_lon;
+		xy2en(&georef, 0, 0, &east, &north);
+		min_lon = max_lon = east;
+		xy2en(&georef, georef.w, 0, &east, &north);
+		if(east < min_lon) min_lon = east;
+		if(east > max_lon) max_lon = east;
+		xy2en(&georef, 0, georef.h, &east, &north);
+		if(east < min_lon) min_lon = east;
+		if(east > max_lon) max_lon = east;
+		xy2en(&georef, georef.w, georef.h, &east, &north);
+		if(east < min_lon) min_lon = east;
+		if(east > max_lon) max_lon = east;
+		georef.lon_range1 = min_lon;
+		georef.lon_range2 = max_lon;
+		georef.lon_loopsize = 2.0 * M_PI / georef.units_val;
+		double span = georef.lon_range2 - georef.lon_range1;
+		if(span - georef.lon_loopsize > 1e-12) {
+			fprintf(stderr, "WARNING: input spans more than 360 degrees - projection is not single-valued\n");
 		}
+	} else {
+		georef.lon_range1 = 0;
+		georef.lon_range2 = 0;
+		georef.lon_loopsize = 0;
 	}
 
 	return georef;
@@ -332,7 +371,19 @@ void ll2en(
 	}
 	double east = u;
 	double north = v;
-	//printf("ll2en :: %g,%g => %g,%g\n", lon, lat, east, north); // FIXME
+
+	// This will add a multiple of 360 degrees in order to bring the
+	// coordinate into the proper range.  This is needed because
+	// OCTTransform will usually return a number in the -180..180
+	// range, but the raster may be defined on, for example, a range
+	// of 0..360.
+	if(georef->lon_loopsize) {
+		double east_orig = east;
+		while(east < georef->lon_range1) east += georef->lon_loopsize;
+		while(east > georef->lon_range2) east -= georef->lon_loopsize;
+		if(east < georef->lon_range1) east = east_orig;
+		//printf("%g => %g\n", east_orig, east);
+	}
 
 	*e_out = east;
 	*n_out = north;

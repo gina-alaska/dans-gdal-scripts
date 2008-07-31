@@ -49,6 +49,7 @@ typedef struct {
 	OGRCoordinateTransformationH inv_xform;
 	double *fwd_affine;
 	double *inv_affine;
+	double lon_range1, lon_range2, lon_loopsize;
 } georef_t;
 
 void print_georef_usage();

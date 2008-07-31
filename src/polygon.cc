@@ -849,6 +849,11 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 		(double)georef->w*(double)georef->w + // must explicitly cast to double to avoid overflow
 		(double)georef->h*(double)georef->h;
 
+	// This is a kludge that shrinks the canvas by a millionth of a pixel
+	// to avoid problems with images that span an entire 360 degrees of
+	// longitude.  Without this the map xy -> ll -> xy is not single-valued.
+	double shrink = ((double)georef->w - 1e-6) / (double)georef->w;
+
 	int r_idx;
 	for(r_idx=0; r_idx<xy_poly->num_rings; r_idx++) {
 		// make a copy of input - we will modify this
@@ -861,7 +866,7 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 			double x = xy_ring.pts[v_idx].x;
 			double y = xy_ring.pts[v_idx].y;
 			double lon, lat;
-			xy2ll(georef, x, y, &lon, &lat);
+			xy2ll(georef, x*shrink, y, &lon, &lat);
 			ll_ring.pts[v_idx].x = lon;
 			ll_ring.pts[v_idx].y = lat;
 		}
@@ -880,10 +885,13 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 			vertex_t *ll1 = ll_ring.pts + v_idx;
 			vertex_t *ll2 = ll_ring.pts + (v_idx + 1) % ll_ring.npts;
 
+			while(ll1->x - ll2->x >  180) ll1->x -= 360;
+			while(ll1->x - ll2->x < -180) ll1->x += 360;
+
 			int need_midpt = 0;
 
 			if(!need_midpt) {
-				double dx = ll1->x - ll2->x;
+				double dx = fabs(ll1->x - ll2->x);
 				double dy = ll1->y - ll2->y;
 				double sqr_error = dx*dx + dy*dy;
 				double max_error = 90; // degrees
@@ -928,7 +936,7 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 				if(num_consec++ > 20) fatal_error("convergence error in mpoly_xy2ll_with_interp");
 				vertex_t ll_m_proj;
 				xy2ll(georef, 
-					xy_m.x, xy_m.y,
+					xy_m.x*shrink, xy_m.y,
 					&ll_m_proj.x, &ll_m_proj.y);
 
 				if(VERBOSE) {
@@ -945,6 +953,21 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 				v_idx++;
 				num_consec = 0;
 			}
+		}
+
+		// Now reproject everything again, without using the shrink
+		// kludge.  We no longer care whether the projection is
+		// single-valued and we don't want the loss of accuracy
+		// that comes from multiplying by shrink.
+		for(v_idx=0; v_idx<ll_ring.npts; v_idx++) {
+			double x = xy_ring.pts[v_idx].x;
+			double y = xy_ring.pts[v_idx].y;
+
+			double lon, lat;
+			xy2ll(georef, x, y, &lon, &lat);
+
+			ll_ring.pts[v_idx].x = lon;
+			ll_ring.pts[v_idx].y = lat;
 		}
 
 		free_ring(&xy_ring);
