@@ -32,7 +32,8 @@ void usage(const char *cmdname); // externally defined
 void print_georef_usage() {
 	printf("\
 Geocoding:\n\
-  -s_srs 's_srs'                  Set or override source SRS\n\
+  -s_srs 'proj4 def'              Set or override source SRS\n\
+  -geo_srs 'proj4 def'            Set or override geographic SRS (datum, etc.) used for output\n\
   -ll_en left_east lower_north    Set or override lower-left coordinate\n\
   -ul_en left_east lower_north    Set or override upper-left coordinate\n\
                                   (don't use both ll_en and ul_en)\n\
@@ -57,6 +58,7 @@ geo_opts_t init_geo_options(int *argc_ptr, char ***argv_ptr) {
 
 	geo_opts_t opt;
 	opt.s_srs = NULL;
+	opt.geo_srs = NULL;
 	opt.w=0, opt.h=0;
 	opt.got_ll_en = 0;
 	opt.got_ul_en = 0;
@@ -71,6 +73,9 @@ geo_opts_t init_geo_options(int *argc_ptr, char ***argv_ptr) {
 			if(!strcmp(arg, "-s_srs")) {
 				if(argp == argc) usage(argv[0]);
 				opt.s_srs = argv[argp++];
+			} else if(!strcmp(arg, "-geo_srs")) {
+				if(argp == argc) usage(argv[0]);
+				opt.geo_srs = argv[argp++];
 			} else if(!strcmp(arg, "-ll_en")) {
 				if(argp+2 > argc) usage(argv[0]);
 				char *endptr;
@@ -139,31 +144,30 @@ georef_t init_georef(geo_opts_t *opt, GDALDatasetH ds) {
 	}
 
 	if(georef.spatial_ref) {
-		opt->s_srs = NULL;
-		OSRExportToProj4(georef.spatial_ref, &opt->s_srs);
+		georef.s_srs = NULL;
+		OSRExportToProj4(georef.spatial_ref, &georef.s_srs);
 
-		// FIXME - make this a command-line option
-		char *geo_cs = "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs";
-		//char *geo_cs = NULL;
-
-		OGRSpatialReferenceH p2;
-		if(geo_cs) {
-			p2 = OSRNewSpatialReference(NULL);
-			OSRImportFromProj4(p2, geo_cs);
+		if(opt->geo_srs) {
+			georef.geo_sref = OSRNewSpatialReference(NULL);
+			if(OSRImportFromProj4(georef.geo_sref, opt->geo_srs)
+				!= OGRERR_NONE) fatal_error("cannot parse proj4 definition");
 			// take only the geographic part of the definition
-			p2 = OSRCloneGeogCS(p2);
+			georef.geo_sref = OSRCloneGeogCS(georef.geo_sref);
 		} else {
-			p2 = OSRCloneGeogCS(georef.spatial_ref);
+			georef.geo_sref = OSRCloneGeogCS(georef.spatial_ref);
 		}
 
-		georef.fwd_xform = OCTNewCoordinateTransformation(georef.spatial_ref, p2);
-		georef.inv_xform = OCTNewCoordinateTransformation(p2, georef.spatial_ref);
+		georef.geo_srs = NULL;
+		OSRExportToProj4(georef.geo_sref, &georef.geo_srs);
+
+		georef.fwd_xform = OCTNewCoordinateTransformation(georef.spatial_ref, georef.geo_sref);
+		georef.inv_xform = OCTNewCoordinateTransformation(georef.geo_sref, georef.spatial_ref);
 	} else {
 		georef.fwd_xform = NULL;
 		georef.inv_xform = NULL;
+		georef.s_srs = NULL;
+		georef.geo_sref = NULL;
 	}
-
-	georef.s_srs = opt->s_srs;
 
 	if(ds) {
 		if(!opt->w) opt->w = GDALGetRasterXSize(ds);

@@ -852,7 +852,8 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 	// This is a kludge that shrinks the canvas by a millionth of a pixel
 	// to avoid problems with images that span an entire 360 degrees of
 	// longitude.  Without this the map xy -> ll -> xy is not single-valued.
-	double shrink = ((double)georef->w - 1e-6) / (double)georef->w;
+	double epsilon = 5e-7;
+	double shrink = ((double)georef->w - 2.0*epsilon) / (double)georef->w;
 
 	int r_idx;
 	for(r_idx=0; r_idx<xy_poly->num_rings; r_idx++) {
@@ -866,7 +867,7 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 			double x = xy_ring.pts[v_idx].x;
 			double y = xy_ring.pts[v_idx].y;
 			double lon, lat;
-			xy2ll(georef, x*shrink, y, &lon, &lat);
+			xy2ll(georef, x*shrink+epsilon, y, &lon, &lat);
 			ll_ring.pts[v_idx].x = lon;
 			ll_ring.pts[v_idx].y = lat;
 		}
@@ -933,10 +934,10 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 			}
 
 			if(need_midpt) {
-				if(num_consec++ > 20) fatal_error("convergence error in mpoly_xy2ll_with_interp");
+				if(num_consec++ > 10) fatal_error("convergence error in mpoly_xy2ll_with_interp");
 				vertex_t ll_m_proj;
 				xy2ll(georef, 
-					xy_m.x*shrink, xy_m.y,
+					xy_m.x*shrink+epsilon, xy_m.y,
 					&ll_m_proj.x, &ll_m_proj.y);
 
 				if(VERBOSE) {

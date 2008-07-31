@@ -83,16 +83,15 @@ Behavior:\n\
                                PostGIS/GEOS/Jump can handle)\n\
 \n\
 Output:\n\
-  -report fn.ppm               Output graphical report of bounds found\n\
+  -report fn.ppm               Output graphical report of polygons found\n\
   -mask-out fn.pbm             Output mask of bounding polygon in PBM format\n\
-  -out-cs [xy | en | ll]       Coordinate system for output\n\
+  -out-cs [xy | en | ll]       Set coordinate system for following outputs\n\
                                (pixel coords, easting/northing, or lon/lat)\n\
   -llproj-toler val            Error tolerance for curved lines when\n\
-                               using '-out-cs ll'\n\
-                               (in pixels, default is 1.0)\n\
-  -wkt-out fn.wkt              Output bounds in WKT format\n\
-  -wkb-out fn.wkb              Output bounds in WKB format\n\
-  -ogr-out fn.shp              Output bounds using an OGR format\n\
+                               using '-out-cs ll' (in pixels, default is 1.0)\n\
+  -wkt-out fn.wkt              Output polygons in WKT format\n\
+  -wkb-out fn.wkb              Output polygons in WKB format\n\
+  -ogr-out fn.shp              Output polygons using an OGR format\n\
   -ogr-fmt                     OGR format to use (default is 'ESRI Shapefile')\n\
   -split-polys                 Output several polygons rather than one\n\
                                multipolygon\n\
@@ -228,6 +227,7 @@ int main(int argc, char **argv) {
 			} else if(!strcmp(arg, "-ogr-out")) {
 				if(argp == argc) usage(argv[0]);
 				geom_output_t *go = add_geom_output(&geom_outputs, cur_out_cs);
+				go->ogr_fmt = cur_ogr_fmt;
 				go->ogr_fn = argv[argp++];
 			} else if(!strcmp(arg, "-ogr-fmt")) {
 				if(argp == argc) usage(argv[0]);
@@ -364,6 +364,7 @@ int main(int argc, char **argv) {
 
 		if(go->ogr_fn) {
 			OGRRegisterAll();
+			if(!go->ogr_fmt) fatal_error("no OGR format was specified");
 			OGRSFDriverH ogr_driver = OGRGetDriverByName(go->ogr_fmt);
 			if(!ogr_driver) fatal_error("cannot get OGR driver (%s)", go->ogr_fmt);
 			go->ogr_ds = OGR_Dr_CreateDataSource(ogr_driver, go->ogr_fn, NULL);
@@ -375,8 +376,7 @@ int main(int argc, char **argv) {
 			if(go->out_cs == CS_EN) {
 				sref = georef.spatial_ref;
 			} else if(go->out_cs == CS_LL) {
-				sref = OSRNewSpatialReference(NULL);
-				OSRImportFromProj4(sref, "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs");
+				sref = georef.geo_sref;
 			}
 
 			go->ogr_layer = OGR_DS_CreateLayer(go->ogr_ds, layer_name, sref, 

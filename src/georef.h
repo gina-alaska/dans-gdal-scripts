@@ -30,6 +30,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 typedef struct {
 	char *s_srs;
+	char *geo_srs;
 	int w, h;
 	int got_ll_en;
 	int got_ul_en;
@@ -39,12 +40,14 @@ typedef struct {
 
 typedef struct {
 	char *s_srs;
+	char *geo_srs;
 	double res_x, res_y; // zero if there is rotation
 	double res_meters_x, res_meters_y; // zero if rotated/unknown
 	char *units_name;
 	double units_val;
 	int w, h;
 	OGRSpatialReferenceH spatial_ref;
+	OGRSpatialReferenceH geo_sref;
 	OGRCoordinateTransformationH fwd_xform;
 	OGRCoordinateTransformationH inv_xform;
 	double *fwd_affine;
