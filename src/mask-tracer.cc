@@ -26,6 +26,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "common.h"
 #include "polygon.h"
+#include "polygon-rasterizer.h"
 
 #define DIR_UP 0
 #define DIR_RT 1
@@ -59,52 +60,6 @@ static ring_t *make_enclosing_ring(int w, int h) {
 	ring->pts[3].x = -1;
 	ring->pts[3].y = h;
 	return ring;
-}
-
-static void crossings_intersection(row_crossings_t *out, row_crossings_t *in1, row_crossings_t *in2) {
-	out->num_crossings = 0;
-	int *c1 = in1->crossings;
-	int  n1 = in1->num_crossings;
-	int *c2 = in2->crossings;
-	int  n2 = in2->num_crossings;
-	int p1=0, p2=0;
-	while(p1<n1 && p2<n2) {
-		int open, close;
-		if(c1[p1] > c2[p2]) {
-			if(c1[p1] >= c2[p2+1]) {
-				p2 += 2;
-				continue;
-			}
-			open = c1[p1];
-			if(c1[p1+1] < c2[p2+1]) {
-				close = c1[p1+1];
-				p1 += 2;
-			} else {
-				close = c2[p2+1];
-				p2 += 2;
-			}
-		} else {
-			if(c2[p2] >= c1[p1+1]) {
-				p1 += 2;
-				continue;
-			}
-			open = c2[p2];
-			if(c2[p2+1] < c1[p1+1]) {
-				close = c2[p2+1];
-				p2 += 2;
-			} else {
-				close = c1[p1+1];
-				p1 += 2;
-			}
-		}
-		if(out->array_size < out->num_crossings+2) {
-			out->array_size += 16;
-			out->crossings = (int *)realloc_or_die(out->crossings,
-				sizeof(int) * out->array_size);
-		}
-		out->crossings[out->num_crossings++] = open;
-		out->crossings[out->num_crossings++] = close;
-	}
 }
 
 static long compute_area(row_crossings_t *crossings, int num_rows) {

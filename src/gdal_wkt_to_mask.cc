@@ -26,6 +26,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "common.h"
 #include "polygon.h"
+#include "polygon-rasterizer.h"
 #include "debugplot.h"
 #include "georef.h"
 

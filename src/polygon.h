@@ -58,13 +58,6 @@ typedef struct {
 	char empty;
 } bbox_t;
 
-typedef struct {
-	int num_crossings;
-	int array_size;
-	int *crossings;
-} row_crossings_t;
-
-
 mpoly_t empty_polygon();
 ring_t duplicate_ring(ring_t *in_ring);
 void free_ring(ring_t *ring);
@@ -88,9 +81,6 @@ int ring_is_ccw(ring_t *c);
 double ring_area(ring_t *c);
 int polygon_contains_point(mpoly_t *mp, double px, double py);
 int ring_ring_relation(ring_t *r1, ring_t *r2);
-row_crossings_t *get_row_crossings(mpoly_t *mpoly, int min_y, int num_rows);
-void free_row_crossings(row_crossings_t *rc, int num_rows);
-void mask_from_mpoly(mpoly_t *mpoly, int w, int h, const char *fn);
 int line_intersects_line(
 	vertex_t p1, vertex_t p2,
 	vertex_t p3, vertex_t p4,
