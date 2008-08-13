@@ -28,6 +28,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "polygon.h"
 #include "polygon-rasterizer.h"
 
+#define EPSILON 1e-9
+
 typedef struct {
 	int num_crossings;
 	int array_size;
@@ -43,8 +45,8 @@ row_crossings_t crossings_dbl_to_int(row_crossings_dbl_t *in) {
 	} else {
 		out.crossings = (int *)malloc_or_die(sizeof(int) * out.array_size);
 		for(int i=0; i<in->num_crossings; i+=2) {
-			int from = (int)ceil(in->crossings[i]);
-			int to = (int)floor(in->crossings[i+1]);
+			int from = (int)ceil(in->crossings[i] - EPSILON);
+			int to = (int)floor(in->crossings[i+1] + EPSILON);
 			if(to > from) {
 				out.crossings[out.num_crossings++] = from;
 				out.crossings[out.num_crossings++] = to;
