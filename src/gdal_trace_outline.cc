@@ -271,7 +271,11 @@ int main(int argc, char **argv) {
 				char *endptr;
 				llproj_toler = strtod(argv[argp++], &endptr);
 				if(*endptr) usage(argv[0]);
-			} else usage(argv[0]);
+			} else if(!strcmp(arg, "-h") || !strcmp(arg, "--help")) {
+				usage(argv[0]);
+			} else {
+				fatal_error("unrecognized option: %s", arg);
+			}
 		} else {
 			if(input_raster_fn) usage(argv[0]);
 			input_raster_fn = arg;
