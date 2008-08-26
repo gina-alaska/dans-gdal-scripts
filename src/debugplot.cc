@@ -27,6 +27,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "debugplot.h"
 
 report_image_t *create_plot(double w, double h) {
+	if(w<0 || h<0) fatal_error("negative size for debug plot (%g,%g)", w, h);
+
 	report_image_t *dbuf = (report_image_t *)malloc_or_die(sizeof(report_image_t));
 	dbuf->canvas_w = w+2;
 	dbuf->canvas_h = h+2;
@@ -41,6 +43,8 @@ report_image_t *create_plot(double w, double h) {
 		dbuf->img_w = (int)(800.0 * (w+1) / (h+1));
 		dbuf->img_h = 800;
 	}
+	if(dbuf->img_w < 1) dbuf->img_w = 1;
+	if(dbuf->img_h < 1) dbuf->img_h = 1;
 
 	dbuf->stride_x = (int)floor(w / (double)dbuf->img_w);
 	dbuf->stride_y = (int)floor(h / (double)dbuf->img_h);
