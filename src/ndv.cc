@@ -59,12 +59,12 @@ static void add_minmax(ndv_range_t *r, char *minmax_string) {
 
 		// FIXME - allow -Inf, Inf
 		min = strtod(minmax_string, &endptr);
-		if(*endptr) usage("FIXME");
+		if(*endptr) fatal_error("NDV value was not a number");
 		max = strtod(s2, &endptr);
-		if(*endptr) usage("FIXME");
+		if(*endptr) fatal_error("NDV value was not a number");
 	} else {
 		min = max = strtod(minmax_string, &endptr);
-		if(*endptr) usage("FIXME");
+		if(*endptr) fatal_error("NDV value was not a number");
 	}
 
 	r->min = (double *)realloc_or_die(r->min, sizeof(double) * (r->nbands+1));
