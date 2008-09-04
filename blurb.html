@@ -2,15 +2,20 @@
 
 This package contains the following programs:
 <table border=1>
-<tr><td valign="top">gdal_contrast_stretch </td><td>Auto contrast stretch and coversion from 16-bit to 8-bit</td></tr>
-<tr><td valign="top">gdal_dem2rgb          </td><td>Generate hillshaded images from DEMs</td></tr>
-<tr><td valign="top">gdal_landsat_pansharp </td><td>Pansharpening - works best for Landsat 7 images</td></tr>
-<tr><td valign="top">gdal_list_corners     </td><td>Ouput geometry information in YAML and WKT format - can inspect image to find polygon bounds</td></tr>
-<tr><td valign="top">gdal_raw2geotiff      </td><td>Convert raw binary data to GeoTIFF</td></tr>
+<tr><td valign="top">gdal_contrast_stretch      </td><td>Contrast stretch and conversion from 16-bit to 8-bit</td></tr>
+<tr><td valign="top">gdal_dem2rgb               </td><td>Generate hillshaded images from DEMs</td></tr>
+<tr><td valign="top">gdal_get_projected_bounds  </td><td>Project a polygon and return its bounding rectangle</td></tr>
+<tr><td valign="top">gdal_landsat_pansharp      </td><td>Pansharpening - works best for Landsat 7 images</td></tr>
+<tr><td valign="top">gdal_list_corners          </td><td>Prints raster geocode information in YAML format (similar to gdalinfo but gives YAML)</td></tr>
+<tr><td valign="top">gdal_merge_simple          </td><td>Merge individual bands into a single GeoTIFF image (8-bit only)</td></tr>
+<tr><td valign="top">gdal_merge_vrt             </td><td>Merge individual bands into a single VRT image</td></tr>
+<tr><td valign="top">gdal_raw2geotiff           </td><td>Convert raw binary files into GeoTIFFs</td></tr>
+<tr><td valign="top">gdal_trace_outline         </td><td>Trace the outline of an image and generate WKT or Shapefile (options exist for cleaning up raggedy edges, can also do feature classification)</td></tr>
+<tr><td valign="top">gdal_wkt_to_mask           </td><td>Generate a bitmap of the area covered by a polygon</td></tr>
 </table>
 
 <p>
-Download: <a href="/documents/dans-gdal-scripts-0.04.tar.gz">dans-gdal-scripts-0.04.tar.gz</a>
+Download: <a href="/documents/dans-gdal-scripts-0.12.tar.gz">dans-gdal-scripts-0.12.tar.gz</a>
 </p>
 
 <p>
