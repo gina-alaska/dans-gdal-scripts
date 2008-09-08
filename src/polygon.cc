@@ -714,7 +714,7 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 				double x = xy1.x + alpha * (xy2.x - xy1.x);
 				double y = xy1.y + alpha * (xy2.y - xy1.y);
 				vertex_t ll;
-				xy2ll(georef, x, y, &ll.x, &ll.y);
+				xy2ll_or_die(georef, x, y, &ll.x, &ll.y);
 				add_point_to_ring(&ll_ring, ll);
 			}
 		}
@@ -757,7 +757,7 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 			double x = xy_ring.pts[v_idx].x;
 			double y = xy_ring.pts[v_idx].y;
 			double lon, lat;
-			xy2ll(georef, x*shrink+epsilon, y, &lon, &lat);
+			xy2ll_or_die(georef, x*shrink+epsilon, y, &lon, &lat);
 			ll_ring.pts[v_idx].x = lon;
 			ll_ring.pts[v_idx].y = lat;
 		}
@@ -801,7 +801,7 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 				ll_m_interp.y = (ll1->y + ll2->y)/2.0;
 
 				vertex_t xy_m_test;
-				ll2xy(georef, 
+				ll2xy_or_die(georef, 
 					ll_m_interp.x, ll_m_interp.y,
 					&xy_m_test.x, &xy_m_test.y);
 
@@ -826,7 +826,7 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 			if(need_midpt) {
 				if(num_consec++ > 10) fatal_error("convergence error in mpoly_xy2ll_with_interp");
 				vertex_t ll_m_proj;
-				xy2ll(georef, 
+				xy2ll_or_die(georef, 
 					xy_m.x*shrink+epsilon, xy_m.y,
 					&ll_m_proj.x, &ll_m_proj.y);
 
@@ -855,7 +855,7 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 			double y = xy_ring.pts[v_idx].y;
 
 			double lon, lat;
-			xy2ll(georef, x, y, &lon, &lat);
+			xy2ll_or_die(georef, x, y, &lon, &lat);
 
 			ll_ring.pts[v_idx].x = lon;
 			ll_ring.pts[v_idx].y = lat;

@@ -61,9 +61,13 @@ georef_t init_georef(geo_opts_t *opt, GDALDatasetH ds);
 
 void xy2en(georef_t *georef, double xpos, double ypos, double *e_out, double *n_out);
 void en2xy(georef_t *georef, double east, double north, double *x_out, double *y_out);
-void en2ll(georef_t *georef, double east, double north, double *lon_out, double *lat_out);
-void ll2en(georef_t *georef, double lon, double lat, double *e_out, double *n_out);
-void xy2ll(georef_t *georef, double x, double y, double *lon_out, double *lat_out);
-void ll2xy(georef_t *georef, double lon, double lat, double *x_out, double *y_out);
+int en2ll(georef_t *georef, double east, double north, double *lon_out, double *lat_out);
+int ll2en(georef_t *georef, double lon, double lat, double *e_out, double *n_out);
+int xy2ll(georef_t *georef, double x, double y, double *lon_out, double *lat_out);
+int ll2xy(georef_t *georef, double lon, double lat, double *x_out, double *y_out);
+void en2ll_or_die(georef_t *georef, double east, double north, double *lon_out, double *lat_out);
+void ll2en_or_die(georef_t *georef, double lon, double lat, double *e_out, double *n_out);
+void xy2ll_or_die(georef_t *georef, double x, double y, double *lon_out, double *lat_out);
+void ll2xy_or_die(georef_t *georef, double lon, double lat, double *x_out, double *y_out);
 
 #endif // ifndef GEOCODE_H

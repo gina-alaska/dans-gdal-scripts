@@ -328,7 +328,7 @@ void en2xy(
 	*y_out = affine[3] + affine[4] * east + affine[5] * north;
 }
 
-void en2ll(
+int en2ll(
 	georef_t *georef,
 	double east, double north,
 	double *lon_out, double *lat_out
@@ -338,7 +338,7 @@ void en2ll(
 	double u = east;
 	double v = north;
 	if(!OCTTransform(georef->fwd_xform, 1, &u, &v, NULL)) {
-		fatal_error("OCTTransform failed");
+		return 1;
 	}
 	double lon = u;
 	double lat = v;
@@ -352,9 +352,20 @@ void en2ll(
 
 	*lon_out = lon;
 	*lat_out = lat;
+	return 0;
 }
 
-void ll2en(
+void en2ll_or_die(
+	georef_t *georef,
+	double east, double north,
+	double *lon_out, double *lat_out
+) {
+	if(en2ll(georef, east, north, lon_out, lat_out)) {
+		fatal_error("OCTTransform failed");
+	}
+}
+
+int ll2en(
 	georef_t *georef,
 	double lon, double lat,
 	double *e_out, double *n_out
@@ -371,7 +382,7 @@ void ll2en(
 	double u = lon;
 	double v = lat;
 	if(!OCTTransform(georef->inv_xform, 1, &u, &v, NULL)) {
-		fatal_error("OCTTransform failed");
+		return 1;
 	}
 	double east = u;
 	double north = v;
@@ -391,24 +402,57 @@ void ll2en(
 
 	*e_out = east;
 	*n_out = north;
+	return 0;
 }
 
-void xy2ll(
+void ll2en_or_die(
+	georef_t *georef,
+	double lon, double lat,
+	double *e_out, double *n_out
+) {
+	if(ll2en(georef, lon, lat, e_out, n_out)) {
+		fatal_error("OCTTransform failed");
+	}
+}
+
+int xy2ll(
 	georef_t *georef,
 	double x, double y,
 	double *lon_out, double *lat_out
 ) {
 	double east, north;
 	xy2en(georef, x, y, &east, &north);
-	en2ll(georef, east, north, lon_out, lat_out);
+	return en2ll(georef, east, north, lon_out, lat_out);
 }
 
-void ll2xy(
+void xy2ll_or_die(
+	georef_t *georef,
+	double x, double y,
+	double *lon_out, double *lat_out
+) {
+	double east, north;
+	xy2en(georef, x, y, &east, &north);
+	en2ll_or_die(georef, east, north, lon_out, lat_out);
+}
+
+int ll2xy(
 	georef_t *georef,
 	double lon, double lat,
 	double *x_out, double *y_out
 ) {
 	double east, north;
-	ll2en(georef, lon, lat, &east, &north);
+	int ret = ll2en(georef, lon, lat, &east, &north);
+	if(ret) return ret;
+	en2xy(georef, east, north, x_out, y_out);
+	return 0;
+}
+
+void ll2xy_or_die(
+	georef_t *georef,
+	double lon, double lat,
+	double *x_out, double *y_out
+) {
+	double east, north;
+	ll2en_or_die(georef, lon, lat, &east, &north);
 	en2xy(georef, east, north, x_out, y_out);
 }

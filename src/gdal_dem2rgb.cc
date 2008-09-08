@@ -203,6 +203,8 @@ int main(int argc, char *argv[]) {
 
 	GDALAllRegister();
 
+	CPLPushErrorHandler(CPLQuietErrorHandler);
+
 	//////// open palette ////////
 
 	palette_t *palette = NULL;
@@ -691,19 +693,18 @@ void compute_invaffine(
 	// for the given pixel (row/col)
 	double epsilon = 1;
 	double lon_0, lat_0;
-	xy2ll(georef, col, row, &lon_0, &lat_0);
 	double lon_dx, lat_dx;
-	xy2ll(georef, col+epsilon, row, &lon_dx, &lat_dx);
 	double lon_dy, lat_dy;
-	xy2ll(georef, col, row+epsilon, &lon_dy, &lat_dy);
+	int error =
+		xy2ll(georef, col, row, &lon_0, &lat_0) ||
+		xy2ll(georef, col+epsilon, row, &lon_dx, &lat_dx) ||
+		xy2ll(georef, col, row+epsilon, &lon_dy, &lat_dy);
 
-	if(
-		lon_0  == HUGE_VAL || lat_0  == HUGE_VAL ||
-		lon_dx == HUGE_VAL || lat_dx == HUGE_VAL ||
-		lon_dy == HUGE_VAL || lat_dy == HUGE_VAL
-	) {
-		//printf("proj error\n");
-		// error - return [0,0,0,0]
+	if(error) {
+		invaffine[0] = 0;
+		invaffine[1] = 0;
+		invaffine[2] = 0;
+		invaffine[3] = 0;
 		return;
 	}
 

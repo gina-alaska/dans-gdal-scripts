@@ -235,7 +235,7 @@ int main(int argc, char **argv) {
 	fprintf(yaml_fh, "center:\n");
 	center = (vertex_t){ (double)georef.w/2.0, (double)georef.h/2.0 };
 	if(georef.fwd_xform && georef.fwd_affine) {
-		xy2ll(&georef, center.x, center.y, &lon, &lat);
+		xy2ll_or_die(&georef, center.x, center.y, &lon, &lat);
 		fprintf(yaml_fh, "  lon: %.15f\n", lon);
 		fprintf(yaml_fh, "  lat: %.15f\n", lat);
 	}
@@ -252,7 +252,7 @@ int main(int argc, char **argv) {
 		fprintf(yaml_fh, "centroid:\n");
 		centroid = calc_centroid_from_mask(mask, georef.w, georef.h);
 		if(georef.fwd_xform && georef.fwd_affine) {
-			xy2ll(&georef, centroid.x, centroid.y, &lon, &lat);
+			xy2ll_or_die(&georef, centroid.x, centroid.y, &lon, &lat);
 			fprintf(yaml_fh, "  lon: %.15f\n", lon);
 			fprintf(yaml_fh, "  lat: %.15f\n", lat);
 		}
@@ -285,7 +285,7 @@ int main(int argc, char **argv) {
 		if(georef.fwd_xform && georef.fwd_affine) {
 			fprintf(yaml_fh, "geometry_ll:\n  type: rectangle4\n");
 			for(i=0; i<4; i++) {
-				xy2ll(&georef, rect4.pts[i].x, rect4.pts[i].y, &lon, &lat);
+				xy2ll_or_die(&georef, rect4.pts[i].x, rect4.pts[i].y, &lon, &lat);
 				fprintf(yaml_fh, "  %s_lon: %.15f\n", labels[i], lon);
 				fprintf(yaml_fh, "  %s_lat: %.15f\n", labels[i], lat);
 			}
@@ -312,7 +312,7 @@ int main(int argc, char **argv) {
 			fprintf(yaml_fh, "geometry_ll:\n  type: rectangle8\n");
 			for(i=0; i<3; i++) for(j=0; j<3; j++) {
 				if(!strcmp(e_labels[i], "mid") && !strcmp(n_labels[j], "mid")) continue;
-				xy2ll(&georef, e_pos[i], n_pos[j], &lon, &lat);
+				xy2ll_or_die(&georef, e_pos[i], n_pos[j], &lon, &lat);
 				fprintf(yaml_fh, "  %s_%s_lon: %.15f\n", n_labels[j], e_labels[i], lon);
 				fprintf(yaml_fh, "  %s_%s_lat: %.15f\n", n_labels[j], e_labels[i], lat);
 			}
