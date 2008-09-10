@@ -676,7 +676,7 @@ void get_palette_color(uint8_t *buf, float val, palette_t *pal) {
 		}
 	}
 
-	fatal_error("palette file out of sequence\n");
+	fatal_error("palette file out of sequence, can't find val %g\n", val);
 }
 
 // this function generates a 2x2 matrix that

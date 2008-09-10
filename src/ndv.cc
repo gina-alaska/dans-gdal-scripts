@@ -221,4 +221,9 @@ void array_check_ndv(
 			mask_out[i] = mask_out[i] ? 0 : 1;
 		}
 	}
+	if(in_dbl) {
+		for(int i=0; i<num_samples; i++) {
+			if(isnan(in_dbl[i])) mask_out[i] = 1;
+		}
+	}
 }

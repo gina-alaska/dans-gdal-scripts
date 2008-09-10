@@ -343,12 +343,12 @@ int en2ll(
 	double lon = u;
 	double lat = v;
 
-	if(lat < -90.0 || lat > 90.0) fatal_error("latitude out of range (%lf)", lat);
+	if(lat < -90.0 || lat > 90.0) return 1; //fatal_error("latitude out of range (%lf)", lat);
 	// images in latlong projection that cross the dateline can
 	// have numbers outside of this range...
-	//if(lon < -180.0 || lon > 180.0) fatal_error("longitude out of range");
+	//if(lon < -180.0 || lon > 180.0) return 1; //fatal_error("longitude out of range");
 	// but it shouldn't be outside of *this* range no matter what!
-	if(lon < -360.0 || lon > 540.0) fatal_error("longitude out of range (%lf)", lon);
+	if(lon < -360.0 || lon > 540.0) return 1; //fatal_error("longitude out of range (%lf)", lon);
 
 	*lon_out = lon;
 	*lat_out = lat;
@@ -361,7 +361,7 @@ void en2ll_or_die(
 	double *lon_out, double *lat_out
 ) {
 	if(en2ll(georef, east, north, lon_out, lat_out)) {
-		fatal_error("OCTTransform failed");
+		fatal_error("transform failed");
 	}
 }
 
@@ -372,12 +372,12 @@ int ll2en(
 ) {
 	if(!georef->inv_xform) fatal_error("missing xform");
 
-	if(lat < -90.0 || lat > 90.0) fatal_error("latitude out of range (%lf)", lat);
+	if(lat < -90.0 || lat > 90.0) return 1; //fatal_error("latitude out of range (%lf)", lat);
 	// images in latlong projection that cross the dateline can
 	// have numbers outside of this range...
-	//if(lon < -180.0 || lon > 180.0) fatal_error("longitude out of range");
+	//if(lon < -180.0 || lon > 180.0) return 1; //fatal_error("longitude out of range");
 	// but it shouldn't be outside of *this* range no matter what!
-	if(lon < -360.0 || lon > 540.0) fatal_error("longitude out of range (%lf)", lon);
+	if(lon < -360.0 || lon > 540.0) return 1; //fatal_error("longitude out of range (%lf)", lon);
 
 	double u = lon;
 	double v = lat;
@@ -411,7 +411,7 @@ void ll2en_or_die(
 	double *e_out, double *n_out
 ) {
 	if(ll2en(georef, lon, lat, e_out, n_out)) {
-		fatal_error("OCTTransform failed");
+		fatal_error("transform failed");
 	}
 }
 
