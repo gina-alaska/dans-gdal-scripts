@@ -24,7 +24,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 
-#include <common.h>
+#include "common.h"
 
 void usage(const char *cmdname) {
 	printf("Usage:\n");

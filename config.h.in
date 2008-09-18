@@ -1,5 +1,17 @@
 /* config.h.in.  Generated from configure.ac by autoheader.  */
 
+/* Define to 1 if you have the <cpl_conv.h> header file. */
+#undef HAVE_CPL_CONV_H
+
+/* Define to 1 if you have the <cpl_port.h> header file. */
+#undef HAVE_CPL_PORT_H
+
+/* Define to 1 if you have the <cpl_string.h> header file. */
+#undef HAVE_CPL_STRING_H
+
+/* Define to 1 if you have the <gdal.h> header file. */
+#undef HAVE_GDAL_H
+
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
 
@@ -13,11 +25,23 @@
    to 0 otherwise. */
 #undef HAVE_MALLOC
 
+/* Define to 1 if you have the <math.h> header file. */
+#undef HAVE_MATH_H
+
 /* Define to 1 if you have the <memory.h> header file. */
 #undef HAVE_MEMORY_H
 
 /* Define to 1 if you have the `memset' function. */
 #undef HAVE_MEMSET
+
+/* Define to 1 if you have the <ogrsf_frmts.h> header file. */
+#undef HAVE_OGRSF_FRMTS_H
+
+/* Define to 1 if you have the <ogr_api.h> header file. */
+#undef HAVE_OGR_API_H
+
+/* Define to 1 if you have the <ogr_spatialref.h> header file. */
+#undef HAVE_OGR_SPATIALREF_H
 
 /* Define to 1 if your system has a GNU libc compatible `realloc' function,
    and to 0 otherwise. */
@@ -31,6 +55,9 @@
 
 /* Define to 1 if you have the <stdint.h> header file. */
 #undef HAVE_STDINT_H
+
+/* Define to 1 if you have the <stdio.h> header file. */
+#undef HAVE_STDIO_H
 
 /* Define to 1 if you have the <stdlib.h> header file. */
 #undef HAVE_STDLIB_H
@@ -55,9 +82,6 @@
 
 /* Define to 1 if the system has the type `_Bool'. */
 #undef HAVE__BOOL
-
-/* Define to 1 if your C compiler doesn't accept -c and -o together. */
-#undef NO_MINUS_C_MINUS_O
 
 /* Name of package */
 #undef PACKAGE

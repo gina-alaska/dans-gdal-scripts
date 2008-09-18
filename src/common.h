@@ -31,7 +31,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <ogr_spatialref.h>
 #include <cpl_string.h>
 #include <gdal.h>
-#include <stdint.h>
 
 // these constants from GDAL interfere with config.h
 #undef PACKAGE_VERSION
@@ -40,9 +39,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #undef PACKAGE_NAME
 #undef PACKAGE_BUGREPORT
 
-#include <config.h>
+#include "config.h"
+
 #include <math.h>
 #include <stdio.h>
+
+#if HAVE_STDINT_H
+#  include <stdint.h>
+#endif
 
 #if HAVE_INTTYPES_H
 #  include <inttypes.h>

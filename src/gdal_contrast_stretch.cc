@@ -24,7 +24,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 
-#include <common.h>
+#include "common.h"
 
 void compute_histogram(GDALRasterBandH src_band, int w, int h, int *hist_out, int input_range);
 void get_scale_from_stddev(int *histogram, int input_range, int output_range,

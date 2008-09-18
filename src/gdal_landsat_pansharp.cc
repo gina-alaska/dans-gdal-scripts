@@ -24,7 +24,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 
-#include <common.h>
+#include "common.h"
 
 typedef struct {
 	int oversample;

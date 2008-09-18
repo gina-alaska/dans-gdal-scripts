@@ -24,7 +24,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 
-#include <common.h>
+#include "common.h"
 
 void copyGeoCode(GDALDatasetH dst_ds, GDALDatasetH src_ds);
 
