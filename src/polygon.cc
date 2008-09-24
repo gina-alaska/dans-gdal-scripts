@@ -739,6 +739,7 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 		(double)georef->w*(double)georef->w + // must explicitly cast to double to avoid overflow
 		(double)georef->h*(double)georef->h;
 
+	// FIXME - now that we don't use ll2xy this is probably not needed:
 	// This is a kludge that shrinks the canvas by a millionth of a pixel
 	// to avoid problems with images that span an entire 360 degrees of
 	// longitude.  Without this the map xy -> ll -> xy is not single-valued.
@@ -773,6 +774,11 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 				(xy1->x + xy2->x)/2.0,
 				(xy1->y + xy2->y)/2.0 };
 
+			vertex_t ll_m_proj;
+			xy2ll_or_die(georef, 
+				xy_m.x*shrink+epsilon, xy_m.y,
+				&ll_m_proj.x, &ll_m_proj.y);
+
 			vertex_t *ll1 = ll_ring.pts + v_idx;
 			vertex_t *ll2 = ll_ring.pts + (v_idx + 1) % ll_ring.npts;
 
@@ -781,6 +787,8 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 
 			int need_midpt = 0;
 
+			// avoid topological errors by not allowing segments
+			// to be longer than 90 degrees
 			if(!need_midpt) {
 				double dx = fabs(ll1->x - ll2->x);
 				double dy = ll1->y - ll2->y;
@@ -800,14 +808,15 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 				ll_m_interp.x = (ll1->x + ll2->x)/2.0;
 				ll_m_interp.y = (ll1->y + ll2->y)/2.0;
 
-				vertex_t xy_m_test;
-				ll2xy_or_die(georef, 
-					ll_m_interp.x, ll_m_interp.y,
-					&xy_m_test.x, &xy_m_test.y);
-
-				double dx = xy_m.x - xy_m_test.x;
-				double dy = xy_m.y - xy_m_test.y;
+				while(ll_m_interp.x - ll_m_proj.x >  180) ll_m_interp.x -= 360;
+				while(ll_m_interp.x - ll_m_proj.x < -180) ll_m_interp.x += 360;
+				double lonscale = cos(D2R * MAX(fabs(ll_m_interp.y), fabs(ll_m_proj.y)));
+				double dx = (ll_m_interp.x - ll_m_proj.x) * lonscale;
+				double dy = ll_m_interp.y - ll_m_proj.y;
+				dx *= D2R * georef->semi_major;
+				dy *= D2R * georef->semi_major;
 				double sqr_error = dx*dx + dy*dy;
+
 				// if the midpoint is this far off then something is seriously wrong
 				if(sqr_error > max_error) {
 					fprintf(stderr, "\nInfo on bad point:\n");
@@ -817,7 +826,6 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 					fprintf(stderr, "ll1 = %lf,%lf\n", ll1->x, ll1->y);
 					fprintf(stderr, "ll2 = %lf,%lf\n", ll2->x, ll2->y);
 					fprintf(stderr, "ll_m_interp = %lf,%lf\n", ll_m_interp.x, ll_m_interp.y);
-					fprintf(stderr, "xy_m_test = %lf,%lf\n", xy_m_test.x, xy_m_test.y);
 					fprintf(stderr, "error = %lf > %lf\n", sqr_error, max_error);
 					fatal_error("projection error in mpoly_xy2ll_with_interp");
 				}
@@ -827,17 +835,13 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 				if(VERBOSE && need_midpt) {
 					printf("  inserting midpoint at %d,%d (delta=%lf,%lf > %lf)\n",
 						r_idx, v_idx, dx, dy, toler);
-					printf("    testll=[%lf,%lf] testxy=[%lf,%lf]\n", 
-						ll_m_interp.x, ll_m_interp.y, xy_m_test.x, xy_m_test.y);
+					printf("    testll=[%lf,%lf] projll=[%lf,%lf]\n", 
+						ll_m_interp.x, ll_m_interp.y, ll_m_proj.x, ll_m_proj.y);
 				}
 			}
 
 			if(need_midpt) {
 				if(num_consec++ > 10) fatal_error("convergence error in mpoly_xy2ll_with_interp");
-				vertex_t ll_m_proj;
-				xy2ll_or_die(georef, 
-					xy_m.x*shrink+epsilon, xy_m.y,
-					&ll_m_proj.x, &ll_m_proj.y);
 
 				if(VERBOSE) {
 					printf("    xy=[%lf,%lf]:[%lf,%lf]\n", xy1->x, xy1->y, xy2->x, xy2->y);

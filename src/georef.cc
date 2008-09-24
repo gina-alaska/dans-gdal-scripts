@@ -252,6 +252,12 @@ georef_t init_georef(geo_opts_t *opt, GDALDatasetH ds) {
 	georef.units_val = 0;
 	georef.units_name = NULL;
 	if(georef.spatial_ref) {
+		OGRErr err = OGRERR_NONE;
+		georef.semi_major = OSRGetSemiMajor(georef.spatial_ref, &err);
+		if(err != OGRERR_NONE) fatal_error("could not determine globe radius");
+		georef.semi_minor = OSRGetSemiMinor(georef.spatial_ref, &err);
+		if(err != OGRERR_NONE) fatal_error("could not determine globe radius");
+
 		if(OSRIsProjected(georef.spatial_ref)) {
 			georef.units_val = OSRGetLinearUnits(georef.spatial_ref, &georef.units_name);
 			//printf("units: %s, %lf\n", georef.units_name?georef.units_name:"null", georef.units_val);
@@ -264,12 +270,9 @@ georef_t init_georef(geo_opts_t *opt, GDALDatasetH ds) {
 			// FIXME - what is the best way to convert degrees to meters on ellipsoid?
 			// The X-resolution will be fictional anyway since the size of a degree
 			// of longitude varies depending on latitude.
-			OGRErr err = OGRERR_NONE;
-			double radius = OSRGetSemiMajor(georef.spatial_ref, &err);
-			if(err != OGRERR_NONE) fatal_error("could not determine globe radius");
 
-			georef.res_meters_x = radius * georef.units_val * georef.res_x;
-			georef.res_meters_y = radius * georef.units_val * georef.res_y;
+			georef.res_meters_x = georef.semi_major * georef.units_val * georef.res_x;
+			georef.res_meters_y = georef.semi_major * georef.units_val * georef.res_y;
 		}
 	}
 
