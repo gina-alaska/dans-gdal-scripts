@@ -303,6 +303,12 @@ georef_t init_georef(geo_opts_t *opt, GDALDatasetH ds) {
 		georef.lon_loopsize = 0;
 	}
 
+	if(VERBOSE) {
+		printf("georef.lon_range1 = %lf\n", georef.lon_range1);
+		printf("georef.lon_range2 = %lf\n", georef.lon_range2);
+		printf("georef.lon_loopsize = %lf\n", georef.lon_loopsize);
+	}
+
 	return georef;
 }
 

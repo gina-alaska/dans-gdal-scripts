@@ -809,9 +809,18 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 				double dy = xy_m.y - xy_m_test.y;
 				double sqr_error = dx*dx + dy*dy;
 				// if the midpoint is this far off then something is seriously wrong
-				if(sqr_error > max_error) fatal_error(
-					"projection error in mpoly_xy2ll_with_interp [%lf,%lf:%lf,%lf:%lf,%lf:%lf>%lf]",
-					xy_m.x, xy_m.y, xy_m_test.x, xy_m_test.y, ll_m_interp.x, ll_m_interp.y, sqr_error, max_error);
+				if(sqr_error > max_error) {
+					fprintf(stderr, "\nInfo on bad point:\n");
+					fprintf(stderr, "xy1 = %lf,%lf\n", xy1->x, xy1->y);
+					fprintf(stderr, "xy2 = %lf,%lf\n", xy2->x, xy2->y);
+					fprintf(stderr, "xy_m = %lf,%lf\n", xy_m.x, xy_m.y);
+					fprintf(stderr, "ll1 = %lf,%lf\n", ll1->x, ll1->y);
+					fprintf(stderr, "ll2 = %lf,%lf\n", ll2->x, ll2->y);
+					fprintf(stderr, "ll_m_interp = %lf,%lf\n", ll_m_interp.x, ll_m_interp.y);
+					fprintf(stderr, "xy_m_test = %lf,%lf\n", xy_m_test.x, xy_m_test.y);
+					fprintf(stderr, "error = %lf > %lf\n", sqr_error, max_error);
+					fatal_error("projection error in mpoly_xy2ll_with_interp");
+				}
 
 				need_midpt = toler && sqr_error > toler*toler;
 
