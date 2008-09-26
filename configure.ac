@@ -52,11 +52,11 @@ if test "z$with_gdal" = "zno" -o "z$with_gdal" = "z"; then
 	AC_MSG_ERROR(gdal-config not found)
 fi
 
-GDAL_CONFIG=$with_gdal
-AC_SUBST(GDAL_CFLAGS)
-GDAL_CFLAGS=`${GDAL_CONFIG} --cflags`
-AC_SUBST(GDAL_LIBS)
-GDAL_LIBS=`${GDAL_CONFIG} --libs`
+GDALCONFIG=$with_gdal
+AC_SUBST(GDALCFLAGS)
+GDALCFLAGS=`${GDALCONFIG} --cflags`
+AC_SUBST(GDALLIBS)
+GDALLIBS=`${GDALCONFIG} --libs`
 
 # end of GDAL stuff #####################
 
