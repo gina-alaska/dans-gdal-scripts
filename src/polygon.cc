@@ -730,14 +730,34 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 }
 */
 
+// returns length of longest raster side in meters, squared
+static double estimate_canvas_size_sq(georef_t *georef) {
+	double e1, n1, e2, n2;
+	xy2en(georef, 0, 0, &e1, &n1);
+	xy2en(georef, georef->w, 0, &e2, &n2);
+	double dx = (e1 - e2);
+	double dy = (n1 - n2);
+	double size1 = dx*dx + dy*dy;
+	xy2en(georef, 0, georef->h, &e2, &n2);
+	dx = (e1 - e2);
+	dy = (n1 - n2);
+	double size2 = dx*dx + dy*dy;
+
+	double size = MAX(size1, size2);
+	size *= georef->units_val * georef->units_val;
+	if(OSRIsGeographic(georef->spatial_ref)) {
+		size *= georef->semi_major * georef->semi_major;
+	}
+	return size;
+}
+
 mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double toler) {
 	mpoly_t *ll_poly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
 	ll_poly->num_rings = xy_poly->num_rings;
 	ll_poly->rings = (ring_t *)malloc_or_die(sizeof(ring_t) * ll_poly->num_rings);
 	
-	double canvas_size_sq = 
-		(double)georef->w*(double)georef->w + // must explicitly cast to double to avoid overflow
-		(double)georef->h*(double)georef->h;
+	double canvas_size_sq = estimate_canvas_size_sq(georef);
+	//printf("canvas_size_sq = %lf\n", canvas_size_sq);
 
 	// FIXME - now that we don't use ll2xy this is probably not needed:
 	// This is a kludge that shrinks the canvas by a millionth of a pixel
@@ -825,6 +845,7 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 					fprintf(stderr, "xy_m = %lf,%lf\n", xy_m.x, xy_m.y);
 					fprintf(stderr, "ll1 = %lf,%lf\n", ll1->x, ll1->y);
 					fprintf(stderr, "ll2 = %lf,%lf\n", ll2->x, ll2->y);
+					fprintf(stderr, "ll_m_proj = %lf,%lf\n", ll_m_proj.x, ll_m_proj.y);
 					fprintf(stderr, "ll_m_interp = %lf,%lf\n", ll_m_interp.x, ll_m_interp.y);
 					fprintf(stderr, "error = %lf > %lf\n", sqr_error, canvas_size_sq);
 					fatal_error("projection error in mpoly_xy2ll_with_interp");
