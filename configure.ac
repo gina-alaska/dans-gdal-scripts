@@ -1,4 +1,4 @@
-# Copyright (c) 2007, Regents of the University of Alaska
+# Copyright (c) 2008, Regents of the University of Alaska
 # 
 # All rights reserved.
 # 
