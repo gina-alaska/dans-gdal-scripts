@@ -370,7 +370,7 @@ void en2ll_or_die(
 	double *lon_out, double *lat_out
 ) {
 	if(en2ll(georef, east, north, lon_out, lat_out)) {
-		fatal_error("transform failed");
+		fatal_error("en2ll transform failed [%g,%g]", east, north);
 	}
 }
 
@@ -420,7 +420,7 @@ void ll2en_or_die(
 	double *e_out, double *n_out
 ) {
 	if(ll2en(georef, lon, lat, e_out, n_out)) {
-		fatal_error("transform failed");
+		fatal_error("ll2en transform failed [%g,%g]", lon, lat);
 	}
 }
 
