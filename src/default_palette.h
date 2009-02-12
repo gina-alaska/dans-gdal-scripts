@@ -24,6 +24,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 
+// Kevin Engle's famous DEM palette
 const char *DEFAULT_PALETTE[] = {
 	"NaN 0 0 0",
 	"-10200.000000 0 0 255",

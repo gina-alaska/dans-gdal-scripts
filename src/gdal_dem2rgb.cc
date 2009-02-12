@@ -72,7 +72,7 @@ void usage(const char *cmdname) {
 	printf("\n");
 	printf("Texture: (choose one of these - default is gray background)\n");
 	printf("  -palette palette.pal                Palette file to map elevation values to colors\n");
-	printf("  -default-palette                    Use the builtin default palette\n");
+	printf("  -default-palette                    Use the builtin default palette (Kevin Engle's famous DEM palette)\n");
 	printf("  -texture texture_image              Hillshade a given raster (must be same georeference as DEM)\n");
 	printf("  -alpha-overlay                      Generate an RGBA image that can be used as a hillshade mask\n");
 	printf("\n");
