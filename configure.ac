@@ -1,4 +1,4 @@
-# Copyright (c) 2008, Regents of the University of Alaska
+# Copyright (c) 2009, Regents of the University of Alaska
 # 
 # All rights reserved.
 # 
@@ -24,7 +24,7 @@
 
 
 AC_PREREQ(2.59)
-AC_INIT([dans-gdal-scripts], [0.13], [dan@gina.alaska.edu])
+AC_INIT([dans-gdal-scripts], [0.14], [dan@gina.alaska.edu])
 AC_CONFIG_SRCDIR([src/common.h])
 AC_CONFIG_HEADER([config.h])
 
