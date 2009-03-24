@@ -138,7 +138,7 @@ static void hough_accum_dump(hough_accum_t *ha, const char *fn) {
 	for(int i=0; i<w_ang*w_rad; i++) {
 		if(ha->accum[i] > maxval) maxval = ha->accum[i];
 	}
-	uint8_t *buf = (uint8_t *)malloc_or_die(w_ang*w_rad*3);
+	uint8_t *buf = MYALLOC(uint8_t, w_ang*w_rad*3);
 	float lmv = logf(maxval+1);
 	for(int i=0; i<w_ang*w_rad; i++) {
 		float v = logf(ha->accum[i]+1) / lmv;
@@ -159,7 +159,7 @@ static void hough_inverse(hough_accum_t *ha, mpoly_t *mp) {
 	bbox_t bbox = get_polygon_bbox(mp);
 	int w = (int)bbox.max_x + 1;
 	int h = (int)bbox.max_y + 1;
-	accum_t *invbuf = (accum_t *)malloc_or_die(sizeof(accum_t) * w*h);
+	accum_t *invbuf = MYALLOC(accum_t, w*h);
 
 	/*
 	for(int r_idx=0; r_idx<mp->num_rings; r_idx++) {
@@ -197,7 +197,7 @@ static void hough_inverse(hough_accum_t *ha, mpoly_t *mp) {
 	for(int i=0; i<w*h; i++) {
 		if(invbuf[i] > maxval) maxval = invbuf[i];
 	}
-	uint8_t *buf = (uint8_t *)malloc_or_die(w*h*3);
+	uint8_t *buf = MYALLOC(uint8_t, w*h*3);
 	for(int i=0; i<w*h; i++) {
 		float v = invbuf[i] / maxval;
 		double b = v;
@@ -216,7 +216,7 @@ static void hough_inverse(hough_accum_t *ha, mpoly_t *mp) {
 void do_hough(mpoly_t *mp) {
 	printf("hough init\n");
 
-	hough_accum_t *ha = (hough_accum_t *)malloc_or_die(sizeof(hough_accum_t));
+	hough_accum_t *ha = MYALLOC(hough_accum_t, 1);
 
 	bbox_t bbox = get_polygon_bbox(mp);
 	ha->center.x = (bbox.max_x + bbox.min_x) / 2.0;
@@ -228,13 +228,13 @@ void do_hough(mpoly_t *mp) {
 
 	ha->w_ang = 2000; //(int)MAX(max_x, max_y); // FIXME
 	ha->w_rad = 2000; //(int)MAX(max_x, max_y);
-	ha->accum = (accum_t *)malloc_or_die(sizeof(accum_t) * ha->w_ang * ha->w_rad);
+	ha->accum = MYALLOC(accum_t, ha->w_ang * ha->w_rad);
 	for(int i=0; i<ha->w_ang*ha->w_rad; i++) ha->accum[i] = 0;
 
 	double scale_x = (double)(ha->w_rad/2-1) / (max_x*sqrt(2.0));
 	double scale_y = (double)(ha->w_rad/2-1) / (max_y*sqrt(2.0));
-	ha->sin_table = (double *)malloc_or_die(sizeof(double) * ha->w_ang);
-	ha->cos_table = (double *)malloc_or_die(sizeof(double) * ha->w_ang);
+	ha->sin_table = MYALLOC(double, ha->w_ang);
+	ha->cos_table = MYALLOC(double, ha->w_ang);
 	for(int i=0; i<ha->w_ang; i++) {
 		// FIXME - use full wave and take into account handedness of border
 		double theta = (double)i / (double)ha->w_ang * M_PI;

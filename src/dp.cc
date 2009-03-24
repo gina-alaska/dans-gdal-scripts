@@ -44,8 +44,7 @@ mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance) {
 		return empty_polygon();
 	}
 
-	reduced_ring_t *reduced_rings = (reduced_ring_t *)
-		malloc_or_die(sizeof(reduced_ring_t) * in_mpoly->num_rings);
+	reduced_ring_t *reduced_rings = MYALLOC(reduced_ring_t, in_mpoly->num_rings);
 
 	int c_idx;
 	for(c_idx=0; c_idx<in_mpoly->num_rings; c_idx++) {
@@ -100,10 +99,10 @@ reduced_ring_t compute_reduced_ring(ring_t *orig_string, double res) {
 	double tolerance = res;
 	int i;
 
-	segment_t *stack = (segment_t *)malloc_or_die(sizeof(segment_t) * num_in);
+	segment_t *stack = MYALLOC(segment_t, num_in);
 	int stack_ptr = 0;
 
-	segment_t *keep_segs = (segment_t *)malloc_or_die(sizeof(segment_t) * num_in);
+	segment_t *keep_segs = MYALLOC(segment_t, num_in);
 	int num_keep_segs = 0;
 
 	// must keep closure segment
@@ -195,7 +194,7 @@ reduced_ring_t compute_reduced_ring(ring_t *orig_string, double res) {
 
 static ring_t make_ring_from_segs(ring_t *c_in, reduced_ring_t *r_in) {
 	int i;
-	char *keep_pts = (char *)malloc_or_die(c_in->npts);
+	char *keep_pts = MYALLOC(char, c_in->npts);
 	for(i=0; i<c_in->npts; i++) keep_pts[i] = 0;
 
 	for(i=0; i<r_in->num_segs; i++) {
@@ -217,7 +216,7 @@ static ring_t make_ring_from_segs(ring_t *c_in, reduced_ring_t *r_in) {
 
 	ring_t new_string = *c_in; // copy parent_id, is_hole, etc.
 	new_string.npts = num_to_keep;
-	new_string.pts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * num_to_keep);
+	new_string.pts = MYALLOC(vertex_t, num_to_keep);
 	vertex_t *pts_out = new_string.pts;
 	int idx_out = 0;
 	for(i=0; i<c_in->npts; i++) {
@@ -243,7 +242,7 @@ mpoly_t reduction_to_mpoly(mpoly_t *in_mpoly, reduced_ring_t *reduced_rings) {
 	// have to hope that is works.
 
 	// First, find which rings have at least three points.
-	char *keep_rings = (char *)malloc_or_die(in_mpoly->num_rings);
+	char *keep_rings = MYALLOC(char, in_mpoly->num_rings);
 	int total_npts_in=0, total_npts_out=0;
 	int c_idx;
 	for(c_idx=0; c_idx<in_mpoly->num_rings; c_idx++) {
@@ -273,7 +272,7 @@ mpoly_t reduction_to_mpoly(mpoly_t *in_mpoly, reduced_ring_t *reduced_rings) {
 	}
 
 	// Map index of old rings to index of new rings.
-	int *new_idx_map = (int *)malloc_or_die(sizeof(int) * in_mpoly->num_rings);
+	int *new_idx_map = MYALLOC(int, in_mpoly->num_rings);
 	int out_idx = 0;
 	for(c_idx=0; c_idx<in_mpoly->num_rings; c_idx++) {
 		if(keep_rings[c_idx]) {
@@ -289,7 +288,7 @@ mpoly_t reduction_to_mpoly(mpoly_t *in_mpoly, reduced_ring_t *reduced_rings) {
 
 	// Now create the new rings and update parent_id using the
 	// remapped index values.
-	ring_t *out_rings = (ring_t *)malloc_or_die(sizeof(ring_t)*num_out_rings);
+	ring_t *out_rings = MYALLOC(ring_t, num_out_rings);
 	for(c_idx=0; c_idx<in_mpoly->num_rings; c_idx++) {
 		ring_t *c_in = &in_mpoly->rings[c_idx];
 		reduced_ring_t *r_in = &reduced_rings[c_idx];

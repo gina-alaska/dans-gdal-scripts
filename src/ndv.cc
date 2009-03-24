@@ -41,7 +41,7 @@ No-data values:\n\
 }
 
 static void add_arg_to_list(int *argc_ptr, char ***argv_ptr, char *new_arg) {
-	*argv_ptr= (char **)realloc_or_die(*argv_ptr, sizeof(char *) * (*argc_ptr+1));
+	*argv_ptr = REMYALLOC(char *, *argv_ptr, (*argc_ptr+1));
 	(*argv_ptr)[*argc_ptr] = new_arg;
 	(*argc_ptr)++;
 }
@@ -67,8 +67,8 @@ static void add_minmax(ndv_range_t *r, char *minmax_string) {
 		if(*endptr) fatal_error("NDV value was not a number");
 	}
 
-	r->min = (double *)realloc_or_die(r->min, sizeof(double) * (r->nbands+1));
-	r->max = (double *)realloc_or_die(r->max, sizeof(double) * (r->nbands+1));
+	r->min = REMYALLOC(double, r->min, (r->nbands+1));
+	r->max = REMYALLOC(double, r->max, (r->nbands+1));
 	r->min[r->nbands] = min;
 	r->max[r->nbands] = max;
 	r->nbands++;
@@ -92,7 +92,7 @@ static void add_ndv_range(ndv_def_t *nd, const char *range_string) {
 	}
 	free(buf);
 
-	nd->ranges = (ndv_range_t *)realloc_or_die(nd->ranges, sizeof(ndv_range_t) * (nd->nranges+1));
+	nd->ranges = REMYALLOC(ndv_range_t, nd->ranges, (nd->nranges+1));
 	nd->ranges[nd->nranges++] = r;
 }
 
@@ -153,8 +153,8 @@ ndv_def_t init_ndv_options(int *argc_ptr, char ***argv_ptr) {
 void add_ndv_from_raster(ndv_def_t *nd, GDALDatasetH ds, int bandlist_size, int *bandlist) {
 	ndv_range_t r;
 	r.nbands = bandlist_size;
-	r.min = (double *)malloc_or_die(sizeof(double) * r.nbands);
-	r.max = (double *)malloc_or_die(sizeof(double) * r.nbands);
+	r.min = MYALLOC(double, r.nbands);
+	r.max = MYALLOC(double, r.nbands);
 	int got_error = 0;
 
 	int band_count = GDALGetRasterCount(ds);
@@ -179,7 +179,7 @@ void add_ndv_from_raster(ndv_def_t *nd, GDALDatasetH ds, int bandlist_size, int 
 		free(r.max);
 		//fatal_error("could not determine NDV");
 	} else {
-		nd->ranges = (ndv_range_t *)realloc_or_die(nd->ranges, sizeof(ndv_range_t) * (nd->nranges+1));
+		nd->ranges = REMYALLOC(ndv_range_t, nd->ranges, (nd->nranges+1));
 		nd->ranges[nd->nranges++] = r;
 	}
 }

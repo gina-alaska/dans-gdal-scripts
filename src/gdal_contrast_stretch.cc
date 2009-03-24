@@ -155,8 +155,8 @@ int main(int argc, char *argv[]) {
 
 	//////// open bands ////////
 
-	GDALRasterBandH *src_bands = (GDALRasterBandH *)malloc_or_die(sizeof(GDALRasterBandH) * band_count);
-	GDALRasterBandH *dst_bands = (GDALRasterBandH *)malloc_or_die(sizeof(GDALRasterBandH) * band_count);
+	GDALRasterBandH *src_bands = MYALLOC(GDALRasterBandH, band_count);
+	GDALRasterBandH *dst_bands = MYALLOC(GDALRasterBandH, band_count);
 
 	int band_idx;
 	for(band_idx=0; band_idx<band_count; band_idx++) {
@@ -169,17 +169,17 @@ int main(int argc, char *argv[]) {
 	int input_range = 65536;
 	int output_range = 256;
 
-	int **xform_table = (int **)malloc_or_die(sizeof(int *) * band_count);
+	int **xform_table = MYALLOC(int *, band_count);
 
 	int mode_noeq = !(mode_percentile || mode_stddev || mode_histeq);
 
 	for(band_idx=0; band_idx<band_count; band_idx++) {
-		xform_table[band_idx] = (int *)malloc_or_die(sizeof(int) * input_range);
+		xform_table[band_idx] = MYALLOC(int, input_range);
 
 		if(mode_noeq) {
 			for(i=0; i<input_range; i++) xform_table[band_idx][i] = i;
 		} else {
-			int *histogram = (int *)malloc_or_die(input_range * sizeof(int));
+			int *histogram = MYALLOC(int, input_range);
 
 			printf("\nComputing stats for band %d...\n", band_idx+1);
 
@@ -237,8 +237,8 @@ int main(int argc, char *argv[]) {
 
 	int blocksize_x, blocksize_y;
 	GDALGetBlockSize(src_bands[0], &blocksize_x, &blocksize_y);
-	GUInt16 *buf_in = (GUInt16 *)malloc_or_die(sizeof(GUInt16)*blocksize_x*blocksize_y);
-	uint8_t *buf_out = (uint8_t *)malloc_or_die(blocksize_x*blocksize_y);
+	GUInt16 *buf_in = MYALLOC(GUInt16, blocksize_x*blocksize_y);
+	uint8_t *buf_out = MYALLOC(uint8_t, blocksize_x*blocksize_y);
 
 	int boff_x, boff_y;
 	for(boff_y=0; boff_y<h; boff_y+=blocksize_y) {
@@ -289,7 +289,7 @@ void compute_histogram(GDALRasterBandH src_band, int w, int h, int *histogram, i
 
 	int blocksize_x, blocksize_y;
 	GDALGetBlockSize(src_band, &blocksize_x, &blocksize_y);
-	GUInt16 *buf = (GUInt16 *)malloc_or_die(sizeof(GUInt16)*blocksize_x*blocksize_y);
+	GUInt16 *buf = MYALLOC(GUInt16, blocksize_x*blocksize_y);
 
 	int boff_x, boff_y;
 	for(boff_y=0; boff_y<h; boff_y+=blocksize_y) {
@@ -376,7 +376,7 @@ void get_scale_from_percentile(
 }
 
 double *gen_gaussian(double variance, int bin_count) {
-	double *arr = (double *)malloc_or_die(sizeof(double) * bin_count);
+	double *arr = MYALLOC(double, bin_count);
 	double total = 0;
 	int i;
 	for(i=0; i<bin_count; i++) {

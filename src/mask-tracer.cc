@@ -48,9 +48,9 @@ static void debug_write_mask(uint8_t *mask, int w, int h) {
 }
 
 static ring_t *make_enclosing_ring(int w, int h) {
-	ring_t *ring = (ring_t *)malloc_or_die(sizeof(ring_t));
+	ring_t *ring = MYALLOC(ring_t, 1);
 	ring->npts = 4;
-	ring->pts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * ring->npts);
+	ring->pts = MYALLOC(vertex_t, ring->npts);
 	ring->pts[0].x = -1;
 	ring->pts[0].y = -1;
 	ring->pts[1].x = w;
@@ -110,7 +110,7 @@ int initial_x, int initial_y, int select_color) {
 
 	ring_t ring;
 	int ringbuf_size = 4;
-	ring.pts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * ringbuf_size);
+	ring.pts = MYALLOC(vertex_t, ringbuf_size);
 	ring.pts[0].x = initial_x;
 	ring.pts[0].y = initial_y;
 	ring.npts = 1;
@@ -153,8 +153,7 @@ int initial_x, int initial_y, int select_color) {
 			if(ring.npts == ringbuf_size) {
 				if(ringbuf_size) ringbuf_size *= 2;
 				else ringbuf_size = 4;
-				ring.pts = (vertex_t *)realloc_or_die(ring.pts, 
-					sizeof(vertex_t) * ringbuf_size);
+				ring.pts = REMYALLOC(vertex_t, ring.pts, ringbuf_size);
 			}
 			ring.pts[ring.npts].x = x;
 			ring.pts[ring.npts].y = y;
@@ -163,8 +162,7 @@ int initial_x, int initial_y, int select_color) {
 	}
 
 	if(ringbuf_size > ring.npts) {
-		ring.pts = (vertex_t *)realloc_or_die(ring.pts, 
-			sizeof(vertex_t) * ring.npts);
+		ring.pts = REMYALLOC(vertex_t, ring.pts, ring.npts);
 	}
 
 	return ring;
@@ -265,8 +263,7 @@ long min_area, int no_donuts) {
 						//r.parent_id = -1;
 						//r.is_hole = 0;
 
-						out_poly->rings = (ring_t *)realloc_or_die(out_poly->rings,
-							sizeof(ring_t) * (out_poly->num_rings + 1));
+						out_poly->rings = REMYALLOC(ring_t, out_poly->rings, (out_poly->num_rings + 1));
 						int outer_ring_id = (out_poly->num_rings++);
 						out_poly->rings[outer_ring_id] = r;
 
@@ -316,7 +313,7 @@ mpoly_t trace_mask(uint8_t *mask_8bit, int w, int h, long min_area, int no_donut
 	if(VERBOSE >= 4) debug_write_mask(mask_8bit, w, h);
 
 	/*
-	uint8_t *mask_8bit = (uint8_t *)malloc_or_die((w+2)*(h+2));
+	uint8_t *mask_8bit = MYALLOC(uint8_t, (w+2)*(h+2));
 	// FIXME - only need to clear borders
 	memset(mask_8bit, 0, (w+2)*(h+2));
 	for(int y=0; y<h; y++) {

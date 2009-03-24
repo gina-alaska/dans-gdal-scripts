@@ -42,15 +42,15 @@ void fatal_error(const char *fmt, ...) {
 	exit(1);
 }
 
-void *malloc_or_die(size_t size) {
-	if(size <= 0) fatal_error("size <= 0 in malloc_or_die (%ld)", (long)size);
+void *_myalloc(size_t size) {
+	if(size <= 0) fatal_error("size <= 0 in MYALLOC (%ld)", (long)size);
 	void *p = malloc(size);
 	if(!p) fatal_error("out of memory");
 	return p;
 }
 
-void *realloc_or_die(void *p, size_t size) {
-	if(size <= 0) fatal_error("size <= 0 in realloc_or_die (%ld)", (long)size);
+void *_remyalloc(void *p, size_t size) {
+	if(size <= 0) fatal_error("size <= 0 in REMYALLOC (%ld)", (long)size);
 	p = realloc(p, size);
 	if(!p) fatal_error("out of memory");
 	return p;

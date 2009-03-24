@@ -38,7 +38,7 @@ static inline double sqlen(vertex_t v0, vertex_t v1) {
 static void keep_long_segs(ring_t *ring, reduced_ring_t *reduced) {
 	int npts = ring->npts;
 	vertex_t *pts = ring->pts;
-	bool *keep = (bool *)malloc_or_die(sizeof(bool) * npts);
+	bool *keep = MYALLOC(bool, npts);
 	for(int i=0; i<npts; i++) keep[i] = false;
 	double max_sqlen = 400; // FIXME
 	for(int i=0; i<reduced->num_segs; i++) {
@@ -55,7 +55,7 @@ static void keep_long_segs(ring_t *ring, reduced_ring_t *reduced) {
 	int nkeep = 0;
 	for(int i=0; i<npts; i++) if(keep[i]) nkeep++;
 	reduced->num_segs = nkeep;
-	reduced->segs = (segment_t *)malloc_or_die(sizeof(segment_t) * nkeep);
+	reduced->segs = MYALLOC(segment_t, nkeep);
 	int last_keep = -1, first_keep = -1;
 	int s_idx = 0;
 	for(int i=0; i<npts; i++) {
@@ -85,8 +85,7 @@ mpoly_t pinch_excursions(mpoly_t *in_mpoly, report_image_t *dbuf) {
 		return empty_polygon();
 	}
 
-	reduced_ring_t *reduced_rings = (reduced_ring_t *)
-		malloc_or_die(sizeof(reduced_ring_t) * in_mpoly->num_rings);
+	reduced_ring_t *reduced_rings = MYALLOC(reduced_ring_t, in_mpoly->num_rings);
 
 	double tolerance = 1;
 	int c_idx;

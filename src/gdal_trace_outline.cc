@@ -150,8 +150,7 @@ typedef struct {
 geom_output_t *add_geom_output(geom_output_list_t *list, int out_cs) {
 	if(out_cs == CS_UNKNOWN) fatal_error(
 		"must specify output coordinate system with -out-cs option before specifying output");
-	list->output = (geom_output_t *)realloc_or_die(list->output,
-		sizeof(geom_output_t) * (list->num + 1));
+	list->output = REMYALLOC(geom_output_t, list->output, (list->num + 1));
 	geom_output_t *go = list->output + list->num;
 	list->num++;
 
@@ -211,8 +210,7 @@ int main(int argc, char **argv) {
 				char *endptr;
 				int bandid = (int)strtol(argv[argp++], &endptr, 10);
 				if(*endptr) usage(argv[0]);
-				inspect_bandids = (int *)realloc_or_die(inspect_bandids,
-					sizeof(int)*(inspect_numbands+1));
+				inspect_bandids = REMYALLOC(int, inspect_bandids, (inspect_numbands+1));
 				inspect_bandids[inspect_numbands++] = bandid;
 			} else if(!strcmp(arg, "-erosion")) {
 				do_erosion = 1;
@@ -307,7 +305,7 @@ int main(int argc, char **argv) {
 
 	if(!inspect_numbands) {
 		inspect_numbands = classify ? 1 : GDALGetRasterCount(ds);
-		inspect_bandids = (int *)malloc_or_die(sizeof(int)*inspect_numbands);
+		inspect_bandids = MYALLOC(int, inspect_numbands);
 		int i;
 		for(i=0; i<inspect_numbands; i++) inspect_bandids[i] = i+1;
 	}
@@ -488,7 +486,7 @@ int main(int argc, char **argv) {
 					shape_is_copy = 0;
 				} else {
 					num_shapes = 1;
-					shapes = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
+					shapes = MYALLOC(mpoly_t, 1);
 					shapes[0] = feature_poly;
 					shape_is_copy = 1;
 				}
@@ -525,7 +523,7 @@ int main(int argc, char **argv) {
 						if(go->wkb_fh) {
 							int wkb_size = OGR_G_WkbSize(ogr_geom);
 							printf("WKB size = %d\n", wkb_size);
-							unsigned char *wkb_out = (unsigned char *)malloc_or_die(wkb_size);
+							unsigned char *wkb_out = MYALLOC(unsigned char, wkb_size);
 							OGR_G_ExportToWkb(ogr_geom, WKB_BYTE_ORDER, wkb_out);
 							fwrite(wkb_out, wkb_size, 1, go->wkb_fh);
 							free(wkb_out);
@@ -605,8 +603,8 @@ long min_ring_area, double bevel_size) {
 	if(min_ring_area > 0) {
 		if(VERBOSE) printf("removing small rings...\n");
 
-		ring_t *filtered_rings = (ring_t *)malloc_or_die(sizeof(ring_t) * mp.num_rings);
-		int *parent_map = (int *)malloc_or_die(sizeof(int) * mp.num_rings);
+		ring_t *filtered_rings = MYALLOC(ring_t, mp.num_rings);
+		int *parent_map = MYALLOC(int, mp.num_rings);
 		for(int i=0; i<mp.num_rings; i++) {
 			parent_map[i] = -1;
 		}
@@ -654,7 +652,7 @@ long min_ring_area, double bevel_size) {
 
 		mpoly_t new_mp;
 		new_mp.num_rings = 1;
-		new_mp.rings = (ring_t *)malloc_or_die(sizeof(ring_t));
+		new_mp.rings = MYALLOC(ring_t, 1);
 		new_mp.rings[0] = mp.rings[best_idx];
 
 		for(int i=0; i<mp.num_rings; i++) {

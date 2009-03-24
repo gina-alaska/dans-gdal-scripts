@@ -43,7 +43,7 @@ row_crossings_t crossings_dbl_to_int(row_crossings_dbl_t *in) {
 	if(in->num_crossings == 0) {
 		out.crossings = NULL;
 	} else {
-		out.crossings = (int *)malloc_or_die(sizeof(int) * out.array_size);
+		out.crossings = MYALLOC(int, out.array_size);
 		for(int i=0; i<in->num_crossings; i+=2) {
 			int from = (int)ceil(in->crossings[i] - EPSILON);
 			int to = (int)floor(in->crossings[i+1] + EPSILON);
@@ -82,8 +82,8 @@ static void dbl_crossings_sort(row_crossings_dbl_t *r) {
 // that are entirely contained within the polygon.  The results will be slightly wrong for
 // polygons whose vertices are not integers.
 row_crossings_t *get_row_crossings(mpoly_t *mpoly, int min_y, int num_rows) {
-	row_crossings_dbl_t *rows_top = (row_crossings_dbl_t *)malloc_or_die(sizeof(row_crossings_dbl_t) * num_rows);
-	row_crossings_dbl_t *rows_bot = (row_crossings_dbl_t *)malloc_or_die(sizeof(row_crossings_dbl_t) * num_rows);
+	row_crossings_dbl_t *rows_top = MYALLOC(row_crossings_dbl_t, num_rows);
+	row_crossings_dbl_t *rows_bot = MYALLOC(row_crossings_dbl_t, num_rows);
 
 	for(int i=0; i<num_rows; i++) {
 		rows_top[i].num_crossings = 0;
@@ -118,8 +118,7 @@ row_crossings_t *get_row_crossings(mpoly_t *mpoly, int min_y, int num_rows) {
 					row_crossings_dbl_t *r = rows_bot + row;
 					if(r->num_crossings == r->array_size) {
 						r->array_size += 16;
-						r->crossings = (double *)realloc_or_die(r->crossings,
-							sizeof(double) * r->array_size);
+						r->crossings = REMYALLOC(double, r->crossings, r->array_size);
 					}
 					r->crossings[r->num_crossings++] = x;
 				}
@@ -129,8 +128,7 @@ row_crossings_t *get_row_crossings(mpoly_t *mpoly, int min_y, int num_rows) {
 					row_crossings_dbl_t *r = rows_top + row;
 					if(r->num_crossings == r->array_size) {
 						r->array_size += 16;
-						r->crossings = (double *)realloc_or_die(r->crossings,
-							sizeof(double) * r->array_size);
+						r->crossings = REMYALLOC(double, r->crossings, r->array_size);
 					}
 					r->crossings[r->num_crossings++] = x;
 				}
@@ -138,7 +136,7 @@ row_crossings_t *get_row_crossings(mpoly_t *mpoly, int min_y, int num_rows) {
 		}
 	}
 
-	row_crossings_t *rows_out = (row_crossings_t *)malloc_or_die(sizeof(row_crossings_t) * num_rows);
+	row_crossings_t *rows_out = MYALLOC(row_crossings_t, num_rows);
 
 	for(int i=0; i<num_rows; i++) {
 		rows_out[i].num_crossings = 0;
@@ -192,7 +190,7 @@ void mask_from_mpoly(mpoly_t *mpoly, int w, int h, const char *fn) {
 	FILE *fout = fopen(fn, "wb");
 	if(!fout) fatal_error("cannot open mask output");
 	fprintf(fout, "P4\n%d %d\n", w, h);
-	uint8_t *buf = (uint8_t *)malloc_or_die((w+7)/8);
+	uint8_t *buf = MYALLOC(uint8_t, (w+7)/8);
 	for(y=0; y<h; y++) {
 		memset(buf, 0, (w+7)/8);
 		uint8_t *p = buf;
@@ -256,8 +254,7 @@ void crossings_intersection(row_crossings_t *out, row_crossings_t *in1, row_cros
 		}
 		if(out->array_size < out->num_crossings+2) {
 			out->array_size += 16;
-			out->crossings = (int *)realloc_or_die(out->crossings,
-				sizeof(int) * out->array_size);
+			out->crossings = REMYALLOC(int, out->crossings, out->array_size);
 		}
 		out->crossings[out->num_crossings++] = open;
 		out->crossings[out->num_crossings++] = close;

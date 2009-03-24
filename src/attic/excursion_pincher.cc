@@ -69,7 +69,7 @@ static chopdata_t chop_ring_into_cells(ring_t *ring, double stepsize) {
 	cd.stepsize = stepsize;
 	cd.num_x = (int)((max_x - cd.min_x) / cd.stepsize) + 1;
 	cd.num_y = (int)((max_y - cd.min_y) / cd.stepsize) + 1;
-	cd.cells = (box_contents_t *)malloc_or_die(sizeof(box_contents_t) * cd.num_x * cd.num_y);
+	cd.cells = MYALLOC(box_contents_t, cd.num_x * cd.num_y);
 	for(int i=0; i < cd.num_x * cd.num_y; i++) {
 		cd.cells[i].npts = 0;
 		cd.cells[i].point_ids = NULL;
@@ -77,9 +77,7 @@ static chopdata_t chop_ring_into_cells(ring_t *ring, double stepsize) {
 
 	for(int vid=0; vid<ring->npts; vid++) {
 		int cid = get_cell_id(&cd, ring->pts[vid]);
-		cd.cells[cid].point_ids = (int *)realloc_or_die(
-			cd.cells[cid].point_ids,
-			sizeof(int) * (cd.cells[cid].npts+1));
+		cd.cells[cid].point_ids = REMYALLOC(int, cd.cells[cid].point_ids, (cd.cells[cid].npts+1));
 		cd.cells[cid].point_ids[ cd.cells[cid].npts++ ] = vid;
 	}
 
@@ -165,8 +163,7 @@ static box_contents_t get_neighbors(ring_t *ring, chopdata_t *cd, int v1id, doub
 				vertex_t v2 = ring->pts[v2id];
 				double d = vert_dist(v1, v2);
 				if(d > radius) continue;
-				out.point_ids = (int *)realloc_or_die(out.point_ids,
-					sizeof(int) * (out.npts + 1));
+				out.point_ids = REMYALLOC(int, out.point_ids, (out.npts + 1));
 				out.point_ids[out.npts++] = v2id;
 			}
 		}
@@ -245,7 +242,7 @@ static ring_t pinch_excursions_once(ring_t *ring) {
 		}
 	}
 
-	out.pts = (vertex_t *)realloc_or_die(out.pts, sizeof(vertex_t) * out.npts);
+	out.pts = REMYALLOC(vertex_t, out.pts, out.npts);
 
 	return out;
 }
@@ -271,7 +268,7 @@ mpoly_t pinch_excursions(mpoly_t *mp_in, report_image_t *dbuf) {
 
 	mpoly_t mp_out;
 	mp_out.num_rings = mp_red.num_rings;
-	mp_out.rings = (ring_t *)malloc_or_die(sizeof(ring_t) * mp_out.num_rings);
+	mp_out.rings = MYALLOC(ring_t, mp_out.num_rings);
 	for(int r_idx=0; r_idx<mp_red.num_rings; r_idx++) {
 		mp_out.rings[r_idx] = pinch_ring_excursions(mp_red.rings+r_idx, dbuf);
 	}

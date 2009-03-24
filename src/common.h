@@ -92,9 +92,13 @@ enum bool {false, true};
 
 extern int VERBOSE;
 
+#define MYALLOC(type, cnt) ((type *)_myalloc(sizeof(type) * (cnt)))
+#define REMYALLOC(type, buf, cnt) ((type *)_remyalloc(buf, sizeof(type) * (cnt)))
+
+// use the MYALLOC macro which wraps this function
 void fatal_error(const char *s, ...) __attribute__((noreturn, format(printf, 1, 2)));
-void *malloc_or_die(size_t size) __attribute__((malloc));
-void *realloc_or_die(void *p, size_t size) __attribute__((warn_unused_result));
+void *_myalloc(size_t size) __attribute__((malloc));
+void *_remyalloc(void *p, size_t size) __attribute__((warn_unused_result));
 int parse_list_of_doubles(const char *input, int *num_out, double **list_out);
 void setup_ndv_list(GDALDatasetH ds, int bandlist_size, int *bandlist, int *num_ndv, double **ndv_list);
 

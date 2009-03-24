@@ -53,8 +53,8 @@ double ang_diff(double a1, double a2) {
 ring_t calc_rect4_from_convex_hull(uint8_t *mask, int w, int h, report_image_t *dbuf) {
 	int i, j;
 
-	int *chrows_left = (int *)malloc_or_die(sizeof(int) * h);
-	int *chrows_right = (int *)malloc_or_die(sizeof(int) * h);
+	int *chrows_left = MYALLOC(int, h);
+	int *chrows_right = MYALLOC(int, h);
 	for(i=0; i<h; i++) {
 		chrows_left[i] = w;
 		chrows_right[i] = -1;
@@ -118,7 +118,7 @@ ring_t calc_rect4_from_convex_hull(uint8_t *mask, int w, int h, report_image_t *
 		//if(VERBOSE) printf("  f=[%3d,%3d] ", best_x, best_y);
 		//if(VERBOSE) printf("  a=[% 3.1f]\n", angle);
 
-		all_edges = (edge_t *)realloc_or_die(all_edges, (num_edges+1)*sizeof(edge_t));
+		all_edges = REMYALLOC(edge_t, all_edges, (num_edges+1));
 		all_edges[num_edges].p0.x = fulcrum_x;
 		all_edges[num_edges].p0.y = fulcrum_y;
 		all_edges[num_edges].p1.x = best_x;
@@ -203,7 +203,7 @@ ring_t calc_rect4_from_convex_hull(uint8_t *mask, int w, int h, report_image_t *
 		printf("  group=%d\n", l.group);
 	}
 
-	edge_group_t *groups = (edge_group_t *)malloc_or_die(sizeof(edge_group_t) * num_groups);
+	edge_group_t *groups = MYALLOC(edge_group_t, num_groups);
 	for(i=0; i<num_groups; i++) {
 		groups[i].arc_len = 0;
 		groups[i].wx = 0;
@@ -273,7 +273,7 @@ ring_t calc_rect4_from_convex_hull(uint8_t *mask, int w, int h, report_image_t *
 	}
 
 	//if(VERBOSE) printf("%d edges\n", num_groups);
-	vertex_t *verts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * num_groups);
+	vertex_t *verts = MYALLOC(vertex_t, num_groups);
 	for(i=0; i<num_groups; i++) {
 		j = i ? i-1 : num_groups-1;
 		edge_t e1 = groups[i].best_edge;

@@ -102,7 +102,7 @@ int main(int argc, char *argv[]) {
 			else if(!strcmp(arg, "-rgb")) {
 				if(argp == argc) usage(argv[0]);
 				char *fn = argv[argp++];
-				rgb_ds = (GDALDatasetH *)realloc_or_die(rgb_ds, sizeof(GDALDatasetH) * (rgb_ds_count+1));
+				rgb_ds = REMYALLOC(GDALDatasetH, rgb_ds, (rgb_ds_count+1));
 				GDALDatasetH ds = GDALOpen(fn, GA_ReadOnly);
 				if(!ds) fatal_error("open failed");
 				rgb_ds[rgb_ds_count++] = ds; 
@@ -111,12 +111,12 @@ int main(int argc, char *argv[]) {
 			else if(!strcmp(arg, "-lum")) {
 				if(argp == argc) usage(argv[0]);
 				char *fn = argv[argp++];
-				lum_ds = (GDALDatasetH *)realloc_or_die(lum_ds, sizeof(GDALDatasetH) * (lum_ds_count+1));
+				lum_ds = REMYALLOC(GDALDatasetH, lum_ds, (lum_ds_count+1));
 				GDALDatasetH ds = GDALOpen(fn, GA_ReadOnly);
 				if(!ds) fatal_error("open failed");
 				lum_ds[lum_ds_count++] = ds; 
 				int nb = GDALGetRasterCount(ds);
-				lum_weights = (double *)realloc_or_die(lum_weights, sizeof(double) * (lum_band_count+nb));
+				lum_weights = REMYALLOC(double, lum_weights, (lum_band_count+nb));
 				while(nb) {
 					if(argp == argc) usage(argv[0]);
 					char *endptr;
@@ -155,7 +155,7 @@ int main(int argc, char *argv[]) {
 	int ds_idx;
 	int band_idx;
 
-	scaled_band_t *rgb_bands = (scaled_band_t *)malloc_or_die(sizeof(scaled_band_t) * rgb_band_count);
+	scaled_band_t *rgb_bands = MYALLOC(scaled_band_t, rgb_band_count);
 	for(ds_idx=0, band_idx=0; ds_idx<rgb_ds_count; ds_idx++) {
 		int nb = GDALGetRasterCount(rgb_ds[ds_idx]);
 		int i;
@@ -166,7 +166,7 @@ int main(int argc, char *argv[]) {
 
 	scaled_band_t *lum_bands;
 	if(lum_ds_count) {
-		lum_bands = (scaled_band_t *)malloc_or_die(sizeof(scaled_band_t) * lum_band_count);
+		lum_bands = MYALLOC(scaled_band_t, lum_band_count);
 		for(ds_idx=0, band_idx=0; ds_idx<lum_ds_count; ds_idx++) {
 			int nb = GDALGetRasterCount(lum_ds[ds_idx]);
 			for(i=0; i<nb; i++) {
@@ -176,7 +176,7 @@ int main(int argc, char *argv[]) {
 	} else {
 		lum_band_count = rgb_band_count;
 		lum_bands = rgb_bands;
-		lum_weights = (double *)malloc_or_die(sizeof(double) * lum_band_count);
+		lum_weights = MYALLOC(double, lum_band_count);
 		for(i=0; i<lum_band_count; i++) lum_weights[i] = 1;
 	}
 
@@ -201,21 +201,21 @@ int main(int argc, char *argv[]) {
 	if(!dst_ds) fatal_error("could not create output");
 	copyGeoCode(dst_ds, pan_ds);
 
-	GDALRasterBandH *dst_bands = (GDALRasterBandH *)malloc_or_die(sizeof(GDALRasterBandH) * rgb_band_count);
+	GDALRasterBandH *dst_bands = MYALLOC(GDALRasterBandH, rgb_band_count);
 	for(i=0; i<rgb_band_count; i++) {
 		dst_bands[i] = GDALGetRasterBand(dst_ds, i+1);
 	}
 
 	//////// process data ////////
 
-	double **lum_buf = (double **)malloc_or_die(sizeof(double *) * lum_band_count);
+	double **lum_buf = MYALLOC(double *, lum_band_count);
 	for(band_idx=0; band_idx<lum_band_count; band_idx++) {
-		lum_buf[band_idx] = (double *)malloc_or_die(sizeof(double) * w);
+		lum_buf[band_idx] = MYALLOC(double, w);
 	}
-	double *pan_buf = (double *)malloc_or_die(sizeof(double) * w);
-	double *rgb_buf = (double *)malloc_or_die(sizeof(double) * w);
-	uint8_t *out_buf = (uint8_t *)malloc_or_die(sizeof(uint8_t) * w);
-	double *scale_buf = (double *)malloc_or_die(sizeof(double) * w);
+	double *pan_buf = MYALLOC(double, w);
+	double *rgb_buf = MYALLOC(double, w);
+	uint8_t *out_buf = MYALLOC(uint8_t, w);
+	double *scale_buf = MYALLOC(double, w);
 
 	int row;
 	for(row=0; row<h; row++) {
@@ -355,12 +355,12 @@ scaled_band_t getScaledBand(GDALDatasetH lores_ds, int band_id, GDALDatasetH hir
 
 	// Cubic convolution resampling.  For more info see:
 	// http://www.imgfsr.com/ResamplingCVPR.pdf
-	sb.kernel_x = (double **)malloc_or_die(sizeof(double *) * sb.oversample);
-	sb.kernel_y = (double **)malloc_or_die(sizeof(double *) * sb.oversample);
+	sb.kernel_x = MYALLOC(double *, sb.oversample);
+	sb.kernel_y = MYALLOC(double *, sb.oversample);
 	int mod;
 	for(mod=0; mod<sb.oversample; mod++) {
-		sb.kernel_x[mod] = (double *)malloc_or_die(sizeof(double) * 4);
-		sb.kernel_y[mod] = (double *)malloc_or_die(sizeof(double) * 4);
+		sb.kernel_x[mod] = MYALLOC(double, 4);
+		sb.kernel_y[mod] = MYALLOC(double, 4);
 		double t = offset_x + (double)mod / (double)sb.oversample;
 		sb.kernel_x[mod][0] = -0.5*t*t*t + 1.0*t*t - 0.5*t;
 		sb.kernel_x[mod][1] =  1.5*t*t*t - 2.5*t*t + 1;
@@ -373,10 +373,10 @@ scaled_band_t getScaledBand(GDALDatasetH lores_ds, int band_id, GDALDatasetH hir
 		sb.kernel_y[mod][3] =  0.5*t*t*t - 0.5*t*t;
 	}
 
-	sb.lines_buf = (double **)malloc_or_die(sizeof(double *) * 4);
+	sb.lines_buf = MYALLOC(double *, 4);
 	int j;
 	for(j=0; j<4; j++) {
-		sb.lines_buf[j] = (double *)malloc_or_die(sizeof(double) * sb.hi_w);
+		sb.lines_buf[j] = MYALLOC(double, sb.hi_w);
 	}
 	sb.line_buf_idx = -1000000;
 
@@ -384,7 +384,7 @@ scaled_band_t getScaledBand(GDALDatasetH lores_ds, int band_id, GDALDatasetH hir
 }
 
 void readLineScaled1D(scaled_band_t *sb, int row, double *hires_buf) {
-	double *lores_buf = (double *)malloc_or_die(sizeof(double) * sb->lo_w);
+	double *lores_buf = MYALLOC(double, sb->lo_w);
 
 	if(row<0 || row>=sb->lo_h) {
 		int col;

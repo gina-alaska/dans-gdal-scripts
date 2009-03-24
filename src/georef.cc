@@ -43,7 +43,7 @@ Geocoding:\n\
 }
 
 static void add_arg_to_list(int *argc_ptr, char ***argv_ptr, char *new_arg) {
-	*argv_ptr= (char **)realloc_or_die(*argv_ptr, sizeof(char *) * (*argc_ptr+1));
+	*argv_ptr = REMYALLOC(char *, *argv_ptr, (*argc_ptr+1));
 	(*argv_ptr)[*argc_ptr] = new_arg;
 	(*argc_ptr)++;
 }
@@ -187,14 +187,14 @@ georef_t init_georef(geo_opts_t *opt, GDALDatasetH ds) {
 		}
 
 		if(!opt->got_ul_en) fatal_error("impossibility");
-		georef.fwd_affine = (double *)malloc_or_die(sizeof(double) * 6);
+		georef.fwd_affine = MYALLOC(double, 6);
 		georef.fwd_affine[0] = opt->given_left_e;  
 		georef.fwd_affine[3] = opt->given_upper_n; 
 		georef.fwd_affine[1] = opt->res_x; georef.fwd_affine[2] =      0;
 		georef.fwd_affine[4] =     0; georef.fwd_affine[5] = -opt->res_y;
 	} else if(ds) {
 		int has_rotation = 0;
-		georef.fwd_affine = (double *)malloc_or_die(sizeof(double) * 6);
+		georef.fwd_affine = MYALLOC(double, 6);
 		if(GDALGetGeoTransform(ds, georef.fwd_affine) == CE_None) {
 			has_rotation = georef.fwd_affine[2] || georef.fwd_affine[4];
 		} else {
@@ -236,7 +236,7 @@ georef_t init_georef(geo_opts_t *opt, GDALDatasetH ds) {
 	}
 
 	if(georef.fwd_affine) {
-		georef.inv_affine = (double *)malloc_or_die(sizeof(double) * 6);
+		georef.inv_affine = MYALLOC(double, 6);
 		if(!GDALInvGeoTransform(georef.fwd_affine, georef.inv_affine)) {
 			fatal_error("affine is not invertible");
 		}

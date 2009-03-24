@@ -78,8 +78,7 @@ void bevel_self_intersections(mpoly_t *mp, double amount) {
 
 	if(VERBOSE) printf("allocating %zd megs for beveler\n",
 		(total_pts*sizeof(vertsort_entry)) >> 20);
-	vertsort_entry *entries = (vertsort_entry *)malloc_or_die(
-		sizeof(vertsort_entry) * total_pts);
+	vertsort_entry *entries = MYALLOC(vertsort_entry, total_pts);
 	int entry_idx = 0;
 	for(int r_idx=0; r_idx<mp->num_rings; r_idx++) {
 		ring_t *ring = mp->rings + r_idx;
@@ -127,7 +126,7 @@ void bevel_self_intersections(mpoly_t *mp, double amount) {
 	}
 
 	// decrease memory usage
-	entries = (vertsort_entry *)realloc_or_die(entries, sizeof(vertsort_entry) * total_num_touch);
+	entries = REMYALLOC(vertsort_entry, entries, total_num_touch);
 	// sort by ring_idx,vert_idx
 	qsort(entries, total_num_touch, sizeof(vertsort_entry), compare_rings);
 
@@ -146,7 +145,7 @@ void bevel_self_intersections(mpoly_t *mp, double amount) {
 		if(VERBOSE >= 2) printf("ring %zd: num_touch=%d\n", ring - mp->rings, ring_num_touch);
 
 		int new_numpts = ring->npts + ring_num_touch;
-		vertex_t *new_pts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * new_numpts);
+		vertex_t *new_pts = MYALLOC(vertex_t, new_numpts);
 
 		int vin_idx = 0;
 		int vout_idx = 0;

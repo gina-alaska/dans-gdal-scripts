@@ -59,7 +59,7 @@ int main(int argc, char *argv[]) {
 			else if(!strcmp(arg, "-in")) {
 				if(argp == argc) usage(argv[0]);
 				char *fn = argv[argp++];
-				src_ds = (GDALDatasetH *)realloc_or_die(src_ds, sizeof(GDALDatasetH) * (src_ds_count+1));
+				src_ds = REMYALLOC(GDALDatasetH, src_ds, (src_ds_count+1));
 				GDALDatasetH ds = GDALOpen(fn, GA_ReadOnly);
 				if(!ds) fatal_error("open failed");
 				src_ds[src_ds_count++] = ds; 
@@ -78,7 +78,7 @@ int main(int argc, char *argv[]) {
 
 	//////// open source ////////
 
-	GDALRasterBandH *src_bands = (GDALRasterBandH *)malloc_or_die(sizeof(GDALRasterBandH) * band_count);
+	GDALRasterBandH *src_bands = MYALLOC(GDALRasterBandH, band_count);
 
 	int w=0, h=0;
 
@@ -112,7 +112,7 @@ int main(int argc, char *argv[]) {
 	if(!dst_ds) fatal_error("could not create output");
 	copyGeoCode(dst_ds, src_ds[0]);
 
-	GDALRasterBandH *dst_bands = (GDALRasterBandH *)malloc_or_die(sizeof(GDALRasterBandH) * band_count);
+	GDALRasterBandH *dst_bands = MYALLOC(GDALRasterBandH, band_count);
 	for(i=0; i<band_count; i++) {
 		dst_bands[i] = GDALGetRasterBand(dst_ds, i+1);
 	}
@@ -122,7 +122,7 @@ int main(int argc, char *argv[]) {
 	int chunk_size = 200;
 
 	// FIXME - handle other datatypes
-	uint8_t *buf = (uint8_t *)malloc_or_die(w * chunk_size);
+	uint8_t *buf = MYALLOC(uint8_t, w * chunk_size);
 
 	int row;
 	for(row=0; row<h; row+=chunk_size) {

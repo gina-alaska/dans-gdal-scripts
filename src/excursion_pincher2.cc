@@ -99,7 +99,7 @@ static int find_next_convex(ring_t *ring, int start_idx, int limit_idx, double s
 }
 
 static bool *find_chull(ring_t *ring) {
-	bool *keep = (bool *)malloc_or_die(sizeof(bool) * ring->npts);
+	bool *keep = MYALLOC(bool, ring->npts);
 	for(int i=0; i<ring->npts; i++) keep[i] = false;
 
 	int start_idx = find_bottom_pt(ring);
@@ -296,7 +296,7 @@ static int keep_linears(ring_t *ring, bool *keep_orig, int from, int to, bool *t
 
 	if(to == (from+1)%npts) return 0;
 
-	bool *keep_new = (bool *)malloc_or_die(sizeof(bool) * npts);
+	bool *keep_new = MYALLOC(bool, npts);
 
 	double min_length = 20; // FIXME
 
@@ -347,8 +347,8 @@ static int refine_seg(ring_t *ring, bool *keep_orig, int from, int to) {
 	double start_area = subring_area(ring, from, to);
 	double start_perim = seg_len(pts[from], pts[to]);
 
-	bool *keep_new = (bool *)malloc_or_die(sizeof(bool) * npts);
-	bool *keep_best = (bool *)malloc_or_die(sizeof(bool) * npts);
+	bool *keep_new = MYALLOC(bool, npts);
+	bool *keep_best = MYALLOC(bool, npts);
 
 	double best_improvement = 0;
 	int best_touchpt = -1;
@@ -464,7 +464,7 @@ static ring_t pinch_ring_excursions(ring_t *ring) {
 	}
 
 	bool *keep = find_chull(ring);
-	bool *touchpts = (bool *)malloc_or_die(sizeof(bool) * ring->npts);
+	bool *touchpts = MYALLOC(bool, ring->npts);
 	for(int i=0; i<ring->npts; i++) touchpts[i] = false;
 
 	refine_ring(ring, keep, touchpts);
@@ -476,7 +476,7 @@ static ring_t pinch_ring_excursions(ring_t *ring) {
 
 	ring_t outring = *ring;
 	outring.npts = nkeep;
-	outring.pts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * outring.npts);
+	outring.pts = MYALLOC(vertex_t, outring.npts);
 	int oidx=0;
 	for(int i=0; i<npts; i++) {
 		if(keep[i]) outring.pts[oidx++] = pts[i];
@@ -525,7 +525,7 @@ static ring_t ring_ring_union(ring_t *r1, ring_t *r2) {
 mpoly_t pinch_excursions2(mpoly_t *mp_in, report_image_t *dbuf) {
 	mpoly_t mp_out;
 	mp_out.num_rings = mp_in->num_rings;
-	mp_out.rings = (ring_t *)malloc_or_die(sizeof(ring_t) * mp_out.num_rings);
+	mp_out.rings = MYALLOC(ring_t, mp_out.num_rings);
 	for(int r_idx=0; r_idx<mp_in->num_rings; r_idx++) {
 		// FIXME - put a test for this into usage()
 		if(mp_in->rings[r_idx].is_hole) fatal_error("pincher cannot be used on holes");

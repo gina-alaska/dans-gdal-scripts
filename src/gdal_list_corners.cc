@@ -108,8 +108,7 @@ int main(int argc, char **argv) {
 				char *endptr;
 				int bandid = (int)strtol(argv[argp++], &endptr, 10);
 				if(*endptr) usage(argv[0]);
-				inspect_bandids = (int *)realloc_or_die(inspect_bandids,
-					sizeof(int)*(inspect_numbands+1));
+				inspect_bandids = REMYALLOC(int, inspect_bandids, (inspect_numbands+1));
 				inspect_bandids[inspect_numbands++] = bandid;
 			} else if(!strcmp(arg, "-erosion")) {
 				do_erosion++;
@@ -139,7 +138,7 @@ int main(int argc, char **argv) {
 
 	if(do_inspect && !inspect_numbands) {
 		inspect_numbands = GDALGetRasterCount(ds);
-		inspect_bandids = (int *)malloc_or_die(sizeof(int)*inspect_numbands);
+		inspect_bandids = MYALLOC(int, inspect_numbands);
 		for(i=0; i<inspect_numbands; i++) inspect_bandids[i] = i+1;
 	}
 
@@ -188,7 +187,7 @@ int main(int argc, char **argv) {
 			GDALDataType gdt = GDALGetRasterDataType(band);
 			const char *dt = GDALGetDataTypeName(gdt);
 			if(i) {
-				char *join_str = (char *)malloc_or_die(
+				char *join_str = MYALLOC(char,
 					strlen(datatypes) + 1 + strlen(dt) + 1);
 				sprintf(join_str, "%s,%s", datatypes, dt);
 				datatypes = join_str;
@@ -273,9 +272,9 @@ int main(int argc, char **argv) {
 		}
 
 		if(mask_out_fn) {
-			mpoly_t *bpoly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
+			mpoly_t *bpoly = MYALLOC(mpoly_t, 1);
 			bpoly->num_rings = 1;
-			bpoly->rings = (ring_t *)malloc_or_die(sizeof(ring_t));
+			bpoly->rings = MYALLOC(ring_t, 1);
 			bpoly->rings[0] = rect4;
 
 			mask_from_mpoly(bpoly, georef.w, georef.h, mask_out_fn);

@@ -50,7 +50,7 @@ int main(int argc, char *argv[]) {
 			else if(!strcmp(arg, "-in")) {
 				if(argp == argc) usage(argv[0]);
 				char *fn = argv[argp++];
-				src_fn = (char**)realloc_or_die(src_fn, sizeof(char *) * (src_ds_count+1));
+				src_fn = REMYALLOC(char *, src_fn, (src_ds_count+1));
 				src_fn[src_ds_count] = fn; 
 				src_ds_count++;
 			}
@@ -63,7 +63,7 @@ int main(int argc, char *argv[]) {
 	if(src_ds_count < 1) usage(argv[0]);
 	if(!dst_fn) usage(argv[0]);
 
-	GDALDatasetH *src_ds = (GDALDatasetH *)malloc_or_die(sizeof(GDALDatasetH) * src_ds_count);
+	GDALDatasetH *src_ds = MYALLOC(GDALDatasetH, src_ds_count);
 
 	int w=0, h=0;
 	int ds_idx;

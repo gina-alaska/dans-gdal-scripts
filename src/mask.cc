@@ -40,7 +40,7 @@ ndv_def_t *ndv_def, report_image_t *dbuf) {
 	if(VERBOSE) printf("input is %d x %d x %d\n", w, h, band_count);
 
 	if(VERBOSE) printf("mask array is %.1f megabytes\n", (double)(w+2)*(h+2)/1024.0/1024.0);
-	uint8_t *mask = (uint8_t *)malloc_or_die((w+2)*(h+2));
+	uint8_t *mask = MYALLOC(uint8_t, (w+2)*(h+2));
 	memset(mask, 0, (w+2)*(h+2));
 
 	printf("Reading %d bands of size %d x %d\n", bandlist_size, w, h);
@@ -64,12 +64,12 @@ ndv_def_t *ndv_def, report_image_t *dbuf) {
 
 		void *block_buf;
 		if(use_8bit) {
-			block_buf = malloc_or_die(blocksize_x*blocksize_y);
+			block_buf = MYALLOC(uint8_t, blocksize_x*blocksize_y);
 		} else {
-			block_buf = malloc_or_die(blocksize_x*blocksize_y*sizeof(double));
+			block_buf = MYALLOC(double, blocksize_x*blocksize_y);
 		}
 
-		uint8_t *row_ndv = (uint8_t *)malloc(blocksize_x);
+		uint8_t *row_ndv = MYALLOC(uint8_t, blocksize_x);
 
 		int boff_x, boff_y;
 		for(boff_y=0; boff_y<h; boff_y+=blocksize_y) {
@@ -185,8 +185,8 @@ uint8_t *read_dataset_8bit(GDALDatasetH ds, int band_idx, uint8_t *usage_array, 
 
 	printf("Reading one band of size %d x %d\n", w, h);
 
-	uint8_t *outbuf = (uint8_t *)malloc_or_die(w*h);
-	uint8_t *inbuf = (uint8_t *)malloc_or_die(blocksize_x*blocksize_y);
+	uint8_t *outbuf = MYALLOC(uint8_t, w*h);
+	uint8_t *inbuf = MYALLOC(uint8_t, blocksize_x*blocksize_y);
 	for(int boff_y=0; boff_y<h; boff_y+=blocksize_y) {
 		int bsize_y = blocksize_y;
 		if(bsize_y + boff_y > h) bsize_y = h - boff_y;
@@ -236,7 +236,7 @@ uint8_t *read_dataset_8bit(GDALDatasetH ds, int band_idx, uint8_t *usage_array, 
 
 uint8_t *get_mask_for_8bit_raster(int w, int h, const uint8_t *raster, uint8_t wanted) {
 	if(VERBOSE) printf("mask array is %.1f megabytes\n", (double)(w+2)*(h+2)/1024.0/1024.0);
-	uint8_t *mask = (uint8_t *)malloc_or_die((w+2)*(h+2));
+	uint8_t *mask = MYALLOC(uint8_t, (w+2)*(h+2));
 	memset(mask, 0, (w+2)*(h+2));
 
 	for(int y=0; y<h; y++) {
@@ -257,9 +257,9 @@ uint8_t *get_mask_for_8bit_raster(int w, int h, const uint8_t *raster, uint8_t w
 void erode_mask(uint8_t *mask, int w, int h) {
 	w += 2;
 	h += 2;
-	uint8_t *rowu = (uint8_t *)malloc_or_die(w);
-	uint8_t *rowm = (uint8_t *)malloc_or_die(w);
-	uint8_t *rowl = (uint8_t *)malloc_or_die(w);
+	uint8_t *rowu = MYALLOC(uint8_t, w);
+	uint8_t *rowm = MYALLOC(uint8_t, w);
+	uint8_t *rowl = MYALLOC(uint8_t, w);
 	memset(rowm, 0, w);
 	memcpy(rowl, mask, w);
 

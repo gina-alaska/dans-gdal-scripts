@@ -214,7 +214,7 @@ int main(int argc, char *argv[]) {
 
 	//////////// transfer data
 
-	void *linebuf = malloc_or_die(w * bytes_per_pixel);
+	uint8_t *linebuf = MYALLOC(uint8_t, w * bytes_per_pixel);
 	int row;
 	for(row=0; row<h; row++) {
 		GDALTermProgress((double)row / (double)h, NULL, NULL);

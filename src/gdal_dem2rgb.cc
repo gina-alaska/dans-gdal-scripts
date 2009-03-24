@@ -252,7 +252,7 @@ int main(int argc, char *argv[]) {
 		if(!georef.fwd_xform) {
 			if(!georef.inv_affine) fatal_error("please specify resolution of image");
 			printf("warning: no SRS available - basing orientation on affine transform\n");
-			constant_invaffine = (double *)malloc_or_die(sizeof(double) * 4);
+			constant_invaffine = MYALLOC(double, 4);
 			constant_invaffine[0] = georef.inv_affine[1];
 			constant_invaffine[1] = georef.inv_affine[2];
 			constant_invaffine[2] = georef.inv_affine[4];
@@ -274,7 +274,7 @@ int main(int argc, char *argv[]) {
 		if(tex_w != w || tex_h != h) fatal_error("DEM and texture are different sizes");
 
 		out_numbands = GDALGetRasterCount(tex_ds);
-		tex_bands = (GDALRasterBandH *)malloc_or_die(sizeof(GDALRasterBandH) * out_numbands);
+		tex_bands = MYALLOC(GDALRasterBandH, out_numbands);
 		for(i=0; i<out_numbands; i++) {
 			tex_bands[i] = GDALGetRasterBand(tex_ds, i+1);
 			if(!tex_bands[i]) fatal_error("could not open texture band");
@@ -293,7 +293,7 @@ int main(int argc, char *argv[]) {
 	}
 	GDALSetProjection(dst_ds, GDALGetProjectionRef(src_ds));
 
-	GDALRasterBandH *dst_band = (GDALRasterBandH *)malloc_or_die(sizeof(GDALRasterBandH) * out_numbands);
+	GDALRasterBandH *dst_band = MYALLOC(GDALRasterBandH, out_numbands);
 	for(i=0; i<out_numbands; i++) {
 		dst_band[i] = GDALGetRasterBand(dst_ds, i+1);
 	}
@@ -354,23 +354,23 @@ int main(int argc, char *argv[]) {
 		add_ndv_from_raster(&ndv_def, src_ds, 1, &band_id);
 	}
 
-	double *inbuf_prev = (double *)malloc_or_die(sizeof(double) * w);
-	double *inbuf_this = (double *)malloc_or_die(sizeof(double) * w);
-	double *inbuf_next = (double *)malloc_or_die(sizeof(double) * w);
-	uint8_t *inbuf_ndv_prev = (uint8_t *)malloc_or_die(w);
-	uint8_t *inbuf_ndv_this = (uint8_t *)malloc_or_die(w);
-	uint8_t *inbuf_ndv_next = (uint8_t *)malloc_or_die(w);
+	double *inbuf_prev = MYALLOC(double, w);
+	double *inbuf_this = MYALLOC(double, w);
+	double *inbuf_next = MYALLOC(double, w);
+	uint8_t *inbuf_ndv_prev = MYALLOC(uint8_t, w);
+	uint8_t *inbuf_ndv_this = MYALLOC(uint8_t, w);
+	uint8_t *inbuf_ndv_next = MYALLOC(uint8_t, w);
 
-	uint8_t **outbuf = (uint8_t **)malloc_or_die(sizeof(uint8_t *) * out_numbands);
+	uint8_t **outbuf = MYALLOC(uint8_t *, out_numbands);
 	for(i=0; i<out_numbands; i++) {
-		outbuf[i] = (uint8_t *)malloc_or_die(w);
+		outbuf[i] = MYALLOC(uint8_t, w);
 	}
-	uint8_t *pixel = (uint8_t *)malloc_or_die(out_numbands);
+	uint8_t *pixel = MYALLOC(uint8_t, out_numbands);
 
 	double *invaffine_tierow_above=NULL, *invaffine_tierow_below=NULL;
 	if(do_shade && !constant_invaffine) {
-		invaffine_tierow_above = (double *)malloc_or_die(sizeof(double) * w * 4);
-		invaffine_tierow_below = (double *)malloc_or_die(sizeof(double) * w * 4);
+		invaffine_tierow_above = MYALLOC(double, w * 4);
+		invaffine_tierow_below = MYALLOC(double, w * 4);
 	}
 
 	double min=0, max=0; // initialized to prevent compiler warning
@@ -585,7 +585,7 @@ void scale_values(double *vals, int w, double scale, double offset) {
 }
 
 palette_t *parse_palette(const char * const *lines) {
-	palette_t *p = (palette_t *)malloc_or_die(sizeof(palette_t));
+	palette_t *p = MYALLOC(palette_t, 1);
 
 	int num = 0;
 	p->vals = NULL;
@@ -605,10 +605,10 @@ palette_t *parse_palette(const char * const *lines) {
 			p->nan_blue  = b;
 		} else {
 			num++;
-			p->vals = (double *)realloc_or_die(p->vals, num*sizeof(double));
-			p->reds   = (uint8_t *)realloc_or_die(p->reds,   num);
-			p->greens = (uint8_t *)realloc_or_die(p->greens, num);
-			p->blues  = (uint8_t *)realloc_or_die(p->blues,  num);
+			p->vals   = REMYALLOC(double, p->vals, num);
+			p->reds   = REMYALLOC(uint8_t, p->reds, num);
+			p->greens = REMYALLOC(uint8_t, p->greens, num);
+			p->blues  = REMYALLOC(uint8_t, p->blues, num);
 			p->vals  [num-1] = val;
 			p->reds  [num-1] = r;
 			p->greens[num-1] = g;
@@ -630,7 +630,7 @@ palette_t *read_palette_file(const char *fn) {
 	char *line;
 	char buf[1000];
 	while((line = fgets(buf, 1000, fh))) {
-		lines = (char **)realloc_or_die(lines, sizeof(char *) * (num_lines + 2));
+		lines = REMYALLOC(char *, lines, (num_lines + 2));
 		lines[num_lines] = strdup(line);
 		lines[num_lines+1] = NULL;
 		num_lines++;

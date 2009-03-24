@@ -29,7 +29,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 report_image_t *create_plot(double w, double h) {
 	if(w<0 || h<0) fatal_error("negative size for debug plot (%g,%g)", w, h);
 
-	report_image_t *dbuf = (report_image_t *)malloc_or_die(sizeof(report_image_t));
+	report_image_t *dbuf = MYALLOC(report_image_t, 1);
 	dbuf->canvas_w = w+2;
 	dbuf->canvas_h = h+2;
 
@@ -51,7 +51,7 @@ report_image_t *create_plot(double w, double h) {
 	if(dbuf->stride_x < 1) dbuf->stride_x = 1;
 	if(dbuf->stride_y < 1) dbuf->stride_y = 1;
 
-	dbuf->img = (uint8_t *)malloc_or_die(dbuf->img_w*dbuf->img_h*3);
+	dbuf->img = MYALLOC(uint8_t, dbuf->img_w*dbuf->img_h*3);
 	memset(dbuf->img, 0, dbuf->img_w*dbuf->img_h*3);
 	
 	return dbuf;

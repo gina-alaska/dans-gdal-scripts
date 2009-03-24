@@ -37,7 +37,7 @@ mpoly_t empty_polygon() {
 
 ring_t duplicate_ring(ring_t *in_ring) {
 	ring_t out_ring = *in_ring; // copy metadata
-	out_ring.pts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * out_ring.npts);
+	out_ring.pts = MYALLOC(vertex_t, out_ring.npts);
 	memcpy(out_ring.pts, in_ring->pts, sizeof(vertex_t) * out_ring.npts);
 	return out_ring;
 }
@@ -56,13 +56,13 @@ void free_mpoly(mpoly_t *mpoly) {
 
 void insert_point_into_ring(ring_t *ring, int idx) {
 	if(idx<0 || idx>ring->npts) fatal_error("idx out of range in insert_point_into_ring");
-	ring->pts = (vertex_t *)realloc_or_die(ring->pts, sizeof(vertex_t) * (ring->npts+1));
+	ring->pts = REMYALLOC(vertex_t, ring->pts, (ring->npts+1));
 	memmove(ring->pts + idx + 1, ring->pts + idx, sizeof(vertex_t) * (ring->npts - idx));
 	ring->npts++;
 }
 
 void add_point_to_ring(ring_t *ring, vertex_t v) {
-	ring->pts = (vertex_t *)realloc_or_die(ring->pts, sizeof(vertex_t) * (ring->npts+1));
+	ring->pts = REMYALLOC(vertex_t, ring->pts, (ring->npts+1));
 	ring->pts[ring->npts] = v;
 	ring->npts++;
 }
@@ -112,7 +112,7 @@ bbox_t get_polygon_bbox(mpoly_t *mp) {
 
 bbox_t *make_bboxes(mpoly_t *mp) {
 	int nrings = mp->num_rings;
-	bbox_t *bboxes = (bbox_t *)malloc_or_die(sizeof(bbox_t) * nrings);
+	bbox_t *bboxes = MYALLOC(bbox_t, nrings);
 	int i;
 	for(i=0; i<nrings; i++) {
 		bboxes[i] = get_ring_bbox(mp->rings + i);
@@ -165,7 +165,7 @@ ring_t ogr_to_ring(OGRGeometryH ogr) {
 	ring_t ring;
 	ring.npts = OGR_G_GetPointCount(ogr);
 	if(!ring.npts) fatal_error("ring has no points");
-	ring.pts = (vertex_t *)malloc_or_die(sizeof(vertex_t) * ring.npts);
+	ring.pts = MYALLOC(vertex_t, ring.npts);
 	for(int i=0; i<ring.npts; i++) {
 		ring.pts[i].x = OGR_G_GetX(ogr, i);
 		ring.pts[i].y = OGR_G_GetY(ogr, i);
@@ -176,8 +176,8 @@ ring_t ogr_to_ring(OGRGeometryH ogr) {
 OGRGeometryH mpoly_to_ogr(mpoly_t *mpoly_in) {
 	int num_rings_in = mpoly_in->num_rings;
 
-	int *num_holes = (int *)malloc_or_die(sizeof(int) * num_rings_in);
-	int **holes = (int **)malloc_or_die(sizeof(int *) * num_rings_in);
+	int *num_holes = MYALLOC(int, num_rings_in);
+	int **holes = MYALLOC(int *, num_rings_in);
 	for(int outer_idx=0; outer_idx<num_rings_in; outer_idx++) {
 		num_holes[outer_idx] = 0;
 		holes[outer_idx] = NULL;
@@ -188,8 +188,7 @@ OGRGeometryH mpoly_to_ogr(mpoly_t *mpoly_in) {
 		ring_t *ring = mpoly_in->rings + outer_idx;
 		if(ring->is_hole) {
 			int parent = ring->parent_id;
-			holes[parent] = (int *)realloc_or_die(holes[parent],
-				sizeof(int) * (num_holes[parent]+1));
+			holes[parent] = REMYALLOC(int, holes[parent], (num_holes[parent]+1));
 			holes[parent][num_holes[parent]++] = outer_idx;
 		} else {
 			num_geom_out++;
@@ -243,7 +242,7 @@ mpoly_t ogr_to_mpoly(OGRGeometryH geom_in) {
 		mpoly_out.num_rings = OGR_G_GetGeometryCount(geom_in);
 		if(mpoly_out.num_rings < 1) fatal_error("num_rings<1 in ogr_to_mpoly");
 
-		mpoly_out.rings = (ring_t *)malloc_or_die(sizeof(ring_t) * mpoly_out.num_rings);
+		mpoly_out.rings = MYALLOC(ring_t, mpoly_out.num_rings);
 
 		for(int i=0; i<mpoly_out.num_rings; i++) {
 			mpoly_out.rings[i] = ogr_to_ring(OGR_G_GetGeometryRef(geom_in, i));
@@ -254,7 +253,7 @@ mpoly_t ogr_to_mpoly(OGRGeometryH geom_in) {
 		return mpoly_out;
 	} else if(type == wkbMultiPolygon || type == wkbGeometryCollection) {
 		int num_geom = OGR_G_GetGeometryCount(geom_in);
-		mpoly_t *polys = (mpoly_t *)malloc_or_die(sizeof(mpoly_t) * num_geom);
+		mpoly_t *polys = MYALLOC(mpoly_t, num_geom);
 		int total_rings = 0;
 		for(int i=0; i<num_geom; i++) {
 			OGRGeometryH g = OGR_G_GetGeometryRef(geom_in, i);
@@ -265,7 +264,7 @@ mpoly_t ogr_to_mpoly(OGRGeometryH geom_in) {
 		mpoly_t mpoly_out;
 		mpoly_out.num_rings = total_rings;
 		if(mpoly_out.num_rings < 1) fatal_error("num_rings<1 in ogr_to_mpoly");
-		mpoly_out.rings = (ring_t *)malloc_or_die(sizeof(ring_t) * mpoly_out.num_rings);
+		mpoly_out.rings = MYALLOC(ring_t, mpoly_out.num_rings);
 
 		int o = 0;
 		for(int i=0; i<num_geom; i++) {
@@ -287,8 +286,8 @@ mpoly_t ogr_to_mpoly(OGRGeometryH geom_in) {
 void split_mpoly_to_polys(mpoly_t *mpoly_in, int *num_polys, mpoly_t **polys) {
 	int num_rings_in = mpoly_in->num_rings;
 
-	int *num_holes = (int *)malloc_or_die(sizeof(int) * num_rings_in);
-	int **holes = (int **)malloc_or_die(sizeof(int *) * num_rings_in);
+	int *num_holes = MYALLOC(int, num_rings_in);
+	int **holes = MYALLOC(int *, num_rings_in);
 	for(int outer_idx=0; outer_idx<num_rings_in; outer_idx++) {
 		num_holes[outer_idx] = 0;
 		holes[outer_idx] = NULL;
@@ -299,8 +298,7 @@ void split_mpoly_to_polys(mpoly_t *mpoly_in, int *num_polys, mpoly_t **polys) {
 		ring_t *ring = mpoly_in->rings + outer_idx;
 		if(ring->is_hole) {
 			int parent = ring->parent_id;
-			holes[parent] = (int *)realloc_or_die(holes[parent],
-				sizeof(int) * (num_holes[parent]+1));
+			holes[parent] = REMYALLOC(int, holes[parent], (num_holes[parent]+1));
 			holes[parent][num_holes[parent]++] = outer_idx;
 		} else {
 			num_geom_out++;
@@ -308,7 +306,7 @@ void split_mpoly_to_polys(mpoly_t *mpoly_in, int *num_polys, mpoly_t **polys) {
 	}
 
 	*num_polys = num_geom_out;
-	*polys = (mpoly_t *)malloc_or_die(sizeof(mpoly_t) * num_geom_out);
+	*polys = MYALLOC(mpoly_t, num_geom_out);
 	int poly_out_idx = 0;
 
 	for(int outer_idx=0; outer_idx<num_rings_in; outer_idx++) {
@@ -317,7 +315,7 @@ void split_mpoly_to_polys(mpoly_t *mpoly_in, int *num_polys, mpoly_t **polys) {
 
 		mpoly_t out_poly;
 		out_poly.num_rings = num_holes[outer_idx]+1;
-		out_poly.rings = (ring_t *)malloc_or_die(sizeof(ring_t) * out_poly.num_rings);
+		out_poly.rings = MYALLOC(ring_t, out_poly.num_rings);
 		int ring_out_idx = 0;
 
 		ring_t dup_ring = duplicate_ring(ring);
@@ -547,8 +545,8 @@ void compute_containments(mpoly_t *mp) {
 
 	bbox_t *bboxes = make_bboxes(mp);
 
-	int **ancestors = (int **)malloc_or_die(sizeof(int *) * nrings);
-	int *num_ancestors = (int *)malloc_or_die(sizeof(int) * nrings);
+	int **ancestors = MYALLOC(int *, nrings);
+	int *num_ancestors = MYALLOC(int, nrings);
 
 	long num_hits = 0;
 
@@ -571,8 +569,7 @@ void compute_containments(mpoly_t *mp) {
 				mp->rings + j, mp->rings + i);
 			if(contains) {
 				if(VERBOSE) printf("%d contains %d\n", j, i);
-				ancestors[i] = (int *)realloc_or_die(ancestors[i],
-					sizeof(int) * (num_ancestors[i]+1));
+				ancestors[i] = REMYALLOC(int, ancestors[i], (num_ancestors[i]+1));
 				ancestors[i][ num_ancestors[i]++ ] = j;
 				num_hits++;
 			}
@@ -617,9 +614,9 @@ void compute_containments(mpoly_t *mp) {
 */
 
 mpoly_t *mpoly_xy2en(georef_t *georef, mpoly_t *xy_poly) {
-	mpoly_t *en_poly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
+	mpoly_t *en_poly = MYALLOC(mpoly_t, 1);
 	en_poly->num_rings = xy_poly->num_rings;
-	en_poly->rings = (ring_t *)malloc_or_die(sizeof(ring_t) * en_poly->num_rings);
+	en_poly->rings = MYALLOC(ring_t, en_poly->num_rings);
 
 	int r_idx;
 	for(r_idx=0; r_idx<xy_poly->num_rings; r_idx++) {
@@ -643,9 +640,9 @@ mpoly_t *mpoly_xy2en(georef_t *georef, mpoly_t *xy_poly) {
 }
 
 mpoly_t *mpoly_en2xy(georef_t *georef, mpoly_t *en_poly) {
-	mpoly_t *xy_poly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
+	mpoly_t *xy_poly = MYALLOC(mpoly_t, 1);
 	xy_poly->num_rings = en_poly->num_rings;
-	xy_poly->rings = (ring_t *)malloc_or_die(sizeof(ring_t) * xy_poly->num_rings);
+	xy_poly->rings = MYALLOC(ring_t, xy_poly->num_rings);
 
 	int r_idx;
 	for(r_idx=0; r_idx<en_poly->num_rings; r_idx++) {
@@ -672,9 +669,9 @@ mpoly_t *mpoly_en2xy(georef_t *georef, mpoly_t *en_poly) {
 // about the actual distortion of the projection.
 /*
 mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double toler_pixels) {
-	mpoly_t *ll_poly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
+	mpoly_t *ll_poly = MYALLOC(mpoly_t, 1);
 	ll_poly->num_rings = xy_poly->num_rings;
-	ll_poly->rings = (ring_t *)malloc_or_die(sizeof(ring_t) * ll_poly->num_rings);
+	ll_poly->rings = MYALLOC(ring_t, ll_poly->num_rings);
 
 	OGRErr err = OGRERR_NONE;
 	double earth_radius = OSRGetSemiMajor(georef->spatial_ref, &err);
@@ -752,9 +749,9 @@ static double estimate_canvas_size_sq(georef_t *georef) {
 }
 
 mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double toler) {
-	mpoly_t *ll_poly = (mpoly_t *)malloc_or_die(sizeof(mpoly_t));
+	mpoly_t *ll_poly = MYALLOC(mpoly_t, 1);
 	ll_poly->num_rings = xy_poly->num_rings;
-	ll_poly->rings = (ring_t *)malloc_or_die(sizeof(ring_t) * ll_poly->num_rings);
+	ll_poly->rings = MYALLOC(ring_t, ll_poly->num_rings);
 	
 	double canvas_size_sq = estimate_canvas_size_sq(georef);
 	//printf("canvas_size_sq = %lf\n", canvas_size_sq);
@@ -906,13 +903,13 @@ static char *read_whole_file(FILE *fin) {
 	size_t chunk_size = 1024;
 	size_t data_len = 0;
 	size_t buf_len = chunk_size+1;
-	char *buffer = (char *)malloc_or_die(buf_len);
+	char *buffer = MYALLOC(char, buf_len);
 	size_t num_read;
 	while(0 < (num_read = fread(buffer+data_len, 1, chunk_size, fin))) {
 		data_len += num_read;
 		if(data_len+chunk_size+1 > buf_len) {
 			buf_len += chunk_size;
-			buffer = (char *)realloc_or_die(buffer, buf_len);
+			buffer = REMYALLOC(char, buffer, buf_len);
 		}
 	}
 	buffer[data_len++] = 0;
