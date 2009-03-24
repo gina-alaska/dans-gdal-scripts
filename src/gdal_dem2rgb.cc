@@ -96,8 +96,6 @@ void usage(const char *cmdname) {
 }
 
 int main(int argc, char *argv[]) {
-	int i;
-
 	double slope_exageration = default_slope_exageration;
 	double lightvec[3];
 	memcpy(lightvec, default_lightvec, 3*sizeof(double));
@@ -153,16 +151,14 @@ int main(int argc, char *argv[]) {
 				slope_exageration = strtod(argv[argp++], &endptr);
 				if(*endptr) usage(argv[0]);
 			} else if(!strcmp(arg, "-lightvec")) {
-				int i;
-				for(i=0; i<3; i++) {
+				for(int i=0; i<3; i++) {
 					if(argp == argc) usage(argv[0]);
 					char *endptr;
 					lightvec[i] = strtod(argv[argp++], &endptr);
 					if(*endptr) usage(argv[0]);
 				}
 			} else if(!strcmp(arg, "-shade")) {
-				int i;
-				for(i=0; i<4; i++) {
+				for(int i=0; i<4; i++) {
 					if(argp == argc) usage(argv[0]);
 					char *endptr;
 					shade_params[i] = strtod(argv[argp++], &endptr);
@@ -275,7 +271,7 @@ int main(int argc, char *argv[]) {
 
 		out_numbands = GDALGetRasterCount(tex_ds);
 		tex_bands = MYALLOC(GDALRasterBandH, out_numbands);
-		for(i=0; i<out_numbands; i++) {
+		for(int i=0; i<out_numbands; i++) {
 			tex_bands[i] = GDALGetRasterBand(tex_ds, i+1);
 			if(!tex_bands[i]) fatal_error("could not open texture band");
 		}
@@ -294,18 +290,23 @@ int main(int argc, char *argv[]) {
 	GDALSetProjection(dst_ds, GDALGetProjectionRef(src_ds));
 
 	GDALRasterBandH *dst_band = MYALLOC(GDALRasterBandH, out_numbands);
-	for(i=0; i<out_numbands; i++) {
+	for(int i=0; i<out_numbands; i++) {
 		dst_band[i] = GDALGetRasterBand(dst_ds, i+1);
 	}
 
 	//////// setup shade table ////////
 
-	int row, col;
-	double shade_table[SHADE_TABLE_SIZE*2+1][SHADE_TABLE_SIZE*2+1];
-	double spec_table[SHADE_TABLE_SIZE*2+1][SHADE_TABLE_SIZE*2+1];
+	double **shade_table = NULL;
+	double **spec_table = NULL;
 	double ALPHA_THRESH = .5F;
 	double thresh_brite = 1;
 	if(do_shade) {
+		shade_table = MYALLOC(double *, SHADE_TABLE_SIZE*2+1);
+		spec_table  = MYALLOC(double *, SHADE_TABLE_SIZE*2+1);
+		for(int i=0; i<SHADE_TABLE_SIZE*2+1; i++) {
+			shade_table[i] = MYALLOC(double, SHADE_TABLE_SIZE*2+1);
+			spec_table [i] = MYALLOC(double, SHADE_TABLE_SIZE*2+1);
+		}
 		double lightvec_len = sqrt(
 			lightvec[0] * lightvec[0] +
 			lightvec[1] * lightvec[1] +
@@ -314,8 +315,8 @@ int main(int argc, char *argv[]) {
 		lightvec[0] /= lightvec_len;
 		lightvec[1] /= lightvec_len;
 		lightvec[2] /= lightvec_len;
-		for(row=0; row<SHADE_TABLE_SIZE*2+1; row++) {
-			for(col=0; col<SHADE_TABLE_SIZE*2+1; col++) {
+		for(int row=0; row<SHADE_TABLE_SIZE*2+1; row++) {
+			for(int col=0; col<SHADE_TABLE_SIZE*2+1; col++) {
 				double dx = (double)(col-SHADE_TABLE_SIZE) / SHADE_TABLE_SCALE;
 				double dy = (double)(row-SHADE_TABLE_SIZE) / SHADE_TABLE_SCALE;
 				double vx, vy, vz;
@@ -362,7 +363,7 @@ int main(int argc, char *argv[]) {
 	uint8_t *inbuf_ndv_next = MYALLOC(uint8_t, w);
 
 	uint8_t **outbuf = MYALLOC(uint8_t *, out_numbands);
-	for(i=0; i<out_numbands; i++) {
+	for(int i=0; i<out_numbands; i++) {
 		outbuf[i] = MYALLOC(uint8_t, w);
 	}
 	uint8_t *pixel = MYALLOC(uint8_t, out_numbands);
@@ -375,7 +376,7 @@ int main(int argc, char *argv[]) {
 
 	double min=0, max=0; // initialized to prevent compiler warning
 	int got_nan=0, got_valid=0, got_overflow=0;
-	for(row=0; row<h; row++) {
+	for(int row=0; row<h; row++) {
 		GDALTermProgress((double)row / (double)h, NULL, NULL);
 		if(row == 0) {
 			GDALRasterIO(src_band, GF_Read, 0, 0, w, 1, inbuf_prev, w, 1, GDT_Float64, 0, 0);
@@ -405,7 +406,7 @@ int main(int argc, char *argv[]) {
 			scale_values(inbuf_next, w, src_scale, src_offset);
 		}
 		if(tex_bands) {
-			for(i=0; i<out_numbands; i++) {
+			for(int i=0; i<out_numbands; i++) {
 				GDALRasterIO(tex_bands[i], GF_Read, 0, row, w, 1, outbuf[i], w, 1, GDT_Byte, 0, 0);
 			}
 		}
@@ -430,7 +431,7 @@ int main(int argc, char *argv[]) {
 			grid_fraction = ((double)row - (double)above_tiept) / segment_height;
 		}
 //if(!row) printf("pixel[0,0]=%f\n", inbuf_this[0]);
-		for(col=0; col<w; col++) {
+		for(int col=0; col<w; col++) {
 			double val = inbuf_this[col];
 			double brite, spec;
 			if(do_shade) {
@@ -497,9 +498,9 @@ int main(int argc, char *argv[]) {
 			if(inbuf_ndv_this[col]) {
 				if(palette) {
 					get_nan_color(pixel, palette);
-					for(i=0; i<out_numbands; i++) outbuf[i][col] = pixel[i];
+					for(int i=0; i<out_numbands; i++) outbuf[i][col] = pixel[i];
 				} else {
-					for(i=0; i<out_numbands; i++) outbuf[i][col] = 0;
+					for(int i=0; i<out_numbands; i++) outbuf[i][col] = 0;
 				}
 				got_nan=1;
 			} else {
@@ -537,26 +538,26 @@ int main(int argc, char *argv[]) {
 					if(palette) {
 						get_palette_color(pixel, val, palette);
 					} else if(tex_ds) {
-						for(i=0; i<out_numbands; i++) pixel[i] = outbuf[i][col];
+						for(int i=0; i<out_numbands; i++) pixel[i] = outbuf[i][col];
 					} else {
-						for(i=0; i<out_numbands; i++) pixel[i] = 128;
+						for(int i=0; i<out_numbands; i++) pixel[i] = 128;
 					}
 
-					for(i=0; i<out_numbands; i++) {
+					for(int i=0; i<out_numbands; i++) {
 						int c = pixel[i];
 						c = (int)(c * brite + 255.0 * spec);
 						if(c > 254) c = 254;
 						pixel[i] = (uint8_t)c;
 					}
 				}
-				for(i=0; i<out_numbands; i++) outbuf[i][col] = pixel[i];
+				for(int i=0; i<out_numbands; i++) outbuf[i][col] = pixel[i];
 
 				if(!got_valid || val < min) min = val;
 				if(!got_valid || val > max) max = val;
 				got_valid=1;
 			}
 		}
-		for(i=0; i<out_numbands; i++) {
+		for(int i=0; i<out_numbands; i++) {
 			GDALRasterIO(dst_band[i], GF_Write, 0, row, w, 1, outbuf[i], w, 1, GDT_Byte, 0, 0);
 		}
 	}
@@ -658,13 +659,12 @@ void get_nan_color(uint8_t *buf, palette_t *pal) {
 }
 
 void get_palette_color(uint8_t *buf, double val, palette_t *pal) {
-	int i;
 	double v1, v2, alpha;
 
 	if(val < pal->vals[0]) val = pal->vals[0];
 	if(val > pal->vals[pal->num_vals-1]) val = pal->vals[pal->num_vals-1];
 
-	for(i=0; i<pal->num_vals-1; i++) {
+	for(int i=0; i<pal->num_vals-1; i++) {
 		v1 = pal->vals[i];
 		v2 = pal->vals[i+1];
 		if(val >= v1 && val <= v2) {
@@ -762,25 +762,23 @@ void compute_tierow_invaffine(
 	int num_cols, int row, int grid_spacing,
 	double *invaffine_tierow
 ) {
-	int i;
 	double tiecol_left[4];
 	double tiecol_right[4];
 
 	compute_invaffine(georef, 0, row, tiecol_right);
 
-	int col;
 	double segment_width = 0; // will be initialized on first iteration
-	for(col=0; col<num_cols; col++) {
+	for(int col=0; col<num_cols; col++) {
 		int left_tiept = grid_spacing * (int)(col / grid_spacing);
 		if(col == left_tiept) {
-			for(i=0; i<4; i++) tiecol_left[i] = tiecol_right[i];
+			for(int i=0; i<4; i++) tiecol_left[i] = tiecol_right[i];
 			int right_tiept = col+grid_spacing;
 			if(right_tiept > num_cols) right_tiept = num_cols;
 			segment_width = right_tiept - left_tiept;
 			compute_invaffine(georef, right_tiept, row, tiecol_right);
 		}
 		double grid_fraction = ((double)col - (double)left_tiept) / segment_width;
-		for(i=0; i<4; i++) {
+		for(int i=0; i<4; i++) {
 			invaffine_tierow[col*4 + i] =
 				tiecol_left[i] * (1.0 - grid_fraction) +
 				tiecol_right[i] * grid_fraction;
