@@ -86,7 +86,7 @@ static int is_inside_crossings(row_crossings_t *c, int x) {
 }
 */
 
-static inline pixquad_t get_quad(uint8_t *mask, int w, int h, int x, int y, int select_color) {
+static inline pixquad_t get_quad(uint8_t *mask, int w, int x, int y, int select_color) {
 	// 1 2
 	// 8 4
 	uint8_t *uprow = mask + (y  )*(w+2);
@@ -117,7 +117,7 @@ int initial_x, int initial_y, int select_color) {
 
 	int x = initial_x;
 	int y = initial_y;
-	pixquad_t quad = get_quad(mask, w, h, x, y, select_color);
+	pixquad_t quad = get_quad(mask, w, x, y, select_color);
 	int dir;
 	for(dir=0; dir<4; dir++) {
 		pixquad_t rq = rotate_quad(quad, dir);
@@ -136,7 +136,7 @@ int initial_x, int initial_y, int select_color) {
 		}
 		if(x == initial_x && y == initial_y) break;
 		if(x<0 || y<0 || x>w || y>h) fatal_error("fell off edge (%d,%d)", x, y);
-		pixquad_t quad = get_quad(mask, w, h, x, y, select_color);
+		pixquad_t quad = get_quad(mask, w, x, y, select_color);
 		quad = rotate_quad(quad, dir);
 		if((quad & 12) != 4) fatal_error("tracer was not on the right side of things (%d)", quad);
 		int rot;
@@ -234,13 +234,13 @@ long min_area, int no_donuts) {
 				// find the first possible quad that could match
 				uint8_t *mc1 = (uint8_t *)memchr(uprow+from, select_color, to-from);
 				uint8_t *mc2 = (uint8_t *)memchr(dnrow+from, select_color, to-from);
-				int ic1 = mc1 ? (mc1-uprow)-1 : to;
-				int ic2 = mc2 ? (mc2-dnrow)-1 : to;
+				int ic1 = mc1 ? (int)(mc1-uprow)-1 : to;
+				int ic2 = mc2 ? (int)(mc2-dnrow)-1 : to;
 				if(ic2 < ic1) ic1 = ic2;
 				if(ic1 > from) from = ic1;
 
 				for(int x=from; x<to; x++) {
-					//pixquad_t quad = get_quad(mask, w, h, x, y, select_color);
+					//pixquad_t quad = get_quad(mask, w, x, y, select_color);
 					//int is_seed = (quad != 0 && quad != 0xf);
 					int is_seed;
 					if(select_color) {

@@ -112,9 +112,9 @@ void debug_plot_mpoly(report_image_t *dbuf, mpoly_t *mpoly) {
 
 	for(int i=0; i<mpoly->num_rings; i++) {
 		int v = (i%62)+1;
-		int r = ((v&1) ? 150 : 0) + ((v&8) ? 100 : 0);
-		int g = ((v&2) ? 150 : 0) + ((v&16) ? 100 : 0);
-		int b = ((v&4) ? 150 : 0) + ((v&32) ? 100 : 0);
+		uint8_t r = ((v&1) ? 150 : 0) + ((v&8) ? 100 : 0);
+		uint8_t g = ((v&2) ? 150 : 0) + ((v&16) ? 100 : 0);
+		uint8_t b = ((v&4) ? 150 : 0) + ((v&32) ? 100 : 0);
 		ring_t *ring = mpoly->rings + i;
 		if(ring->is_hole) { r=255; g=0; b=0; }
 		else { r=255; g=255; b=0; }

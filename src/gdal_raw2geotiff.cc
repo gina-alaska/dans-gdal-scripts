@@ -64,11 +64,11 @@ int main(int argc, char *argv[]) {
 				char *endptr;
 
 				if(argp == argc) usage(argv[0]);
-				w = strtol(argv[argp++], &endptr, 10);
+				w = (int)strtol(argv[argp++], &endptr, 10);
 				if(*endptr) usage(argv[0]);
 
 				if(argp == argc) usage(argv[0]);
-				h = strtol(argv[argp++], &endptr, 10);
+				h = (int)strtol(argv[argp++], &endptr, 10);
 				if(*endptr) usage(argv[0]);
 			} else if(!strcmp(arg, "-affine")) {
 				for(i=0; i<6; i++) {

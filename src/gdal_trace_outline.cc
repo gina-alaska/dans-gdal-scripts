@@ -82,6 +82,9 @@ Behavior:\n\
                                (in pixels, default it 0.1)\n\
                                (this is done to make geometries that\n\
                                PostGIS/GEOS/Jump can handle)\n\
+  -pinch-excursions            Remove all the complicated 'mouse bites' that\n\
+                               occur in the outline when lossy compression\n\
+                               has been used (experimental)\n\
 \n\
 Output:\n\
   -report fn.ppm               Output graphical report of polygons found\n\
@@ -119,7 +122,7 @@ gdal_trace_outline raster.tif -classify -out-cs en -ogr-out outline.shp\n\
 }
 
 mpoly_t calc_ring_from_mask(uint8_t *mask, int w, int h,
-	report_image_t *dbuf, int major_ring_only, int no_donuts,
+	int major_ring_only, int no_donuts,
 	long min_ring_area, double bevel_size);
 
 typedef struct {
@@ -206,7 +209,7 @@ int main(int argc, char **argv) {
 			} else if(!strcmp(arg, "-b")) {
 				if(argp == argc) usage(argv[0]);
 				char *endptr;
-				int bandid = strtol(argv[argp++], &endptr, 10);
+				int bandid = (int)strtol(argv[argp++], &endptr, 10);
 				if(*endptr) usage(argv[0]);
 				inspect_bandids = (int *)realloc_or_die(inspect_bandids,
 					sizeof(int)*(inspect_numbands+1));
@@ -439,7 +442,7 @@ int main(int argc, char **argv) {
 			erode_mask(mask, georef.w, georef.h);
 		}
 
-		mpoly_t feature_poly = calc_ring_from_mask(mask, georef.w, georef.h, dbuf, 
+		mpoly_t feature_poly = calc_ring_from_mask(mask, georef.w, georef.h,
 			major_ring_only, no_donuts, min_ring_area, bevel_size);
 		free(mask);
 
@@ -582,7 +585,7 @@ int main(int argc, char **argv) {
 }
 
 mpoly_t calc_ring_from_mask(uint8_t *mask, int w, int h,
-report_image_t *dbuf, int major_ring_only, int no_donuts, 
+int major_ring_only, int no_donuts, 
 long min_ring_area, double bevel_size) {
 	if(major_ring_only) no_donuts = 1;
 

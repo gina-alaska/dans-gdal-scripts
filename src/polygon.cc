@@ -903,11 +903,11 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 }
 
 static char *read_whole_file(FILE *fin) {
-	int chunk_size = 1024;
-	int data_len = 0;
-	int buf_len = chunk_size+1;
+	size_t chunk_size = 1024;
+	size_t data_len = 0;
+	size_t buf_len = chunk_size+1;
 	char *buffer = (char *)malloc_or_die(buf_len);
-	int num_read;
+	size_t num_read;
 	while(0 < (num_read = fread(buffer+data_len, 1, chunk_size, fin))) {
 		data_len += num_read;
 		if(data_len+chunk_size+1 > buf_len) {

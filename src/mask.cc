@@ -114,7 +114,7 @@ ndv_def_t *ndv_def, report_image_t *dbuf) {
 							if(db_v < 50) db_v = 50;
 							if(db_v > 254) db_v = 254;
 							uint8_t r = (uint8_t)(db_v*.75);
-							plot_point(dbuf, x, y, r, db_v, db_v);
+							plot_point(dbuf, x, y, r, (uint8_t)db_v, (uint8_t)db_v);
 						}
 
 						if(use_8bit) p_8bit++;

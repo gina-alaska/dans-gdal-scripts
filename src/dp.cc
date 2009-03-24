@@ -315,7 +315,7 @@ mpoly_t reduction_to_mpoly(mpoly_t *in_mpoly, reduced_ring_t *reduced_rings) {
 	return (mpoly_t){ num_out_rings, out_rings };
 }
 
-static inline char segs_cross(ring_t *c1, segment_t *s1, ring_t *c2, segment_t *s2) {
+static inline int segs_cross(ring_t *c1, segment_t *s1, ring_t *c2, segment_t *s2) {
 	if(c1 == c2) {
 		// don't test crossing if segments are identical or neighbors
 		if(
@@ -327,8 +327,8 @@ static inline char segs_cross(ring_t *c1, segment_t *s1, ring_t *c2, segment_t *
 	}
 	
 	return line_intersects_line(
-		c1->pts[s1->begin], c1->pts[s1->end  ],
-		c2->pts[s2->begin], c2->pts[s2->end  ],
+		c1->pts[s1->begin], c1->pts[s1->end],
+		c2->pts[s2->begin], c2->pts[s2->end],
 		1);
 }
 
@@ -377,7 +377,7 @@ void fix_topology(mpoly_t *mpoly, reduced_ring_t *reduced_rings) {
 				for(seg2_idx=0; seg2_idx < r2->num_segs; seg2_idx++) {
 					if(r2_idx == r1_idx && seg2_idx > seg1_idx) continue; // symmetry optimization
 
-					char crosses = segs_cross(c1, &r1->segs[seg1_idx], c2, &r2->segs[seg2_idx]);
+					int crosses = segs_cross(c1, &r1->segs[seg1_idx], c2, &r2->segs[seg2_idx]);
 					if(crosses) {
 						//printf("found a crossing: %d,%d,%d,%d\n",
 						//	r1_idx, seg1_idx, r2_idx, seg2_idx);
@@ -435,7 +435,7 @@ void fix_topology(mpoly_t *mpoly, reduced_ring_t *reduced_rings) {
 					ring_t *c2 = &mpoly->rings[r2_idx];
 					reduced_ring_t *r2 = &reduced_rings[r2_idx];
 					for(seg2_idx=0; seg2_idx < r2->num_segs; seg2_idx++) {
-						char crosses = segs_cross(c1, &r1->segs[seg1_idx], c2, &r2->segs[seg2_idx]);
+						int crosses = segs_cross(c1, &r1->segs[seg1_idx], c2, &r2->segs[seg2_idx]);
 						if(crosses) {
 							if(VERBOSE) {
 								printf("found a crossing (still): %d,%d,%d,%d (%f,%f)-(%f,%f) (%f,%f)-(%f,%f)\n",

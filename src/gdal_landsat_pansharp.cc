@@ -91,7 +91,7 @@ int main(int argc, char *argv[]) {
 			if(!strcmp(arg, "-ndv")) {
 				if(argp == argc) usage(argv[0]);
 				char *endptr;
-				ndv = strtol(argv[argp++], &endptr, 10);
+				ndv = (double)strtol(argv[argp++], &endptr, 10);
 				use_ndv++;
 				if(*endptr) usage(argv[0]);
 				if(ndv < 0 || ndv > 255) fatal_error("no_data_val must be in the range 0-255");

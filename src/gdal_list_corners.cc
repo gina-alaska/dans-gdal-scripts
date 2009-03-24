@@ -106,7 +106,7 @@ int main(int argc, char **argv) {
 			} else if(!strcmp(arg, "-b")) {
 				if(argp == argc) usage(argv[0]);
 				char *endptr;
-				int bandid = strtol(argv[argp++], &endptr, 10);
+				int bandid = (int)strtol(argv[argp++], &endptr, 10);
 				if(*endptr) usage(argv[0]);
 				inspect_bandids = (int *)realloc_or_die(inspect_bandids,
 					sizeof(int)*(inspect_numbands+1));

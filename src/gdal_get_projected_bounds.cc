@@ -115,6 +115,7 @@ int main(int argc, char **argv) {
 		t_bounds_bbox = get_polygon_bbox(&t_bounds_mp);
 	} else {
 		use_t_bounds = 0;
+		t_bounds_bbox = (bbox_t){ 0, 0, 0, 0, 0 }; // prevents compiler warning
 	}
 
 	ring_t pl;

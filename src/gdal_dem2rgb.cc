@@ -30,9 +30,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "default_palette.h"
 
 // these are global so that they can be printed by the usage() function
-float default_slope_exageration = 2.0;
-float default_lightvec[] = { 0, 1, 1.5 };
-float default_shade_params[] = { 0, 1, .5, 10 };
+double default_slope_exageration = 2.0;
+double default_lightvec[] = { 0, 1, 1.5 };
+double default_shade_params[] = { 0, 1, .5, 10 };
 
 #define SHADE_TABLE_SIZE 500
 #define SHADE_TABLE_SCALE 100.0
@@ -43,14 +43,14 @@ void scale_values(double *vals, int w, double scale, double offset);
 typedef struct {
 	uint8_t nan_red, nan_green, nan_blue;
 	int num_vals;
-	float *vals;
+	double *vals;
 	uint8_t *reds, *greens, *blues;
 } palette_t;
 
 palette_t *read_palette_file(const char *fn);
 palette_t *read_default_palette();
 void get_nan_color(uint8_t *buf, palette_t *pal);
-void get_palette_color(uint8_t *buf, float val, palette_t *pal);
+void get_palette_color(uint8_t *buf, double val, palette_t *pal);
 
 void compute_tierow_invaffine(
 	georef_t *georef,
@@ -98,11 +98,11 @@ void usage(const char *cmdname) {
 int main(int argc, char *argv[]) {
 	int i;
 
-	float slope_exageration = default_slope_exageration;
-	float lightvec[3];
-	memcpy(lightvec, default_lightvec, 3*sizeof(float));
-	float shade_params[4];
-	memcpy(shade_params, default_shade_params, 4*sizeof(float));
+	double slope_exageration = default_slope_exageration;
+	double lightvec[3];
+	memcpy(lightvec, default_lightvec, 3*sizeof(double));
+	double shade_params[4];
+	memcpy(shade_params, default_shade_params, 4*sizeof(double));
 
 	const char *src_fn = NULL;
 	const char *tex_fn = NULL;
@@ -128,7 +128,7 @@ int main(int argc, char *argv[]) {
 			if(!strcmp(arg, "-b")) {
 				if(argp == argc) usage(argv[0]);
 				char *endptr;
-				band_id = strtol(argv[argp++], &endptr, 10);
+				band_id = (int)strtol(argv[argp++], &endptr, 10);
 				if(*endptr) usage(argv[0]);
 			} else if(!strcmp(arg, "-palette")) {
 				if(argp == argc) usage(argv[0]);
@@ -301,12 +301,12 @@ int main(int argc, char *argv[]) {
 	//////// setup shade table ////////
 
 	int row, col;
-	float shade_table[SHADE_TABLE_SIZE*2+1][SHADE_TABLE_SIZE*2+1];
-	float spec_table[SHADE_TABLE_SIZE*2+1][SHADE_TABLE_SIZE*2+1];
-	float ALPHA_THRESH = .5F;
-	float thresh_brite = 1;
+	double shade_table[SHADE_TABLE_SIZE*2+1][SHADE_TABLE_SIZE*2+1];
+	double spec_table[SHADE_TABLE_SIZE*2+1][SHADE_TABLE_SIZE*2+1];
+	double ALPHA_THRESH = .5F;
+	double thresh_brite = 1;
 	if(do_shade) {
-		float lightvec_len = sqrt(
+		double lightvec_len = sqrt(
 			lightvec[0] * lightvec[0] +
 			lightvec[1] * lightvec[1] +
 			lightvec[2] * lightvec[2]);
@@ -316,24 +316,24 @@ int main(int argc, char *argv[]) {
 		lightvec[2] /= lightvec_len;
 		for(row=0; row<SHADE_TABLE_SIZE*2+1; row++) {
 			for(col=0; col<SHADE_TABLE_SIZE*2+1; col++) {
-				float dx = (float)(col-SHADE_TABLE_SIZE) / SHADE_TABLE_SCALE;
-				float dy = (float)(row-SHADE_TABLE_SIZE) / SHADE_TABLE_SCALE;
-				float vx, vy, vz;
+				double dx = (double)(col-SHADE_TABLE_SIZE) / SHADE_TABLE_SCALE;
+				double dy = (double)(row-SHADE_TABLE_SIZE) / SHADE_TABLE_SCALE;
+				double vx, vy, vz;
 				if(dx==0 && dy==0) {
 					vx = vy = 0;
 					vz = 1;
 				} else {
-					float s = sqrt(1.0 + dx*dx + dy*dy);
+					double s = sqrt(1.0 + dx*dx + dy*dy);
 					vx = dx / s;
 					vy = dy / s;
 					vz = 1.0 / s;
 				}
-				float dotprod = vx*lightvec[0] + vy*lightvec[1] + vz*lightvec[2];
+				double dotprod = vx*lightvec[0] + vy*lightvec[1] + vz*lightvec[2];
 				if(dotprod < 0) dotprod = 0;
-				float brite = shade_params[0] + shade_params[1]*dotprod;
+				double brite = shade_params[0] + shade_params[1]*dotprod;
 				if(brite > 1.0) brite = 1.0;
 				shade_table[row][col] = brite;
-				brite = shade_params[2]*powf(dotprod, shade_params[3]);
+				brite = shade_params[2]*pow(dotprod, shade_params[3]);
 				spec_table[row][col] = brite;
 			}
 		}
@@ -342,7 +342,7 @@ int main(int argc, char *argv[]) {
 			// this stuff is to ensure that the mask is
 			// fully bright when the transition is made
 			// from diffuse to specular
-			float thresh_dotprod = powf(ALPHA_THRESH / shade_params[2], 1.0F / shade_params[3]);
+			double thresh_dotprod = pow(ALPHA_THRESH / shade_params[2], 1.0F / shade_params[3]);
 			thresh_brite = shade_params[0] + shade_params[1] * thresh_dotprod;
 			if(thresh_brite > 1) thresh_brite = 1;
 		}
@@ -432,7 +432,7 @@ int main(int argc, char *argv[]) {
 //if(!row) printf("pixel[0,0]=%f\n", inbuf_this[0]);
 		for(col=0; col<w; col++) {
 			double val = inbuf_this[col];
-			float brite, spec;
+			double brite, spec;
 			if(do_shade) {
 				double dx;
 				int mid_good = !inbuf_ndv_this[col];
@@ -509,15 +509,15 @@ int main(int argc, char *argv[]) {
 						got_overflow = 1;
 						ival = 0;
 					}
-					pixel[2] = ival & 0xff;
-					pixel[1] = (ival >> 8) & 0xff;
-					pixel[0] = (ival >> 16) & 0xff;
+					pixel[2] = (uint8_t)(ival & 0xff);
+					pixel[1] = (uint8_t)((ival >> 8) & 0xff);
+					pixel[0] = (uint8_t)((ival >> 16) & 0xff);
 				} else if(alpha_overlay) {
 					if(thresh_brite < 1.0) {
 						brite += (spec / ALPHA_THRESH) * (1.0 - thresh_brite);
 					}
 
-					float alpha, white;
+					double alpha, white;
 					if(spec < ALPHA_THRESH) {
 						alpha = 1.0 - brite;
 						white = 0;
@@ -531,8 +531,8 @@ int main(int argc, char *argv[]) {
 					if(white < 0) white = 0;
 					if(white > 1) white = 1;
 
-					pixel[0] = pixel[1] = pixel[2] = (int)(255.0 * white);
-					pixel[3] = (int)(255.0 * alpha);
+					pixel[0] = pixel[1] = pixel[2] = (uint8_t)(255.0 * white);
+					pixel[3] = (uint8_t)(255.0 * alpha);
 				} else {
 					if(palette) {
 						get_palette_color(pixel, val, palette);
@@ -546,7 +546,7 @@ int main(int argc, char *argv[]) {
 						int c = pixel[i];
 						c = (int)(c * brite + 255.0 * spec);
 						if(c > 254) c = 254;
-						pixel[i] = c;
+						pixel[i] = (uint8_t)c;
 					}
 				}
 				for(i=0; i<out_numbands; i++) outbuf[i][col] = pixel[i];
@@ -594,9 +594,9 @@ palette_t *parse_palette(const char * const *lines) {
 
 	for(int line_num=0; lines[line_num]; line_num++) {
 		const char *line = lines[line_num];
-		int r, g, b;
-		float val;
-		if(4 != sscanf(line, "%f %d %d %d\n", &val, &r, &g, &b)) {
+		uint8_t r, g, b;
+		double val;
+		if(4 != sscanf(line, "%lf %hhd %hhd %hhd\n", &val, &r, &g, &b)) {
 			fatal_error("cannot parse line in palette file: [%s]", line);
 		}
 		if(isnan(val)) {
@@ -605,7 +605,7 @@ palette_t *parse_palette(const char * const *lines) {
 			p->nan_blue  = b;
 		} else {
 			num++;
-			p->vals = (float *)realloc_or_die(p->vals, num*sizeof(float));
+			p->vals = (double *)realloc_or_die(p->vals, num*sizeof(double));
 			p->reds   = (uint8_t *)realloc_or_die(p->reds,   num);
 			p->greens = (uint8_t *)realloc_or_die(p->greens, num);
 			p->blues  = (uint8_t *)realloc_or_die(p->blues,  num);
@@ -657,9 +657,9 @@ void get_nan_color(uint8_t *buf, palette_t *pal) {
 	buf[2] = pal->nan_blue;
 }
 
-void get_palette_color(uint8_t *buf, float val, palette_t *pal) {
+void get_palette_color(uint8_t *buf, double val, palette_t *pal) {
 	int i;
-	float v1, v2, alpha;
+	double v1, v2, alpha;
 
 	if(val < pal->vals[0]) val = pal->vals[0];
 	if(val > pal->vals[pal->num_vals-1]) val = pal->vals[pal->num_vals-1];
@@ -669,9 +669,9 @@ void get_palette_color(uint8_t *buf, float val, palette_t *pal) {
 		v2 = pal->vals[i+1];
 		if(val >= v1 && val <= v2) {
 			alpha = (val - v1) / (v2 - v1);
-			buf[0] = (int)((float)pal->reds  [i]*(1.0-alpha) + (float)pal->reds  [i+1]*alpha + .5);
-			buf[1] = (int)((float)pal->greens[i]*(1.0-alpha) + (float)pal->greens[i+1]*alpha + .5);
-			buf[2] = (int)((float)pal->blues [i]*(1.0-alpha) + (float)pal->blues [i+1]*alpha + .5);
+			buf[0] = (uint8_t)((double)pal->reds  [i]*(1.0-alpha) + (double)pal->reds  [i+1]*alpha + .5);
+			buf[1] = (uint8_t)((double)pal->greens[i]*(1.0-alpha) + (double)pal->greens[i+1]*alpha + .5);
+			buf[2] = (uint8_t)((double)pal->blues [i]*(1.0-alpha) + (double)pal->blues [i+1]*alpha + .5);
 			return;
 		}
 	}

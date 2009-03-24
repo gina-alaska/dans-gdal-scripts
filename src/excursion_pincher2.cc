@@ -450,7 +450,7 @@ if(VERBOSE) printf("do refine\n");
 	}
 }
 
-static ring_t pinch_ring_excursions(ring_t *ring, report_image_t *dbuf) {
+static ring_t pinch_ring_excursions(ring_t *ring) {
 	int npts = ring->npts;
 	vertex_t *pts = ring->pts;
 
@@ -529,7 +529,7 @@ mpoly_t pinch_excursions2(mpoly_t *mp_in, report_image_t *dbuf) {
 	for(int r_idx=0; r_idx<mp_in->num_rings; r_idx++) {
 		// FIXME - put a test for this into usage()
 		if(mp_in->rings[r_idx].is_hole) fatal_error("pincher cannot be used on holes");
-		mp_out.rings[r_idx] = pinch_ring_excursions(&mp_in->rings[r_idx], dbuf);
+		mp_out.rings[r_idx] = pinch_ring_excursions(&mp_in->rings[r_idx]);
 	}
 	for(int r1_idx=0; r1_idx<mp_out.num_rings; r1_idx++) {
 		REDO_R1:

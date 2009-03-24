@@ -95,9 +95,9 @@ geo_opts_t init_geo_options(int *argc_ptr, char ***argv_ptr) {
 			} else if(!strcmp(arg, "-wh")) {
 				if(argp+2 > argc) usage(argv[0]);
 				char *endptr;
-				opt.w = strtol(argv[argp++], &endptr, 10);
+				opt.w = (int)strtol(argv[argp++], &endptr, 10);
 				if(*endptr) usage(argv[0]);
-				opt.h = strtol(argv[argp++], &endptr, 10);
+				opt.h = (int)strtol(argv[argp++], &endptr, 10);
 				if(*endptr) usage(argv[0]);
 			} else if(!strcmp(arg, "-res")) {
 				char *endptr;

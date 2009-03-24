@@ -27,7 +27,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "common.h"
 
 void compute_histogram(GDALRasterBandH src_band, int w, int h, int *hist_out, int input_range);
-void get_scale_from_stddev(int *histogram, int input_range, int output_range,
+void get_scale_from_stddev(int *histogram, int input_range,
 	double dst_avg, double dst_stddev, double *scale_out, double *offset_out);
 void get_scale_from_percentile(int *histogram, int input_range, int output_range,
 	double from_percentile, double to_percentile, double *scale_out, double *offset_out);
@@ -71,8 +71,9 @@ int main(int argc, char *argv[]) {
 			if(!strcmp(arg, "-ndv")) {
 				if(argp == argc) usage(argv[0]);
 				char *endptr;
-				// FIXME - bounds check
-				ndv = strtol(argv[argp++], &endptr, 10);
+				long ndv_long = strtol(argv[argp++], &endptr, 10);
+				ndv = (uint8_t)ndv_long;
+				if(ndv_long != (long)ndv) fatal_error("ndv must be in the range 0..255");
 				use_ndv++;
 				if(*endptr) usage(argv[0]);
 			} else if(!strcmp(arg, "-of")) {
@@ -188,7 +189,7 @@ int main(int argc, char *argv[]) {
 			if(mode_stddev || mode_percentile) {
 				double scale, offset;
 				if(mode_stddev) {
-					get_scale_from_stddev(histogram, input_range, output_range,
+					get_scale_from_stddev(histogram, input_range,
 						dst_avg, dst_stddev, &scale, &offset);
 				} else if(mode_percentile) {
 					get_scale_from_percentile(histogram, input_range, output_range,
@@ -264,7 +265,7 @@ int main(int argc, char *argv[]) {
 				int bx, by;
 				for(by=0; by<bsize_y; by++) {
 					for(bx=0; bx<bsize_x; bx++) {
-						*(p_out++) = xform[*(p_in++)];
+						*(p_out++) = (uint8_t)xform[*(p_in++)];
 					}
 				}
 
@@ -319,7 +320,7 @@ void compute_histogram(GDALRasterBandH src_band, int w, int h, int *histogram, i
 }
 
 void get_scale_from_stddev(
-	int *histogram, int input_range, int output_range,
+	int *histogram, int input_range,
 	double dst_avg, double dst_stddev,
 	double *scale_out, double *offset_out
 ) {
