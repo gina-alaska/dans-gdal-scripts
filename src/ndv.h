@@ -48,5 +48,6 @@ void array_check_ndv(
 	ndv_def_t *nd, int band, double *in_dbl, uint8_t *in_byte,
 	uint8_t *mask_out, int num_samples
 );
+void aggregate_ndv_mask(ndv_def_t *nd, uint8_t *total, uint8_t *band, int num_samples);
 
 #endif // NDV_H

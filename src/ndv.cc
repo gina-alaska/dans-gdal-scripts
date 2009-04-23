@@ -229,3 +229,17 @@ void array_check_ndv(
 		}
 	}
 }
+
+void aggregate_ndv_mask(ndv_def_t *nd, uint8_t *total, uint8_t *band, int num_samples) {
+	if(nd->invert) {
+		// pixel is valid only if all bands are within valid range
+		for(int i=0; i<num_samples; i++) {
+			if(band[i]) total[i] = 1;
+		}
+	} else {
+		// pixel is NDV only if all bands are NDV
+		for(int i=0; i<num_samples; i++) {
+			if(!band[i]) total[i] = 0;
+		}
+	}
+}

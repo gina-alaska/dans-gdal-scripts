@@ -44,7 +44,7 @@ gdal_list_corners_SOURCES = gdal_list_corners.cc common.cc polygon.cc polygon-ra
 
 gdal_trace_outline_SOURCES = gdal_trace_outline.cc common.cc polygon.cc polygon-rasterizer.cc debugplot.cc georef.cc mask.cc mask-tracer.cc beveler.cc dp.cc ndv.cc excursion_pincher2.cc
 
-gdal_contrast_stretch_SOURCES = gdal_contrast_stretch.cc common.cc
+gdal_contrast_stretch_SOURCES = gdal_contrast_stretch.cc common.cc ndv.cc
 
 gdal_landsat_pansharp_SOURCES = gdal_landsat_pansharp.cc common.cc
 
