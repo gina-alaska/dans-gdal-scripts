@@ -155,7 +155,7 @@ int main(int argc, char *argv[]) {
 
 	if(!ndv_def.nranges) {
 		int *bandlist = MYALLOC(int, band_count);
-		for(int i=0; i<band_count; i++) bandlist[i] = i;
+		for(int i=0; i<band_count; i++) bandlist[i] = i+1;
 		add_ndv_from_raster(&ndv_def, src_ds, band_count, bandlist);
 	}
 
