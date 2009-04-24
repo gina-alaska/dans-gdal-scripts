@@ -297,6 +297,8 @@ int main(int argc, char *argv[]) {
 			int bsize_x = blocksize_x;
 			if(bsize_x + boff_x > w) bsize_x = w - boff_x;
 
+			block_len = bsize_x*bsize_y;
+
 			double progress = 
 				((double)boff_y * (double)w +
 				(double)boff_x * (double)bsize_y) /
@@ -375,6 +377,8 @@ void compute_histogram(
 		for(int boff_x=0; boff_x<w; boff_x+=blocksize_x) {
 			int bsize_x = blocksize_x;
 			if(bsize_x + boff_x > w) bsize_x = w - boff_x;
+
+			block_len = bsize_x*bsize_y;
 
 			double progress = 
 				((double)boff_y * (double)w +
