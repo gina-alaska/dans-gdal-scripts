@@ -184,7 +184,7 @@ int main(int argc, char *argv[]) {
 	GDALDriverH dst_driver = GDALGetDriverByName(output_format);
 	if(!dst_driver) fatal_error("unrecognized output format (%s)", output_format);
 	GDALDatasetH dst_ds = GDALCreate(dst_driver, dst_fn, w, h, band_count, GDT_Byte, NULL);
-	if(!dst_ds) fatal_error("could create output");
+	if(!dst_ds) fatal_error("couldn't create output");
 	copyGeoCode(dst_ds, src_ds);
 
 	//////// open bands ////////

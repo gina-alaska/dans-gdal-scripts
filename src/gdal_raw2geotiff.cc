@@ -195,7 +195,7 @@ int main(int argc, char *argv[]) {
 	GDALDriverH dst_driver = GDALGetDriverByName("GTiff");
 	if(!dst_driver) fatal_error("unrecognized output format (GTiff)");
 	GDALDatasetH dst_ds = GDALCreate(dst_driver, dst_fn, w, h, 1, gdal_dt, NULL);
-	if(!dst_ds) fatal_error("could create dst_dataset");
+	if(!dst_ds) fatal_error("couldn't create dst_dataset");
 
 	GDALSetGeoTransform(dst_ds, affine);
 
