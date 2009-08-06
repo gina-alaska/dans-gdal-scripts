@@ -56,7 +56,7 @@ Inspection:\n\
   -mask-out fn.pbm            Output mask of bounding polygon in PBM format\n\
 \n\
 Misc:\n\
-  -v                              Verbose\n\
+  -v                          Verbose\n\
 \n\
 Examples:\n\
   Output basic geocoding info:\n\
