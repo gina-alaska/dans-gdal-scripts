@@ -38,18 +38,18 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 typedef int pixquad_t;
 
 int dbg_idx = 0;
-static void debug_write_mask(uint8_t *mask, int w, int h) {
+static void debug_write_mask(uint8_t *mask, size_t w, size_t h) {
 	char fn[1000];
 	sprintf(fn, "zz-debug-%04d.pgm", dbg_idx++);
 	FILE *fh = fopen(fn, "w");
 	if(!fh) fatal_error("cannot open %s", fn);
-	fprintf(fh, "P5\n%d %d\n255\n", w, h);
-	for(int y=0; y<w; y++)
+	fprintf(fh, "P5\n%zd %zd\n255\n", w, h);
+	for(size_t y=0; y<w; y++)
 		fwrite(mask+(w+2)*(y+1)+1, w, 1, fh);
 	fclose(fh);
 }
 
-static ring_t *make_enclosing_ring(int w, int h) {
+static ring_t *make_enclosing_ring(size_t w, size_t h) {
 	ring_t *ring = MYALLOC(ring_t, 1);
 	ring->npts = 4;
 	ring->pts = MYALLOC(vertex_t, ring->npts);
@@ -88,7 +88,7 @@ static int is_inside_crossings(row_crossings_t *c, int x) {
 }
 */
 
-static inline pixquad_t get_quad(uint8_t *mask, int w, int x, int y, int select_color) {
+static inline pixquad_t get_quad(uint8_t *mask, size_t w, int x, int y, int select_color) {
 	// 1 2
 	// 8 4
 	uint8_t *uprow = mask + (y  )*(w+2);
@@ -106,7 +106,7 @@ static inline pixquad_t rotate_quad(pixquad_t q, int dir) {
 	return ((q + (q<<4)) >> dir) & 0xf;
 }
 
-static ring_t trace_single_mpoly(uint8_t *mask, int w, int h,
+static ring_t trace_single_mpoly(uint8_t *mask, size_t w, size_t h,
 int initial_x, int initial_y, int select_color) {
 	//printf("trace_single_mpoly enter (%d,%d)\n", initial_x, initial_y);
 
@@ -137,7 +137,7 @@ int initial_x, int initial_y, int select_color) {
 			default: fatal_error("bad direction");
 		}
 		if(x == initial_x && y == initial_y) break;
-		if(x<0 || y<0 || x>w || y>h) fatal_error("fell off edge (%d,%d)", x, y);
+		if(x<0 || y<0 || x>(int)w || y>(int)h) fatal_error("fell off edge (%d,%d)", x, y);
 		pixquad_t quad = get_quad(mask, w, x, y, select_color);
 		quad = rotate_quad(quad, dir);
 		if((quad & 12) != 4) fatal_error("tracer was not on the right side of things (%d)", quad);
@@ -170,7 +170,7 @@ int initial_x, int initial_y, int select_color) {
 	return ring;
 }
 
-static int recursive_trace(uint8_t *mask, int w, int h,
+static int recursive_trace(uint8_t *mask, size_t w, size_t h,
 ring_t *bounds, int depth, mpoly_t *out_poly, int parent_id, 
 long min_area, int no_donuts) {
 	//printf("recursive_trace enter: depth=%d\n", depth);
@@ -311,7 +311,7 @@ long min_area, int no_donuts) {
 }
 
 // this function has the side effect of erasing the mask
-mpoly_t trace_mask(uint8_t *mask_8bit, int w, int h, long min_area, int no_donuts) {
+mpoly_t trace_mask(uint8_t *mask_8bit, size_t w, size_t h, long min_area, int no_donuts) {
 	if(VERBOSE >= 4) debug_write_mask(mask_8bit, w, h);
 
 	/*
