@@ -156,7 +156,7 @@ int main(int argc, char **argv) {
 	georef_t georef = init_georef(&geo_opts, ds);
 
 	report_image_t *dbuf = NULL;
-	uint8_t *mask = NULL;
+	BitGrid mask(0, 0);
 	if(do_inspect) {
 		if(!ndv_def.nranges) {
 			add_ndv_from_raster(&ndv_def, ds, inspect_numbands, inspect_bandids);
@@ -167,11 +167,11 @@ int main(int argc, char **argv) {
 			dbuf->mode = PLOT_RECT4;
 		}
 
-		mask = get_mask_for_dataset(ds, inspect_numbands, inspect_bandids,
+		mask = get_bitgrid_for_dataset(ds, inspect_numbands, inspect_bandids,
 			&ndv_def, dbuf);
 
 		if(do_erosion) {
-			erode_mask(mask, georef.w, georef.h);
+			mask.erode();
 		}
 	}
 
@@ -249,7 +249,7 @@ int main(int argc, char **argv) {
 	if(do_inspect) {
 		vertex_t centroid;
 		fprintf(yaml_fh, "centroid:\n");
-		centroid = calc_centroid_from_mask(mask, georef.w, georef.h);
+		centroid = mask.centroid();
 		if(georef.fwd_xform && georef.fwd_affine) {
 			xy2ll_or_die(&georef, centroid.x, centroid.y, &lon, &lat);
 			fprintf(yaml_fh, "  lon: %.15f\n", lon);

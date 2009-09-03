@@ -30,6 +30,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include "polygon.h"
 #include "polygon-rasterizer.h"
 #include "debugplot.h"
+#include "mask.h"
 
 typedef struct {
 	vertex_t p0, p1;
@@ -52,19 +53,18 @@ double ang_diff(double a1, double a2) {
 	return d<=180.0 ? d : 360.0-d;
 }
 
-ring_t calc_rect4_from_convex_hull(uint8_t *mask, size_t w, size_t h, report_image_t *dbuf) {
+ring_t calc_rect4_from_convex_hull(BitGrid mask, int w, int h, report_image_t *dbuf) {
 	int *chrows_left = MYALLOC(int, h);
 	int *chrows_right = MYALLOC(int, h);
-	for(size_t j=0; j<h; j++) {
+	for(int j=0; j<h; j++) {
 		chrows_left[j] = w;
 		chrows_right[j] = -1;
 	}
-	for(size_t j=0; j<h; j++) {
+	for(int j=0; j<h; j++) {
 		int left = w;
 		int right = -1;
-		uint8_t *mp = mask + (w+2)*(j+1) + 1;
-		for(int i=0; i<int(w); i++) {
-			if(*(mp++)) {
+		for(int i=0; i<w; i++) {
+			if(mask(i, j)) {
 				if(left > i) left = i;
 				if(right < i) right = i;
 			}
@@ -74,7 +74,7 @@ ring_t calc_rect4_from_convex_hull(uint8_t *mask, size_t w, size_t h, report_ima
 	}
 
 	int fulcrum_x=-1, fulcrum_y=-1;
-	for(size_t j=0; j<h; j++) {
+	for(int j=0; j<h; j++) {
 		if(chrows_left[j] <= chrows_right[j]) {
 			fulcrum_x = chrows_right[j];
 			fulcrum_y = j;
@@ -93,7 +93,7 @@ ring_t calc_rect4_from_convex_hull(uint8_t *mask, size_t w, size_t h, report_ima
 
 		int best_dx = -chop_dx, best_dy = -chop_dy;
 		int best_x=-1, best_y=-1;
-		for(size_t j=0; j<h; j++) {
+		for(int j=0; j<h; j++) {
 			int l = chrows_left[j];
 			int r = chrows_right[j];
 			if(l > r) continue;
@@ -317,7 +317,7 @@ ring_t calc_rect4_from_convex_hull(uint8_t *mask, size_t w, size_t h, report_ima
 //	return v;
 //}
 
-static int ringdiff(ring_t *r1, ring_t *r2, uint8_t *mask, size_t w, size_t h) {
+static int ringdiff(ring_t *r1, ring_t *r2, BitGrid mask) {
 	mpoly_t mp1, mp2;
 	mp1.num_rings = mp2.num_rings = 1;
 	mp1.rings = r1;
@@ -364,8 +364,7 @@ static int ringdiff(ring_t *r1, ring_t *r2, uint8_t *mask, size_t w, size_t h) {
 			
 			int gain=1, penalty=2; // FIXME - arbitrary
 			for(int x=x_from; x<x_to; x++) {
-				uint8_t m = (y>=0 && size_t(y)<h && x>=0 && size_t(x)<w)
-					? mask[(w+2)*(y+1) + (x+1)] : 0;
+				uint8_t m = mask(x, y) ? 1 : 0;
 				if(in1) tally += m ? -penalty : gain;
 				if(in2) tally += m ? gain : -penalty;
 			}
@@ -375,8 +374,7 @@ static int ringdiff(ring_t *r1, ring_t *r2, uint8_t *mask, size_t w, size_t h) {
 		//	int in1 = is_in_crossings(row1, x);
 		//	int in2 = is_in_crossings(row2, x);
 		//	if((in1 && !in2) || (in2 && !in1)) {
-		//		uint8_t m = (y>=0 && y<h && x>=0 && x<w)
-		//			? mask[(w+2)*(y+1) + (x+1)] : 0;
+		//		uint8_t m = mask(x, y) ? 1 : 0;
 		//		if(in1) tally += m ? -1 :  1;
 		//		if(in2) tally += m ?  1 : -1;
 		//	}
@@ -424,14 +422,14 @@ static void perturb(ring_t *in, ring_t *out, int amt) {
 }
 
 /*
-static ring_t anneal(ring_t *input, int recurse, uint8_t *mask, size_t w, size_t h) {
+static ring_t anneal(ring_t *input, int recurse, BitGrid mask, int w, int h) {
 	ring_t best = duplicate_ring(input);
 	ring_t pert = duplicate_ring(input);
 
 	if(recurse) {
 		for(int iter=0; iter<1000; iter++) {
 			perturb(&best, &pert, 2);
-			int diff = ringdiff(&best, &pert, mask, w, h);
+			int diff = ringdiff(&best, &pert, mask);
 			if(diff > 0) {
 				ring_t t = best;
 				best = pert; pert = t;
@@ -441,7 +439,7 @@ static ring_t anneal(ring_t *input, int recurse, uint8_t *mask, size_t w, size_t
 		for(int iter=0; iter<200; iter++) {
 			perturb(&best, &pert, 100);
 			ring_t trial = anneal(&pert, recurse-1, mask, w, h);
-			int diff = ringdiff(&best, &trial, mask, w, h);
+			int diff = ringdiff(&best, &trial, mask);
 			if(diff > 0) {
 				printf("r=%d diff=%d\n", recurse, diff);
 				free_ring(&best);
@@ -454,7 +452,7 @@ static ring_t anneal(ring_t *input, int recurse, uint8_t *mask, size_t w, size_t
 
 	for(int iter=0; iter<100; iter++) {
 		perturb(&best, &pert, 2);
-		int diff = ringdiff(&best, &pert, mask, w, h);
+		int diff = ringdiff(&best, &pert, mask);
 		if(diff > 0) {
 			ring_t t = best;
 			best = pert; pert = t;
@@ -466,14 +464,14 @@ static ring_t anneal(ring_t *input, int recurse, uint8_t *mask, size_t w, size_t
 }
 */
 
-static ring_t anneal(ring_t *input, uint8_t *mask, size_t w, size_t h) {
+static ring_t anneal(ring_t *input, BitGrid mask) {
 	ring_t best = duplicate_ring(input);
 	ring_t pert = duplicate_ring(input);
 
 	for(int iter=0; iter<10000; iter++) { // FIXME - arbitrary
 		int amt = (int)ceil(200.0 * exp(-iter / 50.0)); // FIXME - arbitrary
 		perturb(&best, &pert, amt);
-		int diff = ringdiff(&best, &pert, mask, w, h);
+		int diff = ringdiff(&best, &pert, mask);
 		if(diff > 0) {
 			// swap best and pert
 			ring_t t = best; best = pert; pert = t;
@@ -484,11 +482,11 @@ static ring_t anneal(ring_t *input, uint8_t *mask, size_t w, size_t h) {
 	return best;
 }
 
-ring_t calc_rect4_from_mask(uint8_t *mask, size_t w, size_t h, report_image_t *dbuf, bool use_ai) {
+ring_t calc_rect4_from_mask(BitGrid mask, int w, int h, report_image_t *dbuf, bool use_ai) {
 	ring_t best = calc_rect4_from_convex_hull(mask, w, h, dbuf);
 
 	if(use_ai) {
-		best = anneal(&best, mask, w, h);
+		best = anneal(&best, mask);
 
 		if(dbuf && dbuf->mode == PLOT_RECT4) {
 			for(int i=0; i<best.npts; i++) {

@@ -510,3 +510,20 @@ void BitGrid::erode() { // FIXME - untested
 	delete[] rowm;
 	delete[] rowl;
 }
+
+vertex_t BitGrid::centroid() {
+	long accum_x=0, accum_y=0, cnt=0;
+	for(int y=0; y<h; y++) {
+		for(int x=0; x<w; x++) {
+			if(get(x, y)) {
+				accum_x += x;
+				accum_y += y;
+				cnt++;
+			}
+		}
+	}
+	return (vertex_t){
+		double(accum_x) / cnt,
+		double(accum_y) / cnt
+	};
+}

@@ -85,6 +85,8 @@ public:
 
 	void erode();
 
+	vertex_t centroid();
+
 private:
 	int w, h;
 	size_t arrlen;

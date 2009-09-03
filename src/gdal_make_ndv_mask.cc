@@ -119,15 +119,15 @@ int main(int argc, char **argv) {
 		fatal_error("cannot determine no-data-value");
 	}
 
-	uint8_t *mask = get_mask_for_dataset(ds, inspect_numbands, inspect_bandids,
+	BitGrid mask = get_bitgrid_for_dataset(ds, inspect_numbands, inspect_bandids,
 		&ndv_def, NULL);
 
 	if(do_invert) {
-		invert_mask(mask, w, h);
+		mask.invert();
 	}
 
 	if(do_erosion) {
-		erode_mask(mask, w, h);
+		mask.erode();
 	}
 
 	FILE *fout = fopen(mask_out_fn, "wb");
@@ -138,10 +138,8 @@ int main(int argc, char **argv) {
 		memset(buf, 0, (w+7)/8);
 		uint8_t *p = buf;
 		uint8_t bitp = 128;
-		uint8_t *mp = mask + (w+2)*(y+1) + 1;
 		for(size_t x=0; x<w; x++) {
-			uint8_t v = *(mp++);
-			if(!v) *p |= bitp;
+			if(!mask(x, y)) *p |= bitp;
 			bitp >>= 1;
 			if(!bitp) {
 				p++;
