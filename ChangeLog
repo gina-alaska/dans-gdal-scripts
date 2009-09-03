@@ -1,2 +1,5 @@
+=== Version 0.16
+	Several fixes for support of large files (>2 gigapixels)
+
 === Version 0.15
 	Added gdal_make_ndv_mask program
