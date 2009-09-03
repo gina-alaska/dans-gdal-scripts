@@ -52,8 +52,8 @@ int main(int argc, char **argv) {
 	char *input_raster_fn = NULL;
 
 	char *mask_out_fn = NULL;
-	int do_erosion = 0;
-	int do_invert = 0;
+	bool do_erosion = 0;
+	bool do_invert = 0;
 	int inspect_numbands = 0;
 	int *inspect_bandids = NULL;
 
@@ -76,7 +76,7 @@ int main(int argc, char **argv) {
 				inspect_bandids = REMYALLOC(int, inspect_bandids, (inspect_numbands+1));
 				inspect_bandids[inspect_numbands++] = bandid;
 			} else if(!strcmp(arg, "-erosion")) {
-				do_erosion++;
+				do_erosion = 1;
 			} else if(!strcmp(arg, "-invert")) {
 				do_invert = 1;
 			} else if(!strcmp(arg, "-mask-out")) {
@@ -100,8 +100,8 @@ int main(int argc, char **argv) {
 
 	GDALDatasetH ds = GDALOpen(input_raster_fn, GA_ReadOnly);
 	if(!ds) fatal_error("open failed");
-	int w = GDALGetRasterXSize(ds);
-	int h = GDALGetRasterYSize(ds);
+	size_t w = GDALGetRasterXSize(ds);
+	size_t h = GDALGetRasterYSize(ds);
 
 	if(!inspect_numbands) {
 		inspect_numbands = GDALGetRasterCount(ds);
@@ -132,14 +132,14 @@ int main(int argc, char **argv) {
 
 	FILE *fout = fopen(mask_out_fn, "wb");
 	if(!fout) fatal_error("cannot open mask output");
-	fprintf(fout, "P4\n%d %d\n", w, h);
+	fprintf(fout, "P4\n%zd %zd\n", w, h);
 	uint8_t *buf = MYALLOC(uint8_t, (w+7)/8);
-	for(int y=0; y<h; y++) {
+	for(size_t y=0; y<h; y++) {
 		memset(buf, 0, (w+7)/8);
 		uint8_t *p = buf;
 		uint8_t bitp = 128;
 		uint8_t *mp = mask + (w+2)*(y+1) + 1;
-		for(int x=0; x<w; x++) {
+		for(size_t x=0; x<w; x++) {
 			uint8_t v = *(mp++);
 			if(!v) *p |= bitp;
 			bitp >>= 1;

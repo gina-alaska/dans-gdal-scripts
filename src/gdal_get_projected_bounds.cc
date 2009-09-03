@@ -109,7 +109,7 @@ int main(int argc, char **argv) {
 	bbox_t src_bbox = get_polygon_bbox(&src_mp);
 
 	mpoly_t t_bounds_mp;
-	int use_t_bounds;
+	bool use_t_bounds;
 	bbox_t t_bounds_bbox;
 	if(t_bounds_wkt_fn) {
 		use_t_bounds = 1;

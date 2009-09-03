@@ -35,14 +35,14 @@ report_image_t *create_plot(double w, double h) {
 	dbuf->canvas_w = w+2;
 	dbuf->canvas_h = h+2;
 
-	dbuf->img_w = (int)w+1;
-	dbuf->img_h = (int)h+1;
+	dbuf->img_w = size_t(w+1);
+	dbuf->img_h = size_t(h+1);
 	if(dbuf->img_w > 800) {
 		dbuf->img_w = 800;
-		dbuf->img_h = (int)(800.0 * (h+1) / (w+1));
+		dbuf->img_h = size_t(800.0 * (h+1) / (w+1));
 	}
 	if(dbuf->img_h > 800) {
-		dbuf->img_w = (int)(800.0 * (w+1) / (h+1));
+		dbuf->img_w = size_t(800.0 * (w+1) / (h+1));
 		dbuf->img_h = 800;
 	}
 	if(dbuf->img_w < 1) dbuf->img_w = 1;
@@ -61,7 +61,7 @@ report_image_t *create_plot(double w, double h) {
 
 void write_plot(report_image_t *dbuf, const char *fn) {
 	FILE *fout = fopen(fn, "wb");
-	fprintf(fout, "P6\n%d %d\n255\n", dbuf->img_w, dbuf->img_h);
+	fprintf(fout, "P6\n%zd %zd\n255\n", dbuf->img_w, dbuf->img_h);
 	fwrite(dbuf->img, dbuf->img_w*dbuf->img_h, 3, fout);
 	fclose(fout);
 }
@@ -72,7 +72,7 @@ void plot_point_big(report_image_t *dbuf, double x, double y, uint8_t r, uint8_t
 	for(int dx=-1; dx<=1; dx++) for(int dy=-1; dy<=1; dy++) {
 		int plot_x = center_x + dx;
 		int plot_y = center_y + dy;
-		if(plot_x>=0 && plot_y>=0 && plot_x<dbuf->img_w && plot_y<dbuf->img_h) {
+		if(plot_x>=0 && plot_y>=0 && size_t(plot_x)<dbuf->img_w && size_t(plot_y)<dbuf->img_h) {
 			uint8_t *p = dbuf->img + (plot_x + dbuf->img_w*plot_y)*3;
 			*(p++) = r; *(p++) = g; *(p++) = b;
 		}
@@ -82,7 +82,7 @@ void plot_point_big(report_image_t *dbuf, double x, double y, uint8_t r, uint8_t
 void plot_point(report_image_t *dbuf, double x, double y, uint8_t r, uint8_t g, uint8_t b) {
 	int plot_x = (int)round(x / dbuf->canvas_w * (double)(dbuf->img_w-1));
 	int plot_y = (int)round(y / dbuf->canvas_h * (double)(dbuf->img_h-1));
-	if(plot_x>=0 && plot_y>=0 && plot_x<dbuf->img_w && plot_y<dbuf->img_h) {
+	if(plot_x>=0 && plot_y>=0 && size_t(plot_x)<dbuf->img_w && size_t(plot_y)<dbuf->img_h) {
 		uint8_t *p = dbuf->img + (plot_x + dbuf->img_w*plot_y)*3;
 		*(p++) = r; *(p++) = g; *(p++) = b;
 	}

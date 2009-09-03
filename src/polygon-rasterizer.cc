@@ -180,9 +180,7 @@ void free_row_crossings(row_crossings_t *rc, int num_rows) {
 	free(rc);
 }
 
-void mask_from_mpoly(mpoly_t *mpoly, int w, int h, const char *fn) {
-	int i, j, y;
-
+void mask_from_mpoly(mpoly_t *mpoly, size_t w, size_t h, const char *fn) {
 	printf("mask draw: begin\n");
 
 	row_crossings_t *rows = get_row_crossings(mpoly, 0, h);
@@ -191,18 +189,18 @@ void mask_from_mpoly(mpoly_t *mpoly, int w, int h, const char *fn) {
 
 	FILE *fout = fopen(fn, "wb");
 	if(!fout) fatal_error("cannot open mask output");
-	fprintf(fout, "P4\n%d %d\n", w, h);
+	fprintf(fout, "P4\n%zd %zd\n", w, h);
 	uint8_t *buf = MYALLOC(uint8_t, (w+7)/8);
-	for(y=0; y<h; y++) {
+	for(size_t y=0; y<h; y++) {
 		memset(buf, 0, (w+7)/8);
 		uint8_t *p = buf;
 		uint8_t bitp = 128;
 		row_crossings_t *r = rows+y;
-		for(i=0; i<w; i++) {
+		for(size_t i=0; i<w; i++) {
 			uint8_t v = 1;
 			// not the fastest way...
-			for(j=0; j<r->num_crossings; j++) {
-				if(i >= r->crossings[j]) v = !v;
+			for(int j=0; j<r->num_crossings; j++) {
+				if(double(i) >= r->crossings[j]) v = !v;
 			}
 			if(v) *p |= bitp;
 			bitp >>= 1;

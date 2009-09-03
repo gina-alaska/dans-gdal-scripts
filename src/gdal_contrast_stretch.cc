@@ -30,13 +30,13 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include "ndv.h"
 
 void compute_histogram(GDALRasterBandH *src_bands, int band_count, ndv_def_t *ndv_def, 
-	size_t w, size_t h, int **histograms, int input_range);
-void print_band_stats(int band_idx, int *histogram, int input_range, size_t npix);
-void get_scale_from_stddev(int *histogram, int input_range,
+	size_t w, size_t h, size_t **histograms, int input_range);
+void print_band_stats(int band_idx, size_t *histogram, int input_range, size_t npix);
+void get_scale_from_stddev(size_t *histogram, int input_range,
 	double dst_avg, double dst_stddev, double *scale_out, double *offset_out);
-void get_scale_from_percentile(int *histogram, int input_range, int output_range,
+void get_scale_from_percentile(size_t *histogram, int input_range, int output_range,
 	double from_percentile, double to_percentile, double *scale_out, double *offset_out);
-void invert_histogram_to_gaussian(int *histogram_in, double variance, 
+void invert_histogram_to_gaussian(size_t *histogram_in, double variance, 
 	int *table_out, int input_range, int output_range, double max_rel_freq);
 void copyGeoCode(GDALDatasetH dst_ds, GDALDatasetH src_ds);
 
@@ -151,7 +151,7 @@ int main(int argc, char *argv[]) {
 	size_t h = GDALGetRasterYSize(src_ds);
 	if(!w || !h) fatal_error("missing width/height");
 	int band_count = GDALGetRasterCount(src_ds);
-	printf("Input size is %d, %d, %d\n", w, h, band_count);
+	printf("Input size is %zd, %zd, %d\n", w, h, band_count);
 
 	if(!ndv_def.nranges) {
 		int *bandlist = MYALLOC(int, band_count);
@@ -179,7 +179,7 @@ int main(int argc, char *argv[]) {
 
 	//////// open output ////////
 
-	printf("Output size is %d x %d x %d\n", w, h, band_count);
+	printf("Output size is %zd x %zd x %d\n", w, h, band_count);
 
 	GDALDriverH dst_driver = GDALGetDriverByName(output_format);
 	if(!dst_driver) fatal_error("unrecognized output format (%s)", output_format);
@@ -204,11 +204,11 @@ int main(int argc, char *argv[]) {
 
 	int mode_noeq = !(mode_percentile || mode_stddev || mode_histeq);
 
-	int **histograms = NULL;
+	size_t **histograms = NULL;
 	if(!mode_noeq) {
-		histograms = MYALLOC(int *, band_count);
+		histograms = MYALLOC(size_t *, band_count);
 		for(int band_idx=0; band_idx<band_count; band_idx++) {
-			histograms[band_idx] = MYALLOC(int, input_range);
+			histograms[band_idx] = MYALLOC(size_t, input_range);
 		}
 		compute_histogram(src_bands, band_count, &ndv_def, w, h, histograms, input_range);
 		printf("\n");
@@ -353,7 +353,7 @@ int main(int argc, char *argv[]) {
 
 void compute_histogram(
 	GDALRasterBandH *src_bands, int band_count, ndv_def_t *ndv_def, 
-	size_t w, size_t h, int **histograms, int input_range
+	size_t w, size_t h, size_t **histograms, int input_range
 ) {
 	printf("\nComputing histogram...\n");
 
@@ -406,7 +406,7 @@ void compute_histogram(
 			}
 			for(int band_idx=0; band_idx<band_count; band_idx++) {
 				GUInt16 *p = buf_in[band_idx];
-				int *hg = histograms[band_idx];
+				size_t *hg = histograms[band_idx];
 				
 				for(size_t i=0; i<block_len; i++) {
 					if(!ndv_mask[i]) hg[p[i]]++;
@@ -435,7 +435,7 @@ void print_band_stats(int band_idx, size_t *histogram, int input_range, size_t n
 			ngood += histogram[i];
 		}
 	}
-	printf("Band %d:\n  valid_pixels=%d, ndv_pixels=%d, min=%d, max=%d\n", 
+	printf("Band %d:\n  valid_pixels=%zd, ndv_pixels=%zd, min=%d, max=%d\n", 
 		band_idx, ngood, npix-ngood, min, max);
 }
 
@@ -513,13 +513,13 @@ double *gen_gaussian(double variance, int bin_count) {
 	return arr;
 }
 
-void invert_histogram(int *src_h, double *dst_h, int *out_h, 
+void invert_histogram(size_t *src_h, double *dst_h, int *out_h, 
 int input_range, int output_range, double max_rel_freq) {
 	int pixel_count = 0;
 	for(int i=0; i<input_range; i++) pixel_count += src_h[i];
 
 	if(max_rel_freq) {
-		int bin_max = (int)(max_rel_freq * (double)pixel_count / (double)input_range);
+		size_t bin_max = size_t(max_rel_freq * pixel_count / input_range);
 		for(int i=0; i<input_range; i++) {
 			if(src_h[i] > bin_max) {
 				pixel_count -= src_h[i] - bin_max;
@@ -540,7 +540,7 @@ int input_range, int output_range, double max_rel_freq) {
 	}
 }
 
-void invert_histogram_to_gaussian(int *histogram_in, double variance, 
+void invert_histogram_to_gaussian(size_t *histogram_in, double variance, 
 int *table_out, int input_range, int output_range, double max_rel_freq) {
 	double *gaussian = gen_gaussian(variance, output_range);
 	invert_histogram(histogram_in, gaussian, table_out, input_range, output_range, max_rel_freq);

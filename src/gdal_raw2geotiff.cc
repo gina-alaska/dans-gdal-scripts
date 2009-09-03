@@ -41,20 +41,18 @@ void usage(const char *cmdname) {
 }
 
 int main(int argc, char *argv[]) {
-	int i;
-
 	char *src_fn = NULL;
 	char *dst_fn = NULL;
-	int w=0, h=0;
+	size_t w=0, h=0;
 	double res=0;
 	double origin_e=0, origin_n=0;
 	double got_en=0;
 	char *srs = NULL;
 	double ndv=0;
-	int got_ndv=0;
+	bool got_ndv=0;
 	const char *datatype = "UINT8";
 	double affine[6];
-	int got_affine=0;
+	bool got_affine=0;
 	char endian=0;
 
 	int argp = 1;
@@ -73,13 +71,13 @@ int main(int argc, char *argv[]) {
 				h = (int)strtol(argv[argp++], &endptr, 10);
 				if(*endptr) usage(argv[0]);
 			} else if(!strcmp(arg, "-affine")) {
-				for(i=0; i<6; i++) {
+				for(int i=0; i<6; i++) {
 					if(argp == argc) usage(argv[0]);
 					char *endptr;
 					affine[i] = strtod(argv[argp++], &endptr);
 					if(*endptr) usage(argv[0]);
 				}
-				got_affine++;
+				got_affine = 1;
 			} else if(!strcmp(arg, "-res")) {
 				if(argp == argc) usage(argv[0]);
 				char *endptr;
@@ -106,7 +104,7 @@ int main(int argc, char *argv[]) {
 				ndv = strtod(argv[argp++], &endptr);
 				if(*endptr) usage(argv[0]);
 
-				got_ndv++;
+				got_ndv = 1;
 			} else if(!strcmp(arg, "-datatype")) {
 				if(argp == argc) usage(argv[0]);
 				datatype = argv[argp++];
@@ -166,7 +164,7 @@ int main(int argc, char *argv[]) {
 		bytes_per_pixel = 8;
 	}
 
-	int endian_mismatch;
+	bool endian_mismatch;
 	if(bytes_per_pixel == 1) {
 		endian_mismatch = 0;
 	} else {
@@ -217,10 +215,9 @@ int main(int argc, char *argv[]) {
 	//////////// transfer data
 
 	uint8_t *linebuf = MYALLOC(uint8_t, w * bytes_per_pixel);
-	int row;
-	for(row=0; row<h; row++) {
-		GDALTermProgress((double)row / (double)h, NULL, NULL);
-		if((size_t)w != fread(linebuf, bytes_per_pixel, w, fin)) {
+	for(size_t row=0; row<h; row++) {
+		GDALTermProgress((double)row / h, NULL, NULL);
+		if(w != fread(linebuf, bytes_per_pixel, w, fin)) {
 			fatal_error("input was short");
 		}
 		if(endian_mismatch) {

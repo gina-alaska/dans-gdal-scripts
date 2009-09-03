@@ -26,4 +26,4 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 
-ring_t calc_rect4_from_mask(unsigned char *mask, int w, int h, report_image_t *dbuf, int use_ai);
+ring_t calc_rect4_from_mask(unsigned char *mask, size_t w, size_t h, report_image_t *dbuf, bool use_ai);

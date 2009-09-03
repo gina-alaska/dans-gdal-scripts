@@ -30,8 +30,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 typedef struct {
 	int oversample;
-	int lo_w, lo_h;
-	int hi_w, hi_h;
+	size_t lo_w, lo_h;
+	size_t hi_w, hi_h;
 	int delta_x, delta_y;
 	double **kernel_x;
 	double **kernel_y;
@@ -66,8 +66,6 @@ Examples:\n\
 }
 
 int main(int argc, char *argv[]) {
-	int i;
-
 	int lum_ds_count = 0;
 	int lum_band_count = 0;
 	GDALDatasetH *lum_ds = NULL;
@@ -144,8 +142,8 @@ int main(int argc, char *argv[]) {
 	GDALDatasetH pan_ds = GDALOpen(pan_fn, GA_ReadOnly);
 	if(!pan_ds) fatal_error("open failed");
 
-	int w = GDALGetRasterXSize(pan_ds);
-	int h = GDALGetRasterYSize(pan_ds);
+	size_t w = GDALGetRasterXSize(pan_ds);
+	size_t h = GDALGetRasterYSize(pan_ds);
 	if(!w || !h) fatal_error("missing width/height");
 
 	if(GDALGetRasterCount(pan_ds) != 1) fatal_error("Pan input must be only one band");
@@ -154,14 +152,10 @@ int main(int argc, char *argv[]) {
 
 	/////
 
-	int ds_idx;
-	int band_idx;
-
 	scaled_band_t *rgb_bands = MYALLOC(scaled_band_t, rgb_band_count);
-	for(ds_idx=0, band_idx=0; ds_idx<rgb_ds_count; ds_idx++) {
+	for(int ds_idx=0, band_idx=0; ds_idx<rgb_ds_count; ds_idx++) {
 		int nb = GDALGetRasterCount(rgb_ds[ds_idx]);
-		int i;
-		for(i=0; i<nb; i++) {
+		for(int i=0; i<nb; i++) {
 			rgb_bands[band_idx++] = getScaledBand(rgb_ds[ds_idx], i+1, pan_ds);
 		}
 	}
@@ -169,9 +163,9 @@ int main(int argc, char *argv[]) {
 	scaled_band_t *lum_bands;
 	if(lum_ds_count) {
 		lum_bands = MYALLOC(scaled_band_t, lum_band_count);
-		for(ds_idx=0, band_idx=0; ds_idx<lum_ds_count; ds_idx++) {
+		for(int ds_idx=0, band_idx=0; ds_idx<lum_ds_count; ds_idx++) {
 			int nb = GDALGetRasterCount(lum_ds[ds_idx]);
-			for(i=0; i<nb; i++) {
+			for(int i=0; i<nb; i++) {
 				lum_bands[band_idx++] = getScaledBand(lum_ds[ds_idx], i+1, pan_ds);
 			}
 		}
@@ -179,15 +173,15 @@ int main(int argc, char *argv[]) {
 		lum_band_count = rgb_band_count;
 		lum_bands = rgb_bands;
 		lum_weights = MYALLOC(double, lum_band_count);
-		for(i=0; i<lum_band_count; i++) lum_weights[i] = 1;
+		for(int i=0; i<lum_band_count; i++) lum_weights[i] = 1;
 	}
 
 	double lum_weight_total = 0;
-	for(i=0; i<lum_band_count; i++) {
+	for(int i=0; i<lum_band_count; i++) {
 		lum_weight_total += lum_weights[i];
 	}
 	//printf("lum weights:");
-	for(i=0; i<lum_band_count; i++) {
+	for(int i=0; i<lum_band_count; i++) {
 		lum_weights[i] /= lum_weight_total;
 		//printf(" %lf", lum_weights[i]);
 	}
@@ -195,7 +189,7 @@ int main(int argc, char *argv[]) {
 
 	//////// open output ////////
 
-	printf("Output size is %d x %d x %d\n", w, h, rgb_band_count);
+	printf("Output size is %zd x %zd x %d\n", w, h, rgb_band_count);
 
 	GDALDriverH dst_driver = GDALGetDriverByName(output_format);
 	if(!dst_driver) fatal_error("unrecognized output format (%s)", output_format);
@@ -204,14 +198,14 @@ int main(int argc, char *argv[]) {
 	copyGeoCode(dst_ds, pan_ds);
 
 	GDALRasterBandH *dst_bands = MYALLOC(GDALRasterBandH, rgb_band_count);
-	for(i=0; i<rgb_band_count; i++) {
+	for(int i=0; i<rgb_band_count; i++) {
 		dst_bands[i] = GDALGetRasterBand(dst_ds, i+1);
 	}
 
 	//////// process data ////////
 
 	double **lum_buf = MYALLOC(double *, lum_band_count);
-	for(band_idx=0; band_idx<lum_band_count; band_idx++) {
+	for(int band_idx=0; band_idx<lum_band_count; band_idx++) {
 		lum_buf[band_idx] = MYALLOC(double, w);
 	}
 	double *pan_buf = MYALLOC(double, w);
@@ -219,23 +213,20 @@ int main(int argc, char *argv[]) {
 	uint8_t *out_buf = MYALLOC(uint8_t, w);
 	double *scale_buf = MYALLOC(double, w);
 
-	int row;
-	for(row=0; row<h; row++) {
-		int col;
-
-		GDALTermProgress((double)row/(double)h, NULL, NULL);
+	for(size_t row=0; row<h; row++) {
+		GDALTermProgress((double)row/h, NULL, NULL);
 
 		GDALRasterIO(pan_band, GF_Read, 0, row, w, 1, pan_buf, w, 1, GDT_Float64, 0, 0);
-		for(band_idx=0; band_idx<lum_band_count; band_idx++) {
+		for(int band_idx=0; band_idx<lum_band_count; band_idx++) {
 			readLineScaled(lum_bands+band_idx, row, lum_buf[band_idx]);
 		}
 
-		for(col=0; col<w; col++) {
-			int skip = 0;
+		for(size_t col=0; col<w; col++) {
+			bool skip = 0;
 
 			if(use_ndv) {
 				if(pan_buf[col] == ndv) skip = 1;
-				for(band_idx=0; band_idx<lum_band_count; band_idx++) {
+				for(int band_idx=0; band_idx<lum_band_count; band_idx++) {
 					if(lum_buf[band_idx][col] == ndv) {
 						skip = 1;
 					}
@@ -247,7 +238,7 @@ int main(int argc, char *argv[]) {
 			} else {
 				double lum_out = (double)pan_buf[col];
 				double lum_in = 0;
-				for(i=0; i<lum_band_count; i++) {
+				for(int i=0; i<lum_band_count; i++) {
 					lum_in += lum_buf[i][col] * lum_weights[i];
 				}
 
@@ -255,10 +246,10 @@ int main(int argc, char *argv[]) {
 			} // skip
 		} // col
 
-		for(band_idx=0; band_idx<rgb_band_count; band_idx++) {
+		for(int band_idx=0; band_idx<rgb_band_count; band_idx++) {
 			readLineScaled(rgb_bands+band_idx, row, rgb_buf);
 
-			for(col=0; col<w; col++) {
+			for(size_t col=0; col<w; col++) {
 				if(use_ndv && rgb_buf[col] == ndv) {
 					out_buf[col] = (uint8_t)ndv;
 				} else {
@@ -283,10 +274,10 @@ int main(int argc, char *argv[]) {
 		}
 	} // row
 
-	for(ds_idx=0; ds_idx<rgb_ds_count; ds_idx++) {
+	for(int ds_idx=0; ds_idx<rgb_ds_count; ds_idx++) {
 		GDALClose(rgb_ds[ds_idx]);
 	}
-	for(ds_idx=0; ds_idx<lum_ds_count; ds_idx++) {
+	for(int ds_idx=0; ds_idx<lum_ds_count; ds_idx++) {
 		GDALClose(lum_ds[ds_idx]);
 	}
 	GDALClose(pan_ds);
@@ -359,8 +350,7 @@ scaled_band_t getScaledBand(GDALDatasetH lores_ds, int band_id, GDALDatasetH hir
 	// http://www.imgfsr.com/ResamplingCVPR.pdf
 	sb.kernel_x = MYALLOC(double *, sb.oversample);
 	sb.kernel_y = MYALLOC(double *, sb.oversample);
-	int mod;
-	for(mod=0; mod<sb.oversample; mod++) {
+	for(int mod=0; mod<sb.oversample; mod++) {
 		sb.kernel_x[mod] = MYALLOC(double, 4);
 		sb.kernel_y[mod] = MYALLOC(double, 4);
 		double t = offset_x + (double)mod / (double)sb.oversample;
@@ -376,8 +366,7 @@ scaled_band_t getScaledBand(GDALDatasetH lores_ds, int band_id, GDALDatasetH hir
 	}
 
 	sb.lines_buf = MYALLOC(double *, 4);
-	int j;
-	for(j=0; j<4; j++) {
+	for(int j=0; j<4; j++) {
 		sb.lines_buf[j] = MYALLOC(double, sb.hi_w);
 	}
 	sb.line_buf_idx = -1000000;
@@ -388,25 +377,21 @@ scaled_band_t getScaledBand(GDALDatasetH lores_ds, int band_id, GDALDatasetH hir
 void readLineScaled1D(scaled_band_t *sb, int row, double *hires_buf) {
 	double *lores_buf = MYALLOC(double, sb->lo_w);
 
-	if(row<0 || row>=sb->lo_h) {
-		int col;
-		for(col=0; col<sb->hi_w; col++) {
+	if(row < 0 || size_t(row) >= sb->lo_h) {
+		for(size_t col=0; col<sb->hi_w; col++) {
 			hires_buf[col] = 0;
 		}
 	} else {
 		GDALRasterIO(sb->band, GF_Read, 0, row, sb->lo_w, 1, lores_buf, sb->lo_w, 1, GDT_Float64, 0, 0);
-		int mx;
-		for(mx=0; mx<sb->oversample; mx++) {
+		for(int mx=0; mx<sb->oversample; mx++) {
 			double *kernel = sb->kernel_x[mx];
-			int x0;
-			for(x0=0; ; x0++) {
-				int col = x0 * sb->oversample + mx;
+			for(int x0=0; ; x0++) {
+				size_t col = x0 * sb->oversample + mx;
 				if(col >= sb->hi_w) break;
-				int i;
 				double accum = 0;
-				for(i=0; i<4; i++) {
+				for(int i=0; i<4; i++) {
 					int x = x0 - 1 + i + sb->delta_x;
-					double v = (x<0 || x>=sb->lo_w) ? 0 : lores_buf[x];
+					double v = (x<0 || size_t(x) >= sb->lo_w) ? 0 : lores_buf[x];
 					accum += v * kernel[i];
 				}
 				hires_buf[col] = accum;
@@ -418,7 +403,6 @@ void readLineScaled1D(scaled_band_t *sb, int row, double *hires_buf) {
 }
 
 void readLineScaled(scaled_band_t *sb, int row, double *hires_buf) {
-	int j;
 	int y0 = row / sb->oversample;
 	int my = row % sb->oversample;
 	double *kernel = sb->kernel_y[my];
@@ -428,23 +412,22 @@ void readLineScaled(scaled_band_t *sb, int row, double *hires_buf) {
 		// no action
 	} else if(top_y == sb->line_buf_idx+1) {
 		double *tmp = sb->lines_buf[0];
-		for(j=0; j<3; j++) {
+		for(int j=0; j<3; j++) {
 			sb->lines_buf[j] = sb->lines_buf[j+1];
 		}
 		sb->lines_buf[3] = tmp;
 		readLineScaled1D(sb, top_y+3, sb->lines_buf[3]);
 		sb->line_buf_idx = top_y;
 	} else {
-		for(j=0; j<4; j++) {
+		for(int j=0; j<4; j++) {
 			readLineScaled1D(sb, top_y+j, sb->lines_buf[j]);
 		}
 		sb->line_buf_idx = top_y;
 	}
 
-	int col;
-	for(col=0; col<sb->hi_w; col++) {
+	for(size_t col=0; col<sb->hi_w; col++) {
 		double accum = 0;
-		for(j=0; j<4; j++) {
+		for(int j=0; j<4; j++) {
 			accum += sb->lines_buf[j][col] * kernel[j];
 		}
 		hires_buf[col] = accum;

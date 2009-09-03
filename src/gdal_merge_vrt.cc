@@ -67,14 +67,13 @@ int main(int argc, char *argv[]) {
 
 	GDALDatasetH *src_ds = MYALLOC(GDALDatasetH, src_ds_count);
 
-	int w=0, h=0;
-	int ds_idx;
-	for(ds_idx=0; ds_idx<src_ds_count; ds_idx++) {
+	size_t w=0, h=0;
+	for(int ds_idx=0; ds_idx<src_ds_count; ds_idx++) {
 		src_ds[ds_idx] = GDALOpen(src_fn[ds_idx], GA_ReadOnly);
 		if(!src_ds[ds_idx]) fatal_error("open failed");
 
-		int ds_w = GDALGetRasterXSize(src_ds[ds_idx]);
-		int ds_h = GDALGetRasterYSize(src_ds[ds_idx]);
+		size_t ds_w = GDALGetRasterXSize(src_ds[ds_idx]);
+		size_t ds_h = GDALGetRasterYSize(src_ds[ds_idx]);
 		if(!ds_w || !ds_h) fatal_error("missing width/height");
 
 		if(ds_idx) {
@@ -91,14 +90,13 @@ int main(int argc, char *argv[]) {
 	if(!dst_ds) fatal_error("could not create output");
 
 	int band_idx = GDALGetRasterCount(src_ds[0]);
-	for(ds_idx=1; ds_idx<src_ds_count; ds_idx++) {
+	for(int ds_idx=1; ds_idx<src_ds_count; ds_idx++) {
 		int nb = GDALGetRasterCount(src_ds[ds_idx]);
-		int i;
 
 		GDALDatasetH src_vrt_ds = GDALCreateCopy(dst_driver, "", src_ds[ds_idx], 0, NULL, NULL, NULL);
 		if(!src_vrt_ds) fatal_error("could not create VRT copy");
 
-		for(i=0; i<nb; i++) {
+		for(int i=0; i<nb; i++) {
 			GDALRasterBandH src_band = GDALGetRasterBand(src_vrt_ds, i+1);
 			if(!src_band) fatal_error("could not get src_band");
 
@@ -116,7 +114,7 @@ int main(int argc, char *argv[]) {
 		GDALClose(src_vrt_ds);
 	}
 
-	for(ds_idx=0; ds_idx<src_ds_count; ds_idx++) {
+	for(int ds_idx=0; ds_idx<src_ds_count; ds_idx++) {
 		GDALClose(src_ds[ds_idx]);
 	}
 	GDALClose(dst_ds);

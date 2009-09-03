@@ -38,7 +38,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 typedef struct {
 	unsigned char *img;
 	double canvas_w, canvas_h;
-	int img_w, img_h;
+	size_t img_w, img_h;
 	int stride_x, stride_y;
 	int mode;
 } report_image_t;

@@ -39,8 +39,6 @@ void usage(const char *cmdname) {
 }
 
 int main(int argc, char *argv[]) {
-	int i;
-
 	const char *dst_fn = NULL;
 
 	int src_ds_count = 0;
@@ -82,13 +80,11 @@ int main(int argc, char *argv[]) {
 
 	GDALRasterBandH *src_bands = MYALLOC(GDALRasterBandH, band_count);
 
-	int w=0, h=0;
+	size_t w=0, h=0;
 
-	int ds_idx;
-	int band_idx;
-	for(ds_idx=0, band_idx=0; ds_idx<src_ds_count; ds_idx++) {
-		int ds_w = GDALGetRasterXSize(src_ds[ds_idx]);
-		int ds_h = GDALGetRasterYSize(src_ds[ds_idx]);
+	for(int ds_idx=0, band_idx=0; ds_idx<src_ds_count; ds_idx++) {
+		size_t ds_w = GDALGetRasterXSize(src_ds[ds_idx]);
+		size_t ds_h = GDALGetRasterYSize(src_ds[ds_idx]);
 		if(!ds_w || !ds_h) fatal_error("missing width/height");
 		if(w) {
 			if(ds_w != w || ds_h != h) fatal_error("size mismatch for inputs");
@@ -98,15 +94,14 @@ int main(int argc, char *argv[]) {
 		}
 
 		int nb = GDALGetRasterCount(src_ds[ds_idx]);
-		int i;
-		for(i=0; i<nb; i++) {
+		for(int i=0; i<nb; i++) {
 			src_bands[band_idx++] = GDALGetRasterBand(src_ds[ds_idx], i+1);
 		}
 	}
 
 	//////// open output ////////
 
-	printf("Output size is %d x %d x %d\n", w, h, band_count);
+	printf("Output size is %zd x %zd x %d\n", w, h, band_count);
 
 	GDALDriverH dst_driver = GDALGetDriverByName(output_format);
 	if(!dst_driver) fatal_error("unrecognized output format (%s)", output_format);
@@ -115,7 +110,7 @@ int main(int argc, char *argv[]) {
 	copyGeoCode(dst_ds, src_ds[0]);
 
 	GDALRasterBandH *dst_bands = MYALLOC(GDALRasterBandH, band_count);
-	for(i=0; i<band_count; i++) {
+	for(int i=0; i<band_count; i++) {
 		dst_bands[i] = GDALGetRasterBand(dst_ds, i+1);
 	}
 
@@ -126,14 +121,12 @@ int main(int argc, char *argv[]) {
 	// FIXME - handle other datatypes
 	uint8_t *buf = MYALLOC(uint8_t, w * chunk_size);
 
-	int row;
-	for(row=0; row<h; row+=chunk_size) {
+	for(size_t row=0; row<h; row+=chunk_size) {
 		GDALTermProgress((double)row/(double)h, NULL, NULL);
 
 		int num_lines = chunk_size;
 		if(row+num_lines > h) num_lines = h - row;
-		int band_idx;
-		for(band_idx=0; band_idx<band_count; band_idx++) {
+		for(int band_idx=0; band_idx<band_count; band_idx++) {
 			if(GDALRasterIO(
 				src_bands[band_idx], GF_Read,
 				0, row, w, num_lines,
@@ -153,7 +146,7 @@ int main(int argc, char *argv[]) {
 
 	//////// shutdown ////////
 
-	for(ds_idx=0; ds_idx<src_ds_count; ds_idx++) {
+	for(int ds_idx=0; ds_idx<src_ds_count; ds_idx++) {
 		GDALClose(src_ds[ds_idx]);
 	}
 	GDALClose(dst_ds);

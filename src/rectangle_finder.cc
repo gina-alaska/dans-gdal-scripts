@@ -52,20 +52,18 @@ double ang_diff(double a1, double a2) {
 	return d<=180.0 ? d : 360.0-d;
 }
 
-ring_t calc_rect4_from_convex_hull(uint8_t *mask, int w, int h, report_image_t *dbuf) {
-	int i, j;
-
+ring_t calc_rect4_from_convex_hull(uint8_t *mask, size_t w, size_t h, report_image_t *dbuf) {
 	int *chrows_left = MYALLOC(int, h);
 	int *chrows_right = MYALLOC(int, h);
-	for(i=0; i<h; i++) {
-		chrows_left[i] = w;
-		chrows_right[i] = -1;
+	for(size_t j=0; j<h; j++) {
+		chrows_left[j] = w;
+		chrows_right[j] = -1;
 	}
-	for(j=0; j<h; j++) {
+	for(size_t j=0; j<h; j++) {
 		int left = w;
 		int right = -1;
 		uint8_t *mp = mask + (w+2)*(j+1) + 1;
-		for(i=0; i<w; i++) {
+		for(int i=0; i<int(w); i++) {
 			if(*(mp++)) {
 				if(left > i) left = i;
 				if(right < i) right = i;
@@ -76,7 +74,7 @@ ring_t calc_rect4_from_convex_hull(uint8_t *mask, int w, int h, report_image_t *
 	}
 
 	int fulcrum_x=-1, fulcrum_y=-1;
-	for(j=0; j<h; j++) {
+	for(size_t j=0; j<h; j++) {
 		if(chrows_left[j] <= chrows_right[j]) {
 			fulcrum_x = chrows_right[j];
 			fulcrum_y = j;
@@ -95,15 +93,14 @@ ring_t calc_rect4_from_convex_hull(uint8_t *mask, int w, int h, report_image_t *
 
 		int best_dx = -chop_dx, best_dy = -chop_dy;
 		int best_x=-1, best_y=-1;
-		for(j=0; j<h; j++) {
+		for(size_t j=0; j<h; j++) {
 			int l = chrows_left[j];
 			int r = chrows_right[j];
 			if(l > r) continue;
 			int pix_dy = j-fulcrum_y;
 
-			int lr;
-			for(lr=0; lr<2; lr++) {
-				i = lr ? r : l;
+			for(int lr=0; lr<2; lr++) {
+				int i = lr ? r : l;
 				int pix_dx = i-fulcrum_x;
 				if(pix_dx*chop_dy >= pix_dy*chop_dx) continue;
 				if(pix_dx*best_dy <  pix_dy*best_dx) continue;
@@ -133,7 +130,7 @@ ring_t calc_rect4_from_convex_hull(uint8_t *mask, int w, int h, report_image_t *
 		chop_dx = best_dx; chop_dy = best_dy;
 	}
 
-	for(i=0; i<num_edges; i++) {
+	for(int i=0; i<num_edges; i++) {
 		edge_t e = all_edges[i];
 		double dx = e.p1.x - e.p0.x;
 		double dy = e.p1.y - e.p0.y;
@@ -149,7 +146,7 @@ ring_t calc_rect4_from_convex_hull(uint8_t *mask, int w, int h, report_image_t *
 
 	int num_groups = 0;
 	all_edges[0].group = (num_groups++);
-	for(i=0; i<num_edges; i++) {
+	for(int i=0; i<num_edges; i++) {
 		edge_t l = all_edges[i];
 		edge_t r = all_edges[(i+1) % num_edges];
 		double len = l.seg_len + r.seg_len;
@@ -163,6 +160,7 @@ ring_t calc_rect4_from_convex_hull(uint8_t *mask, int w, int h, report_image_t *
 			} else {
 				// wrapped around... set the tail group to be
 				// equal to the head group
+				int j;
 				for(j=num_edges-1; j; j--) {
 					if(all_edges[j].group != l.group) {
 						j++; break;
@@ -189,13 +187,13 @@ ring_t calc_rect4_from_convex_hull(uint8_t *mask, int w, int h, report_image_t *
 		}
 	}
 	if(VERBOSE) printf("num groups: %d\n", num_groups);
-	for(i=0; i<num_edges; i++) {
+	for(int i=0; i<num_edges; i++) {
 		if(all_edges[i].group < 0) fatal_error("edge not assigned to a group");
 		//all_edges[i].group = (num_groups++);
 	}
 	//if(VERBOSE) printf("num groups: %d\n", num_groups);
 
-	if(VERBOSE) for(i=0; i<num_edges; i++) {
+	if(VERBOSE) for(int i=0; i<num_edges; i++) {
 		edge_t l = all_edges[i];
 		edge_t r = all_edges[(i+1) % num_edges];
 		double len = l.seg_len + r.seg_len;
@@ -206,12 +204,12 @@ ring_t calc_rect4_from_convex_hull(uint8_t *mask, int w, int h, report_image_t *
 	}
 
 	edge_group_t *groups = MYALLOC(edge_group_t, num_groups);
-	for(i=0; i<num_groups; i++) {
+	for(int i=0; i<num_groups; i++) {
 		groups[i].arc_len = 0;
 		groups[i].wx = 0;
 		groups[i].wy = 0;
 	}
-	for(i=0; i<num_edges; i++) {
+	for(int i=0; i<num_edges; i++) {
 		edge_t e = all_edges[i];
 		int eg = e.group;
 		if(eg < 0 || eg >= num_groups) {
@@ -221,7 +219,7 @@ ring_t calc_rect4_from_convex_hull(uint8_t *mask, int w, int h, report_image_t *
 		groups[eg].wx += e.seg_len * cos(e.angle / 180.0 * M_PI);
 		groups[eg].wy += e.seg_len * sin(e.angle / 180.0 * M_PI);
 	}
-	for(i=0; i<num_groups; i++) {
+	for(int i=0; i<num_groups; i++) {
 		if(VERBOSE) printf("group %d: l=%.15f\n", i, groups[i].arc_len);
 		if(groups[i].arc_len > (w+h)/10) { // FIXME - arbitrary
 			groups[i].use = 1;
@@ -230,21 +228,23 @@ ring_t calc_rect4_from_convex_hull(uint8_t *mask, int w, int h, report_image_t *
 			groups[i].use = 0;
 		}
 	}
-	j=0;
-	for(i=0; i<num_groups; i++) {
-		if(groups[i].use) {
-			groups[j++] = groups[i];
+	{
+		int j=0;
+		for(int i=0; i<num_groups; i++) {
+			if(groups[i].use) {
+				groups[j++] = groups[i];
+			}
 		}
+		num_groups = j;
 	}
-	num_groups = j;
 	double top_edge_angle = 0;
 	if(VERBOSE) printf("num groups: %d\n", num_groups);
-	for(i=0; i<num_groups; i++) {
+	for(int i=0; i<num_groups; i++) {
 		// FIXME - instead of choosing an existing edge close to avg_ang, it would
 		// be better to create a new edge with the desired angle and with proper
 		// p0.x,p0.y value
 		groups[i].best_edge = all_edges[0];
-		for(j=0; j<num_edges; j++) {
+		for(int j=0; j<num_edges; j++) {
 			double d1 = ang_diff(groups[i].avg_ang, all_edges[j].angle);
 			double d2 = ang_diff(groups[i].avg_ang, groups[i].best_edge.angle);
 			if(d1 < d2) groups[i].best_edge = all_edges[j];
@@ -253,14 +253,14 @@ ring_t calc_rect4_from_convex_hull(uint8_t *mask, int w, int h, report_image_t *
 		double ang = groups[i].best_edge.angle;
 		if(i==0 || (fabs(ang) < fabs(top_edge_angle))) top_edge_angle = ang;
 	}
-	for(i=0; i<num_groups; i++) {
+	for(int i=0; i<num_groups; i++) {
 		double a = groups[i].best_edge.angle - top_edge_angle;
 		if(a < 0.0) a += 360.0;
 		groups[i].sort_key = a;
 	}
 	// bubble sort - start at top edge and go clockwise
-	for(i=0; i<num_groups; i++) {
-		for(j=num_groups-1; j>i; j--) {
+	for(int i=0; i<num_groups; i++) {
+		for(int j=num_groups-1; j>i; j--) {
 			edge_group_t e1 = groups[j-1];
 			edge_group_t e2 = groups[j];
 			if(e1.sort_key > e2.sort_key) {
@@ -270,14 +270,14 @@ ring_t calc_rect4_from_convex_hull(uint8_t *mask, int w, int h, report_image_t *
 		}
 	}
 	if(VERBOSE) printf("sorted:\n");
-	if(VERBOSE) for(i=0; i<num_groups; i++) {
+	if(VERBOSE) for(int i=0; i<num_groups; i++) {
 		printf("group %d: l=%.15f  a=%.15f  s=%.15f\n", i, groups[i].arc_len, groups[i].best_edge.angle, groups[i].sort_key);
 	}
 
 	//if(VERBOSE) printf("%d edges\n", num_groups);
 	vertex_t *verts = MYALLOC(vertex_t, num_groups);
-	for(i=0; i<num_groups; i++) {
-		j = i ? i-1 : num_groups-1;
+	for(int i=0; i<num_groups; i++) {
+		int j = i ? i-1 : num_groups-1;
 		edge_t e1 = groups[i].best_edge;
 		edge_t e2 = groups[j].best_edge;
 		line_line_intersection(
@@ -288,8 +288,8 @@ ring_t calc_rect4_from_convex_hull(uint8_t *mask, int w, int h, report_image_t *
 	}
 
 	if(dbuf && dbuf->mode == PLOT_RECT4) {
-		for(i=0; i<num_groups; i++) {
-			j = i<num_groups-1 ? i+1 : 0;
+		for(int i=0; i<num_groups; i++) {
+			int j = i<num_groups-1 ? i+1 : 0;
 			plot_line(dbuf, verts[i], verts[j], 255, 0, 0);
 			plot_point_big(dbuf, verts[i].x, verts[i].y, 255, 255, 0);
 			plot_point_big(dbuf, verts[j].x, verts[j].y, 255, 255, 0);
@@ -317,7 +317,7 @@ ring_t calc_rect4_from_convex_hull(uint8_t *mask, int w, int h, report_image_t *
 //	return v;
 //}
 
-static int ringdiff(ring_t *r1, ring_t *r2, uint8_t *mask, int w, int h) {
+static int ringdiff(ring_t *r1, ring_t *r2, uint8_t *mask, size_t w, size_t h) {
 	mpoly_t mp1, mp2;
 	mp1.num_rings = mp2.num_rings = 1;
 	mp1.rings = r1;
@@ -364,7 +364,7 @@ static int ringdiff(ring_t *r1, ring_t *r2, uint8_t *mask, int w, int h) {
 			
 			int gain=1, penalty=2; // FIXME - arbitrary
 			for(int x=x_from; x<x_to; x++) {
-				uint8_t m = (y>=0 && y<h && x>=0 && x<w)
+				uint8_t m = (y>=0 && size_t(y)<h && x>=0 && size_t(x)<w)
 					? mask[(w+2)*(y+1) + (x+1)] : 0;
 				if(in1) tally += m ? -penalty : gain;
 				if(in2) tally += m ? gain : -penalty;
@@ -424,7 +424,7 @@ static void perturb(ring_t *in, ring_t *out, int amt) {
 }
 
 /*
-static ring_t anneal(ring_t *input, int recurse, uint8_t *mask, int w, int h) {
+static ring_t anneal(ring_t *input, int recurse, uint8_t *mask, size_t w, size_t h) {
 	ring_t best = duplicate_ring(input);
 	ring_t pert = duplicate_ring(input);
 
@@ -466,7 +466,7 @@ static ring_t anneal(ring_t *input, int recurse, uint8_t *mask, int w, int h) {
 }
 */
 
-static ring_t anneal(ring_t *input, uint8_t *mask, int w, int h) {
+static ring_t anneal(ring_t *input, uint8_t *mask, size_t w, size_t h) {
 	ring_t best = duplicate_ring(input);
 	ring_t pert = duplicate_ring(input);
 
@@ -484,7 +484,7 @@ static ring_t anneal(ring_t *input, uint8_t *mask, int w, int h) {
 	return best;
 }
 
-ring_t calc_rect4_from_mask(uint8_t *mask, int w, int h, report_image_t *dbuf, int use_ai) {
+ring_t calc_rect4_from_mask(uint8_t *mask, size_t w, size_t h, report_image_t *dbuf, bool use_ai) {
 	ring_t best = calc_rect4_from_convex_hull(mask, w, h, dbuf);
 
 	if(use_ai) {
