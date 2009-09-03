@@ -71,15 +71,13 @@ Examples:\n\
 int main(int argc, char **argv) {
 	char *input_raster_fn = NULL;
 
-	int inspect_rect4 = 0;
-	int fuzzy_match = 0;
+	bool inspect_rect4 = 0;
+	bool fuzzy_match = 0;
 	char *debug_report = NULL;
 	char *mask_out_fn = NULL;
 	int inspect_numbands = 0;
 	int *inspect_bandids = NULL;
-	int do_erosion = 0;
-
-	int i, j;
+	bool do_erosion = 0;
 
 	if(argc == 1) usage(argv[0]);
 
@@ -102,18 +100,18 @@ int main(int argc, char **argv) {
 			if(!strcmp(arg, "-v")) {
 				VERBOSE++;
 			} else if(!strcmp(arg, "-inspect-rect4")) {
-				inspect_rect4++;
+				inspect_rect4 = 1;
 			} else if(!strcmp(arg, "-fuzzy-match")) {
-				fuzzy_match++;
+				fuzzy_match = 1;
 			} else if(!strcmp(arg, "-b")) {
 				if(argp == argc) usage(argv[0]);
 				char *endptr;
-				int bandid = (int)strtol(argv[argp++], &endptr, 10);
+				int bandid = strtol(argv[argp++], &endptr, 10);
 				if(*endptr) usage(argv[0]);
 				inspect_bandids = REMYALLOC(int, inspect_bandids, (inspect_numbands+1));
 				inspect_bandids[inspect_numbands++] = bandid;
 			} else if(!strcmp(arg, "-erosion")) {
-				do_erosion++;
+				do_erosion = 1;
 			} else if(!strcmp(arg, "-report")) {
 				if(argp == argc) usage(argv[0]);
 				debug_report = argv[argp++];
@@ -127,7 +125,7 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	int do_inspect = inspect_rect4;
+	bool do_inspect = inspect_rect4;
 	if(do_inspect && !input_raster_fn) fatal_error("must specify filename of image");
 
 	GDALAllRegister();
@@ -141,7 +139,7 @@ int main(int argc, char **argv) {
 	if(do_inspect && !inspect_numbands) {
 		inspect_numbands = GDALGetRasterCount(ds);
 		inspect_bandids = MYALLOC(int, inspect_numbands);
-		for(i=0; i<inspect_numbands; i++) inspect_bandids[i] = i+1;
+		for(int i=0; i<inspect_numbands; i++) inspect_bandids[i] = i+1;
 	}
 
 	if(!do_inspect) {
@@ -179,12 +177,12 @@ int main(int argc, char **argv) {
 
 	// output phase
 
-	fprintf(yaml_fh, "width: %d\nheight: %d\n", georef.w, georef.h);
+	fprintf(yaml_fh, "width: %zd\nheight: %zd\n", georef.w, georef.h);
 
 	if(ds) {
 		int band_count = GDALGetRasterCount(ds);
 		const char *datatypes = "";
-		for(i=0; i<band_count; i++) {
+		for(int i=0; i<band_count; i++) {
 			GDALRasterBandH band = GDALGetRasterBand(ds, i+1);
 			GDALDataType gdt = GDALGetRasterDataType(band);
 			const char *dt = GDALGetDataTypeName(gdt);
@@ -226,7 +224,7 @@ int main(int argc, char **argv) {
 	}
 	if(georef.fwd_affine) {
 		fprintf(yaml_fh, "affine:\n");
-		for(i=0; i<6; i++) fprintf(yaml_fh, "  - %.15f\n", georef.fwd_affine[i]);
+		for(int i=0; i<6; i++) fprintf(yaml_fh, "  - %.15f\n", georef.fwd_affine[i]);
 	}
 
 	double lon, lat;
@@ -285,7 +283,7 @@ int main(int argc, char **argv) {
 		const char *labels[] = { "upper_left", "upper_right", "lower_right", "lower_left" };
 		if(georef.fwd_xform && georef.fwd_affine) {
 			fprintf(yaml_fh, "geometry_ll:\n  type: rectangle4\n");
-			for(i=0; i<4; i++) {
+			for(int i=0; i<4; i++) {
 				xy2ll_or_die(&georef, rect4.pts[i].x, rect4.pts[i].y, &lon, &lat);
 				fprintf(yaml_fh, "  %s_lon: %.15f\n", labels[i], lon);
 				fprintf(yaml_fh, "  %s_lat: %.15f\n", labels[i], lat);
@@ -293,14 +291,14 @@ int main(int argc, char **argv) {
 		}
 		if(georef.fwd_affine) {
 			fprintf(yaml_fh, "geometry_en:\n  type: rectangle4\n");
-			for(i=0; i<4; i++) {
+			for(int i=0; i<4; i++) {
 				xy2en(&georef, rect4.pts[i].x, rect4.pts[i].y, &east, &north);
 				fprintf(yaml_fh, "  %s_east: %.15f\n", labels[i], east);
 				fprintf(yaml_fh, "  %s_north: %.15f\n", labels[i], north);
 			}
 		}
 		fprintf(yaml_fh, "geometry_xy:\n  type: rectangle4\n");
-		for(i=0; i<4; i++) {
+		for(int i=0; i<4; i++) {
 			fprintf(yaml_fh, "  %s_x: %.15f\n", labels[i], rect4.pts[i].x);
 			fprintf(yaml_fh, "  %s_y: %.15f\n", labels[i], rect4.pts[i].y);
 		}
@@ -311,7 +309,7 @@ int main(int argc, char **argv) {
 		double n_pos[] = { 0, (double)georef.h/2.0, georef.h };
 		if(georef.fwd_xform && georef.fwd_affine) {
 			fprintf(yaml_fh, "geometry_ll:\n  type: rectangle8\n");
-			for(i=0; i<3; i++) for(j=0; j<3; j++) {
+			for(int i=0; i<3; i++) for(int j=0; j<3; j++) {
 				if(!strcmp(e_labels[i], "mid") && !strcmp(n_labels[j], "mid")) continue;
 				xy2ll_or_die(&georef, e_pos[i], n_pos[j], &lon, &lat);
 				fprintf(yaml_fh, "  %s_%s_lon: %.15f\n", n_labels[j], e_labels[i], lon);
@@ -320,7 +318,7 @@ int main(int argc, char **argv) {
 		}
 		if(georef.fwd_affine) {
 			fprintf(yaml_fh, "geometry_en:\n  type: rectangle8\n");
-			for(i=0; i<3; i++) for(j=0; j<3; j++) {
+			for(int i=0; i<3; i++) for(int j=0; j<3; j++) {
 				if(!strcmp(e_labels[i], "mid") && !strcmp(n_labels[j], "mid")) continue;
 				xy2en(&georef, e_pos[i], n_pos[j], &east, &north);
 				fprintf(yaml_fh, "  %s_%s_east: %.15f\n", n_labels[j], e_labels[i], east);
@@ -328,7 +326,7 @@ int main(int argc, char **argv) {
 			}
 		}
 		fprintf(yaml_fh, "geometry_xy:\n  type: rectangle8\n");
-		for(i=0; i<3; i++) for(j=0; j<3; j++) {
+		for(int i=0; i<3; i++) for(int j=0; j<3; j++) {
 			if(!strcmp(e_labels[i], "mid") && !strcmp(n_labels[j], "mid")) continue;
 			fprintf(yaml_fh, "  %s_%s_x: %.15f\n", n_labels[j], e_labels[i], e_pos[i]);
 			fprintf(yaml_fh, "  %s_%s_y: %.15f\n", n_labels[j], e_labels[i], n_pos[j]);

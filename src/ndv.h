@@ -36,18 +36,19 @@ typedef struct {
 } ndv_range_t;
 
 typedef struct {
-	int invert;
+	bool invert;
 	ndv_range_t *ranges;
 	int nranges;
 } ndv_def_t;
 
+// FIXME! make sure the callers of these are 64-bit safe
 void print_ndv_usage();
 ndv_def_t init_ndv_options(int *argc_ptr, char ***argv_ptr);
 void add_ndv_from_raster(ndv_def_t *nd, GDALDatasetH ds, int bandlist_size, int *bandlist);
 void array_check_ndv(
 	ndv_def_t *nd, int band, double *in_dbl, uint8_t *in_byte,
-	uint8_t *mask_out, int num_samples
+	uint8_t *mask_out, size_t num_samples
 );
-void aggregate_ndv_mask(ndv_def_t *nd, uint8_t *total, uint8_t *band, int num_samples);
+void aggregate_ndv_mask(ndv_def_t *nd, uint8_t *total, uint8_t *band, size_t num_samples);
 
 #endif // NDV_H

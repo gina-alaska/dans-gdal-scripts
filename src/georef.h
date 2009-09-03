@@ -33,9 +33,9 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 typedef struct {
 	char *s_srs;
 	char *geo_srs;
-	int w, h;
-	int got_ll_en;
-	int got_ul_en;
+	size_t w, h;
+	bool got_ll_en;
+	bool got_ul_en;
 	double given_left_e, given_lower_n, given_upper_n;
 	double res_x, res_y;
 } geo_opts_t;
@@ -48,7 +48,7 @@ typedef struct {
 	char *units_name;
 	double units_val;
 	double semi_major, semi_minor;
-	int w, h;
+	size_t w, h;
 	OGRSpatialReferenceH spatial_ref;
 	OGRSpatialReferenceH geo_sref;
 	OGRCoordinateTransformationH fwd_xform;
@@ -64,10 +64,10 @@ georef_t init_georef(geo_opts_t *opt, GDALDatasetH ds);
 
 void xy2en(georef_t *georef, double xpos, double ypos, double *e_out, double *n_out);
 void en2xy(georef_t *georef, double east, double north, double *x_out, double *y_out);
-int en2ll(georef_t *georef, double east, double north, double *lon_out, double *lat_out);
-int ll2en(georef_t *georef, double lon, double lat, double *e_out, double *n_out);
-int xy2ll(georef_t *georef, double x, double y, double *lon_out, double *lat_out);
-int ll2xy(georef_t *georef, double lon, double lat, double *x_out, double *y_out);
+bool en2ll(georef_t *georef, double east, double north, double *lon_out, double *lat_out);
+bool ll2en(georef_t *georef, double lon, double lat, double *e_out, double *n_out);
+bool xy2ll(georef_t *georef, double x, double y, double *lon_out, double *lat_out);
+bool ll2xy(georef_t *georef, double lon, double lat, double *x_out, double *y_out);
 void en2ll_or_die(georef_t *georef, double east, double north, double *lon_out, double *lat_out);
 void ll2en_or_die(georef_t *georef, double lon, double lat, double *e_out, double *n_out);
 void xy2ll_or_die(georef_t *georef, double x, double y, double *lon_out, double *lat_out);

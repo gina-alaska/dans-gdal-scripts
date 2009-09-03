@@ -34,16 +34,16 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 uint8_t *get_mask_for_dataset(GDALDatasetH ds, int bandlist_size, int *bandlist, 
 ndv_def_t *ndv_def, report_image_t *dbuf) {
-	int w = GDALGetRasterXSize(ds);
-	int h = GDALGetRasterYSize(ds);
+	size_t w = GDALGetRasterXSize(ds);
+	size_t h = GDALGetRasterYSize(ds);
 	int band_count = GDALGetRasterCount(ds);
-	if(VERBOSE) printf("input is %d x %d x %d\n", w, h, band_count);
+	if(VERBOSE) printf("input is %zd x %zd x %d\n", w, h, band_count);
 
 	if(VERBOSE) printf("mask array is %.1f megabytes\n", double(w+2)*(h+2)/1024.0/1024.0);
-	uint8_t *mask = MYALLOC(uint8_t, size_t(w+2)*(h+2));
-	memset(mask, 0, size_t(w+2)*(h+2));
+	uint8_t *mask = MYALLOC(uint8_t, (w+2)*(h+2));
+	memset(mask, 0, (w+2)*(h+2));
 
-	printf("Reading %d bands of size %d x %d\n", bandlist_size, w, h);
+	printf("Reading %d bands of size %zd x %zd\n", bandlist_size, w, h);
 
 	for(int bandlist_idx=0; bandlist_idx<bandlist_size; bandlist_idx++) {
 		int band_idx = bandlist[bandlist_idx];
@@ -51,38 +51,40 @@ ndv_def_t *ndv_def, report_image_t *dbuf) {
 
 		GDALRasterBandH band = GDALGetRasterBand(ds, band_idx);
 
-		int blocksize_x, blocksize_y;
-		GDALGetBlockSize(band, &blocksize_x, &blocksize_y);
+		int blocksize_x_int, blocksize_y_int;
+		GDALGetBlockSize(band, &blocksize_x_int, &blocksize_y_int);
+		size_t blocksize_x = blocksize_x_int;
+		size_t blocksize_y = blocksize_y_int;
 
 		// gain speed in common 8-bit case
 		GDALDataType gdt = GDALGetRasterDataType(band);
 		bool use_8bit = (gdt == GDT_Byte);
 
-		if(VERBOSE) printf("band %d: block size = %d,%d, use_8bit=%d\n",
-			band_idx, blocksize_x, blocksize_y, use_8bit);
+		if(VERBOSE) printf("band %d: block size = %zd,%zd, use_8bit=%d\n",
+			band_idx, blocksize_x, blocksize_y, use_8bit?1:0);
 
 		void *block_buf;
 		if(use_8bit) {
-			block_buf = MYALLOC(uint8_t, size_t(blocksize_x)*blocksize_y);
+			block_buf = MYALLOC(uint8_t, blocksize_x*blocksize_y);
 		} else {
-			block_buf = MYALLOC(double, size_t(blocksize_x)*blocksize_y);
+			block_buf = MYALLOC(double, blocksize_x*blocksize_y);
 		}
 
 		uint8_t *row_ndv = MYALLOC(uint8_t, blocksize_x);
 
-		for(int boff_y=0; boff_y<h; boff_y+=blocksize_y) {
-			int bsize_y = blocksize_y;
+		for(size_t boff_y=0; boff_y<h; boff_y+=blocksize_y) {
+			size_t bsize_y = blocksize_y;
 			if(bsize_y + boff_y > h) bsize_y = h - boff_y;
-			for(int boff_x=0; boff_x<w; boff_x+=blocksize_x) {
-				int bsize_x = blocksize_x;
+			for(size_t boff_x=0; boff_x<w; boff_x+=blocksize_x) {
+				size_t bsize_x = blocksize_x;
 				if(bsize_x + boff_x > w) bsize_x = w - boff_x;
 
 				double progress = 
 					double(
-						size_t(bandlist_idx) * w * h +
-						size_t(boff_y) * (double)w +
-						size_t(boff_x) * bsize_y
-					) / (size_t(bandlist_size) * w * h);
+						bandlist_idx * w * h +
+						boff_y * w +
+						boff_x * bsize_y
+					) / (bandlist_size * w * h);
 				GDALTermProgress(progress, NULL, NULL);
 
 				GDALRasterIO(band, GF_Read, boff_x, boff_y, bsize_x, bsize_y, 
@@ -97,18 +99,18 @@ ndv_def_t *ndv_def, report_image_t *dbuf) {
 				} else {
 					p_dbl = (double *)block_buf;
 				}
-				for(int j=0; j<bsize_y; j++) {
-					int y = j + boff_y;
-					int is_dbuf_stride_y = dbuf && (bandlist_idx==0) && ((y % dbuf->stride_y) == 0);
-					uint8_t *mp = mask + size_t(w+2)*(y+1) + boff_x+1;
+				for(size_t j=0; j<bsize_y; j++) {
+					size_t y = j + boff_y;
+					bool is_dbuf_stride_y = dbuf && (bandlist_idx==0) && ((y % dbuf->stride_y) == 0);
+					uint8_t *mp = mask + (w+2)*(y+1) + boff_x+1;
 
 					array_check_ndv(ndv_def, bandlist_idx, p_dbl, p_8bit, row_ndv, bsize_x);
 
-					for(int i=0; i<bsize_x; i++) {
-						int is_dbuf_stride = is_dbuf_stride_y && ((i % dbuf->stride_x) == 0);
+					for(size_t i=0; i<bsize_x; i++) {
+						bool is_dbuf_stride = is_dbuf_stride_y && ((i % dbuf->stride_x) == 0);
 						if(is_dbuf_stride) {
 							int val = use_8bit ? (int)(*p_8bit) : (int)(*p_dbl);
-							int x = i + boff_x;
+							size_t x = i + boff_x;
 							int db_v = 50 + val/3;
 							if(db_v < 50) db_v = 50;
 							if(db_v > 254) db_v = 254;
@@ -121,16 +123,16 @@ ndv_def_t *ndv_def, report_image_t *dbuf) {
 					}
 
 					if(!bandlist_idx) {
-						for(int i=0; i<bsize_x; i++) {
+						for(size_t i=0; i<bsize_x; i++) {
 							*(mp++) = row_ndv[i] ? 0 : 1;
 						}
 					} else if(ndv_def->invert) {
-						for(int i=0; i<bsize_x; i++) {
+						for(size_t i=0; i<bsize_x; i++) {
 							if(row_ndv[i]) *mp = 0;
 							mp++;
 						}
 					} else {
-						for(int i=0; i<bsize_x; i++) {
+						for(size_t i=0; i<bsize_x; i++) {
 							if(!row_ndv[i]) *mp = 1;
 							mp++;
 						}
@@ -144,9 +146,9 @@ ndv_def_t *ndv_def, report_image_t *dbuf) {
 	}
 
 	if(dbuf) {
-		for(int y=0; y<h; y+=dbuf->stride_y) {
-		for(int x=0; x<w; x+=dbuf->stride_x) {
-			uint8_t is_valid = mask[size_t(w+2)*(y+1) + x+1];
+		for(size_t y=0; y<h; y+=dbuf->stride_y) {
+		for(size_t x=0; x<w; x+=dbuf->stride_x) {
+			uint8_t is_valid = mask[(w+2)*(y+1) + x+1];
 			if(!is_valid) {
 				plot_point(dbuf, x, y, 0, 0, 0);
 			}
@@ -162,60 +164,62 @@ ndv_def_t *ndv_def, report_image_t *dbuf) {
 uint8_t *read_dataset_8bit(GDALDatasetH ds, int band_idx, uint8_t *usage_array, report_image_t *dbuf) {
 	for(int i=0; i<256; i++) usage_array[i] = 0;
 
-	int w = GDALGetRasterXSize(ds);
-	int h = GDALGetRasterYSize(ds);
+	size_t w = GDALGetRasterXSize(ds);
+	size_t h = GDALGetRasterYSize(ds);
 	int band_count = GDALGetRasterCount(ds);
-	if(VERBOSE) printf("input is %d x %d x %d\n", w, h, band_count);
+	if(VERBOSE) printf("input is %zd x %zd x %d\n", w, h, band_count);
 
 	if(band_idx < 1 || band_idx > band_count) fatal_error("bandid out of range");
 
 	GDALRasterBandH band = GDALGetRasterBand(ds, band_idx);
 
-	int blocksize_x, blocksize_y;
-	GDALGetBlockSize(band, &blocksize_x, &blocksize_y);
+	int blocksize_x_int, blocksize_y_int;
+	GDALGetBlockSize(band, &blocksize_x_int, &blocksize_y_int);
+	size_t blocksize_x = blocksize_x_int;
+	size_t blocksize_y = blocksize_y_int;
 
 	GDALDataType gdt = GDALGetRasterDataType(band);
 	if(gdt != GDT_Byte) {
 		printf("Warning: input is not of type Byte, there may be loss while downsampling!\n");
 	}
 
-	if(VERBOSE) printf("band %d: block size = %d,%d\n",
+	if(VERBOSE) printf("band %d: block size = %zd,%zd\n",
 		band_idx, blocksize_x, blocksize_y);
 
-	printf("Reading one band of size %d x %d\n", w, h);
+	printf("Reading one band of size %zd x %zd\n", w, h);
 
-	uint8_t *outbuf = MYALLOC(uint8_t, size_t(w)*h);
-	uint8_t *inbuf = MYALLOC(uint8_t, size_t(blocksize_x)*blocksize_y);
-	for(int boff_y=0; boff_y<h; boff_y+=blocksize_y) {
-		int bsize_y = blocksize_y;
+	uint8_t *outbuf = MYALLOC(uint8_t, w*h);
+	uint8_t *inbuf = MYALLOC(uint8_t, blocksize_x*blocksize_y);
+	for(size_t boff_y=0; boff_y<h; boff_y+=blocksize_y) {
+		size_t bsize_y = blocksize_y;
 		if(bsize_y + boff_y > h) bsize_y = h - boff_y;
-		for(int boff_x=0; boff_x<w; boff_x+=blocksize_x) {
-			int bsize_x = blocksize_x;
+		for(size_t boff_x=0; boff_x<w; boff_x+=blocksize_x) {
+			size_t bsize_x = blocksize_x;
 			if(bsize_x + boff_x > w) bsize_x = w - boff_x;
 
 			double progress = 
 				double(
-					size_t(boff_y) * w +
-					size_t(boff_x) * bsize_y
-				) / (size_t(w) * h);
+					boff_y * w +
+					boff_x * bsize_y
+				) / (w * h);
 			GDALTermProgress(progress, NULL, NULL);
 
 			GDALRasterIO(band, GF_Read, boff_x, boff_y, bsize_x, bsize_y, 
 				inbuf, bsize_x, bsize_y, GDT_Byte, 0, 0);
 
 			uint8_t *p_in = inbuf;
-			for(int j=0; j<bsize_y; j++) {
-				int y = j + boff_y;
-				int is_dbuf_stride_y = dbuf && ((y % dbuf->stride_y) == 0);
-				uint8_t *p_out = outbuf + size_t(w)*y + boff_x;
-				for(int i=0; i<bsize_x; i++) {
+			for(size_t j=0; j<bsize_y; j++) {
+				size_t y = j + boff_y;
+				bool is_dbuf_stride_y = dbuf && ((y % dbuf->stride_y) == 0);
+				uint8_t *p_out = outbuf + w*y + boff_x;
+				for(size_t i=0; i<bsize_x; i++) {
 					uint8_t val = *(p_in++);
 					*(p_out++) = val;
 					usage_array[val] = 1;
 
-					int is_dbuf_stride = is_dbuf_stride_y && ((i % dbuf->stride_x) == 0);
+					bool is_dbuf_stride = is_dbuf_stride_y && ((i % dbuf->stride_x) == 0);
 					if(is_dbuf_stride) {
-						int x = i + boff_x;
+						size_t x = i + boff_x;
 						uint8_t db_v = 50 + val/3;
 						if(db_v < 50) db_v = 50;
 						if(db_v > 254) db_v = 254;
@@ -234,15 +238,15 @@ uint8_t *read_dataset_8bit(GDALDatasetH ds, int band_idx, uint8_t *usage_array, 
 	return outbuf;
 }
 
-uint8_t *get_mask_for_8bit_raster(int w, int h, const uint8_t *raster, uint8_t wanted) {
+uint8_t *get_mask_for_8bit_raster(size_t w, size_t h, const uint8_t *raster, uint8_t wanted) {
 	if(VERBOSE) printf("mask array is %.1f megabytes\n", double(w+2)*(h+2)/1024.0/1024.0);
-	uint8_t *mask = MYALLOC(uint8_t, size_t(w+2)*(h+2));
-	memset(mask, 0, size_t(w+2)*(h+2));
+	uint8_t *mask = MYALLOC(uint8_t, (w+2)*(h+2));
+	memset(mask, 0, (w+2)*(h+2));
 
-	for(int y=0; y<h; y++) {
-		uint8_t *mp = mask + size_t(w+2)*(y+1) + 1;
-		const uint8_t *p_in = raster + size_t(y)*w;
-		for(int x=0; x<w; x++) {
+	for(size_t y=0; y<h; y++) {
+		uint8_t *mp = mask + (w+2)*(y+1) + 1;
+		const uint8_t *p_in = raster + y*w;
+		for(size_t x=0; x<w; x++) {
 			uint8_t val = *(p_in++);
 			if(val == wanted) {
 				*mp = 1;
@@ -254,7 +258,7 @@ uint8_t *get_mask_for_8bit_raster(int w, int h, const uint8_t *raster, uint8_t w
 	return mask;
 }
 
-void erode_mask(uint8_t *mask, int w, int h) {
+void erode_mask(uint8_t *mask, size_t w, size_t h) {
 	w += 2;
 	h += 2;
 	uint8_t *rowu = MYALLOC(uint8_t, w);
@@ -265,11 +269,11 @@ void erode_mask(uint8_t *mask, int w, int h) {
 
 	uint8_t *mp = mask;
 
-	for(int y=0; y<h; y++) {
+	for(size_t y=0; y<h; y++) {
 		uint8_t *tmp = rowu;
 		rowu = rowm; rowm = rowl; rowl = tmp;
 		if(y+1 < h) {
-			memcpy(rowl, mask+size_t(w)*(y+1), w);
+			memcpy(rowl, mask+w*(y+1), w);
 		} else {
 			memset(rowl, 0, w);
 		}
@@ -278,7 +282,7 @@ void erode_mask(uint8_t *mask, int w, int h) {
 		uint8_t ml = 0, mm = rowm[0];
 		uint8_t ll = 0, lm = rowl[0];
 
-		for(int x=0; x<w; x++) {
+		for(size_t x=0; x<w; x++) {
 			uint8_t ur = (x+1<w) ? rowu[x+1] : 0;
 			uint8_t mr = (x+1<w) ? rowm[x+1] : 0;
 			uint8_t lr = (x+1<w) ? rowl[x+1] : 0;
@@ -301,18 +305,18 @@ void erode_mask(uint8_t *mask, int w, int h) {
 	free(rowl);
 }
 
-void invert_mask(uint8_t *mask, int w, int h) {
-	size_t len = size_t(w+2)*(h+2);
+void invert_mask(uint8_t *mask, size_t w, size_t h) {
+	size_t len = (w+2)*(h+2);
 	for(size_t i=0; i<len; i++) {
 		mask[i] = mask[i] ? 0 : 1;
 	}
 }
 
-vertex_t calc_centroid_from_mask(const uint8_t *mask, int w, int h) {
+vertex_t calc_centroid_from_mask(const uint8_t *mask, size_t w, size_t h) {
 	long weight_x=0, weight_y=0, num_datavals=0;
-	for(int j=0; j<h; j++) {
-		const uint8_t *mp = mask + size_t(w+2)*(j+1) + 1;
-		for(int i=0; i<w; i++) {
+	for(size_t j=0; j<h; j++) {
+		const uint8_t *mp = mask + (w+2)*(j+1) + 1;
+		for(size_t i=0; i<w; i++) {
 			if(*(mp++)) {
 				weight_x += i;
 				weight_y += j;

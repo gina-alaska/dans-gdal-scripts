@@ -97,9 +97,9 @@ geo_opts_t init_geo_options(int *argc_ptr, char ***argv_ptr) {
 			} else if(!strcmp(arg, "-wh")) {
 				if(argp+2 > argc) usage(argv[0]);
 				char *endptr;
-				opt.w = (int)strtol(argv[argp++], &endptr, 10);
+				opt.w = strtol(argv[argp++], &endptr, 10);
 				if(*endptr) usage(argv[0]);
-				opt.h = (int)strtol(argv[argp++], &endptr, 10);
+				opt.h = strtol(argv[argp++], &endptr, 10);
 				if(*endptr) usage(argv[0]);
 			} else if(!strcmp(arg, "-res")) {
 				char *endptr;
@@ -195,7 +195,7 @@ georef_t init_georef(geo_opts_t *opt, GDALDatasetH ds) {
 		georef.fwd_affine[1] = opt->res_x; georef.fwd_affine[2] =      0;
 		georef.fwd_affine[4] =     0; georef.fwd_affine[5] = -opt->res_y;
 	} else if(ds) {
-		int has_rotation = 0;
+		bool has_rotation = 0;
 		georef.fwd_affine = MYALLOC(double, 6);
 		if(GDALGetGeoTransform(ds, georef.fwd_affine) == CE_None) {
 			has_rotation = georef.fwd_affine[2] || georef.fwd_affine[4];
@@ -339,7 +339,7 @@ void en2xy(
 	*y_out = affine[3] + affine[4] * east + affine[5] * north;
 }
 
-int en2ll(
+bool en2ll(
 	georef_t *georef,
 	double east, double north,
 	double *lon_out, double *lat_out
@@ -376,7 +376,7 @@ void en2ll_or_die(
 	}
 }
 
-int ll2en(
+bool ll2en(
 	georef_t *georef,
 	double lon, double lat,
 	double *e_out, double *n_out
@@ -426,7 +426,7 @@ void ll2en_or_die(
 	}
 }
 
-int xy2ll(
+bool xy2ll(
 	georef_t *georef,
 	double x, double y,
 	double *lon_out, double *lat_out
@@ -446,13 +446,13 @@ void xy2ll_or_die(
 	en2ll_or_die(georef, east, north, lon_out, lat_out);
 }
 
-int ll2xy(
+bool ll2xy(
 	georef_t *georef,
 	double lon, double lat,
 	double *x_out, double *y_out
 ) {
 	double east, north;
-	int ret = ll2en(georef, lon, lat, &east, &north);
+	bool ret = ll2en(georef, lon, lat, &east, &north);
 	if(ret) return ret;
 	en2xy(georef, east, north, x_out, y_out);
 	return 0;

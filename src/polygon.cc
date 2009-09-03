@@ -139,7 +139,7 @@ bbox_t union_bbox(bbox_t bb1, bbox_t bb2) {
 	return bb;
 }
 
-int bboxes_disjoint(bbox_t *bbox1, bbox_t *bbox2) {
+bool bboxes_disjoint(bbox_t *bbox1, bbox_t *bbox2) {
 	return
 		bbox1->empty || bbox2->empty ||
 		bbox1->min_x > bbox2->max_x ||
@@ -402,10 +402,10 @@ void write_mpoly_wkt(char *wkt_fn, mpoly_t mpoly, int split_polys) {
 }
 */
 
-int line_intersects_line(
+bool line_intersects_line(
 	vertex_t p1, vertex_t p2,
 	vertex_t p3, vertex_t p4,
-	int fail_on_coincident
+	bool fail_on_coincident
 ) {
 	if(
 		MAX(p1.x, p2.x) < MIN(p3.x, p4.x) ||
@@ -461,7 +461,7 @@ double ring_oriented_area(ring_t *c) {
 	return accum / 2.0;
 }
 
-int ring_is_ccw(ring_t *c) {
+bool ring_is_ccw(ring_t *c) {
 	return ring_oriented_area(c) > 0;
 }
 
@@ -500,7 +500,7 @@ static int ring_contains_point(ring_t *ring, double px, double py) {
 	return num_crossings & 1;
 }
 
-int polygon_contains_point(mpoly_t *mp, double px, double py) {
+bool polygon_contains_point(mpoly_t *mp, double px, double py) {
 	int num_crossings = 0;
 	for(int r_idx=0; r_idx<mp->num_rings; r_idx++) {
 		if(ring_contains_point(mp->rings+r_idx, px, py)) num_crossings++;

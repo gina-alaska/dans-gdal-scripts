@@ -38,9 +38,9 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 uint8_t *get_mask_for_dataset(GDALDatasetH ds, int bandlist_size, int *bandlist, 
 	ndv_def_t *ndv_def, report_image_t *dbuf);
 uint8_t *read_dataset_8bit(GDALDatasetH ds, int band_idx, uint8_t *usage_array, report_image_t *dbuf);
-uint8_t *get_mask_for_8bit_raster(int w, int h, const uint8_t *raster, uint8_t wanted);
-void erode_mask(uint8_t *in_mask, int w, int h);
-void invert_mask(uint8_t *in_mask, int w, int h);
-vertex_t calc_centroid_from_mask(const uint8_t *mask, int w, int h);
+uint8_t *get_mask_for_8bit_raster(size_t w, size_t h, const uint8_t *raster, uint8_t wanted);
+void erode_mask(uint8_t *in_mask, size_t w, size_t h);
+void invert_mask(uint8_t *in_mask, size_t w, size_t h);
+vertex_t calc_centroid_from_mask(const uint8_t *mask, size_t w, size_t h);
 
 #endif // ifndef MASK_H

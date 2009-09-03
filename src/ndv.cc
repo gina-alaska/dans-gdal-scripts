@@ -110,7 +110,7 @@ ndv_def_t init_ndv_options(int *argc_ptr, char ***argv_ptr) {
 	ndv_def_t nd;
 	nd.ranges = NULL;
 	nd.nranges = 0;
-	int got_ndv=0, got_dv=0;
+	bool got_ndv=0, got_dv=0;
 
 	int argp = 1;
 	while(argp < argc) {
@@ -158,7 +158,7 @@ void add_ndv_from_raster(ndv_def_t *nd, GDALDatasetH ds, int bandlist_size, int 
 	r.nbands = bandlist_size;
 	r.min = MYALLOC(double, r.nbands);
 	r.max = MYALLOC(double, r.nbands);
-	int got_error = 0;
+	bool got_error = 0;
 
 	int band_count = GDALGetRasterCount(ds);
 	int bandlist_idx;
@@ -173,7 +173,7 @@ void add_ndv_from_raster(ndv_def_t *nd, GDALDatasetH ds, int bandlist_size, int 
 		if(success) {
 			r.min[bandlist_idx] = r.max[bandlist_idx] = val;
 		} else {
-			got_error = 1;
+			got_error = true;
 		}
 	}
 
@@ -189,7 +189,7 @@ void add_ndv_from_raster(ndv_def_t *nd, GDALDatasetH ds, int bandlist_size, int 
 
 void array_check_ndv(
 	ndv_def_t *nd, int band, double *in_dbl, uint8_t *in_byte,
-	uint8_t *mask_out, int num_samples
+	uint8_t *mask_out, size_t num_samples
 ) {
 	memset(mask_out, 0, num_samples);
 	for(int range_idx=0; range_idx<nd->nranges; range_idx++) {
@@ -206,40 +206,40 @@ void array_check_ndv(
 			fatal_error("wrong number of bands in NDV def");
 		}
 		if(in_dbl) {
-			for(int i=0; i<num_samples; i++) {
+			for(size_t i=0; i<num_samples; i++) {
 				uint8_t match = (in_dbl[i] >= min) && (in_dbl[i] <= max);
 				if(match) mask_out[i] = 1;
 			}
 		} else {
 			uint8_t min_byte = (uint8_t)MAX(ceil (min), 0);
 			uint8_t max_byte = (uint8_t)MIN(floor(max), 255);
-			for(int i=0; i<num_samples; i++) {
+			for(size_t i=0; i<num_samples; i++) {
 				uint8_t match = (in_byte[i] >= min_byte) && (in_byte[i] <= max_byte);
 				if(match) mask_out[i] = 1;
 			}
 		}
 	}
 	if(nd->invert) {
-		for(int i=0; i<num_samples; i++) {
+		for(size_t i=0; i<num_samples; i++) {
 			mask_out[i] = mask_out[i] ? 0 : 1;
 		}
 	}
 	if(in_dbl) {
-		for(int i=0; i<num_samples; i++) {
+		for(size_t i=0; i<num_samples; i++) {
 			if(isnan(in_dbl[i])) mask_out[i] = 1;
 		}
 	}
 }
 
-void aggregate_ndv_mask(ndv_def_t *nd, uint8_t *total, uint8_t *band, int num_samples) {
+void aggregate_ndv_mask(ndv_def_t *nd, uint8_t *total, uint8_t *band, size_t num_samples) {
 	if(nd->invert) {
 		// pixel is valid only if all bands are within valid range
-		for(int i=0; i<num_samples; i++) {
+		for(size_t i=0; i<num_samples; i++) {
 			if(band[i]) total[i] = 1;
 		}
 	} else {
 		// pixel is NDV only if all bands are NDV
-		for(int i=0; i<num_samples; i++) {
+		for(size_t i=0; i<num_samples; i++) {
 			if(!band[i]) total[i] = 0;
 		}
 	}

@@ -123,8 +123,8 @@ gdal_trace_outline raster.tif -classify -out-cs en -ogr-out outline.shp\n\
 	exit(1);
 }
 
-mpoly_t calc_ring_from_mask(uint8_t *mask, int w, int h,
-	int major_ring_only, int no_donuts,
+mpoly_t calc_ring_from_mask(uint8_t *mask, size_t w, size_t h,
+	bool major_ring_only, bool no_donuts,
 	long min_ring_area, double bevel_size);
 
 typedef struct {
@@ -171,24 +171,24 @@ geom_output_t *add_geom_output(geom_output_list_t *list, int out_cs) {
 
 int main(int argc, char **argv) {
 	const char *input_raster_fn = NULL;
-	int classify = 0;
+	bool classify = 0;
 	const char *debug_report = NULL;
 	int inspect_numbands = 0;
 	int *inspect_bandids = NULL;
-	int split_polys = 0;
+	bool split_polys = 0;
 	int cur_out_cs = CS_UNKNOWN;
 	const char *cur_ogr_fmt = "ESRI Shapefile";
 	geom_output_list_t geom_outputs = (geom_output_list_t){NULL, 0};
 	const char *mask_out_fn = NULL;
-	int major_ring_only = 0;
-	int no_donuts = 0;
+	bool major_ring_only = 0;
+	bool no_donuts = 0;
 	long min_ring_area = 0;
 	double reduction_tolerance = 2;
-	int do_erosion = 0;
-	int do_invert = 0;
+	bool do_erosion = 0;
+	bool do_invert = 0;
 	double llproj_toler = 1;
 	double bevel_size = .1;
-	int do_pinch_excursions = 0;
+	bool do_pinch_excursions = 0;
 
 	if(argc == 1) usage(argv[0]);
 
@@ -210,7 +210,7 @@ int main(int argc, char **argv) {
 			} else if(!strcmp(arg, "-b")) {
 				if(argp == argc) usage(argv[0]);
 				char *endptr;
-				int bandid = (int)strtol(argv[argp++], &endptr, 10);
+				int bandid = strtol(argv[argp++], &endptr, 10);
 				if(*endptr) usage(argv[0]);
 				inspect_bandids = REMYALLOC(int, inspect_bandids, (inspect_numbands+1));
 				inspect_bandids[inspect_numbands++] = bandid;
@@ -219,7 +219,7 @@ int main(int argc, char **argv) {
 			} else if(!strcmp(arg, "-invert")) {
 				do_invert = 1;
 			} else if(!strcmp(arg, "-split-polys")) {
-				split_polys++;
+				split_polys = 1;
 			} else if(!strcmp(arg, "-wkt-out")) {
 				if(argp == argc) usage(argv[0]);
 				geom_output_t *go = add_geom_output(&geom_outputs, cur_out_cs);
@@ -287,7 +287,7 @@ int main(int argc, char **argv) {
 
 	if(!input_raster_fn) fatal_error("must specify filename of image");
 
-	int do_geom_output = geom_outputs.num;
+	bool do_geom_output = geom_outputs.num;
 
 	if(major_ring_only && min_ring_area) fatal_error(
 		"-major-ring and -min-ring-area options cannot both be used at the same time");
@@ -308,8 +308,7 @@ int main(int argc, char **argv) {
 	if(!inspect_numbands) {
 		inspect_numbands = classify ? 1 : GDALGetRasterCount(ds);
 		inspect_bandids = MYALLOC(int, inspect_numbands);
-		int i;
-		for(i=0; i<inspect_numbands; i++) inspect_bandids[i] = i+1;
+		for(int i=0; i<inspect_numbands; i++) inspect_bandids[i] = i+1;
 	}
 
 	// FIXME - optional NDV for classify
@@ -401,8 +400,7 @@ int main(int argc, char **argv) {
 
 				if(color_table) {
 					const char *names[4] = { "c1", "c2", "c3", "c4" };
-					int i;
-					for(i=0; i<4; i++) {
+					for(int i=0; i<4; i++) {
 						fld = OGR_Fld_Create(names[i], OFTInteger);
 						OGR_Fld_SetWidth(fld, 4);
 						OGR_L_CreateField(go->ogr_layer, fld, TRUE);
@@ -415,8 +413,7 @@ int main(int argc, char **argv) {
 
 	int num_shapes_written = 0;
 
-	int class_id;
-	for(class_id=0; class_id<256; class_id++) {
+	for(int class_id=0; class_id<256; class_id++) {
 		const GDALColorEntry *color = NULL;
 		if(classify) {
 			if(!usage_array[class_id]) continue;
@@ -464,8 +461,7 @@ int main(int argc, char **argv) {
 
 		if(feature_poly.num_rings) {
 			int num_outer=0, num_inner=0, total_pts=0;
-			int r_idx;
-			for(r_idx=0; r_idx<feature_poly.num_rings; r_idx++) {
+			for(int r_idx=0; r_idx<feature_poly.num_rings; r_idx++) {
 				if(feature_poly.rings[r_idx].is_hole) num_inner++;
 				else num_outer++;
 				total_pts += feature_poly.rings[r_idx].npts;
@@ -482,7 +478,7 @@ int main(int argc, char **argv) {
 
 				int num_shapes;
 				mpoly_t *shapes;
-				int shape_is_copy;
+				bool shape_is_copy;
 				if(split_polys) {
 					split_mpoly_to_polys(&feature_poly, &num_shapes, &shapes);
 					shape_is_copy = 0;
@@ -493,14 +489,13 @@ int main(int argc, char **argv) {
 					shape_is_copy = 1;
 				}
 
-				int shape_idx;
-				for(shape_idx=0; shape_idx<num_shapes; shape_idx++) {
+				for(int shape_idx=0; shape_idx<num_shapes; shape_idx++) {
 					mpoly_t *poly_in = shapes+shape_idx;
 
 					for(int go_idx=0; go_idx<geom_outputs.num; go_idx++) {
 						geom_output_t *go = geom_outputs.output + go_idx;
 
-						int proj_is_copy;
+						bool proj_is_copy;
 						mpoly_t *proj_poly;
 						if(go->out_cs == CS_XY) {
 							proj_poly = poly_in;
@@ -523,8 +518,8 @@ int main(int argc, char **argv) {
 							fprintf(go->wkt_fh, "%s\n", wkt_out);
 						}
 						if(go->wkb_fh) {
-							int wkb_size = OGR_G_WkbSize(ogr_geom);
-							printf("WKB size = %d\n", wkb_size);
+							size_t wkb_size = OGR_G_WkbSize(ogr_geom);
+							printf("WKB size = %zd\n", wkb_size);
 							unsigned char *wkb_out = MYALLOC(unsigned char, wkb_size);
 							OGR_G_ExportToWkb(ogr_geom, WKB_BYTE_ORDER, wkb_out);
 							fwrite(wkb_out, wkb_size, 1, go->wkb_fh);
@@ -584,8 +579,8 @@ int main(int argc, char **argv) {
 	return 0;
 }
 
-mpoly_t calc_ring_from_mask(uint8_t *mask, int w, int h,
-int major_ring_only, int no_donuts, 
+mpoly_t calc_ring_from_mask(uint8_t *mask, size_t w, size_t h,
+bool major_ring_only, bool no_donuts, 
 long min_ring_area, double bevel_size) {
 	if(major_ring_only) no_donuts = 1;
 

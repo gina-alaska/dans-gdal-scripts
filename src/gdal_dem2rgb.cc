@@ -40,7 +40,7 @@ double default_shade_params[] = { 0, 1, .5, 10 };
 #define SHADE_TABLE_SCALE 100.0
 #define EARTH_RADIUS 6370997.0
 
-void scale_values(double *vals, int w, double scale, double offset);
+void scale_values(double *vals, size_t w, double scale, double offset);
 
 typedef struct {
 	uint8_t nan_red, nan_green, nan_blue;
@@ -108,14 +108,14 @@ int main(int argc, char *argv[]) {
 	const char *tex_fn = NULL;
 	const char *dst_fn = NULL;
 	const char *palette_fn = NULL;
-	int use_default_palette = 0;
+	bool use_default_palette = 0;
 	const char *output_format = NULL;
 	int grid_spacing = 20; // could be configurable...
 	int band_id = 1;
 	double src_offset = 0;
 	double src_scale = 1;
-	int data24bit = 0;
-	int alpha_overlay = 0;
+	bool data24bit = 0;
+	bool alpha_overlay = 0;
 
 	geo_opts_t geo_opts = init_geo_options(&argc, &argv);
 	ndv_def_t ndv_def = init_ndv_options(&argc, &argv);
@@ -128,7 +128,7 @@ int main(int argc, char *argv[]) {
 			if(!strcmp(arg, "-b")) {
 				if(argp == argc) usage(argv[0]);
 				char *endptr;
-				band_id = (int)strtol(argv[argp++], &endptr, 10);
+				band_id = strtol(argv[argp++], &endptr, 10);
 				if(*endptr) usage(argv[0]);
 			} else if(!strcmp(arg, "-palette")) {
 				if(argp == argc) usage(argv[0]);
@@ -143,7 +143,7 @@ int main(int argc, char *argv[]) {
 				if(argp == argc) usage(argv[0]);
 				tex_fn = argv[argp++];
 			} else if(!strcmp(arg, "-alpha-overlay")) {
-				alpha_overlay++;
+				alpha_overlay = 1;
 			} else if(!strcmp(arg, "-of")) {
 				if(argp == argc) usage(argv[0]);
 				output_format = argv[argp++];
@@ -206,7 +206,7 @@ int main(int argc, char *argv[]) {
 	//////// open palette ////////
 
 	palette_t *palette = NULL;
-	int do_shade;
+	bool do_shade;
 	int out_numbands;
 
 	if(data24bit) {
@@ -236,10 +236,10 @@ int main(int argc, char *argv[]) {
 
 	GDALRasterBandH src_band = GDALGetRasterBand(src_ds, band_id);
 
-	int w = GDALGetRasterXSize(src_ds);
-	int h = GDALGetRasterYSize(src_ds);
+	size_t w = GDALGetRasterXSize(src_ds);
+	size_t h = GDALGetRasterYSize(src_ds);
 	if(!w || !h) fatal_error("missing width/height");
-	printf("Input size is %d, %d\n", w, h);
+	printf("Input size is %zd, %zd\n", w, h);
 
 	georef_t georef = init_georef(&geo_opts, src_ds);
 
@@ -266,8 +266,8 @@ int main(int argc, char *argv[]) {
 		tex_ds = GDALOpen(tex_fn, GA_ReadOnly);
 		if(!tex_ds) fatal_error("open failed");
 
-		int tex_w = GDALGetRasterXSize(tex_ds);
-		int tex_h = GDALGetRasterYSize(tex_ds);
+		size_t tex_w = GDALGetRasterXSize(tex_ds);
+		size_t tex_h = GDALGetRasterYSize(tex_ds);
 		if(!tex_w || !tex_h) fatal_error("missing width/height for texture");
 		if(tex_w != w || tex_h != h) fatal_error("DEM and texture are different sizes");
 
@@ -377,8 +377,8 @@ int main(int argc, char *argv[]) {
 	}
 
 	double min=0, max=0; // initialized to prevent compiler warning
-	int got_nan=0, got_valid=0, got_overflow=0;
-	for(int row=0; row<h; row++) {
+	bool got_nan=0, got_valid=0, got_overflow=0;
+	for(size_t row=0; row<h; row++) {
 		GDALTermProgress((double)row / (double)h, NULL, NULL);
 		if(row == 0) {
 			GDALRasterIO(src_band, GF_Read, 0, 0, w, 1, inbuf_prev, w, 1, GDT_Float64, 0, 0);
@@ -416,10 +416,10 @@ int main(int argc, char *argv[]) {
 		double grid_fraction = 0;
 		if(do_shade && !constant_invaffine) {
 			// the part sets up the bilinear interpolation of invaffine
-			int above_tiept = grid_spacing * (int)(row / grid_spacing);
+			int above_tiept = grid_spacing * (row / grid_spacing);
 			int below_tiept = above_tiept + grid_spacing;
-			if(below_tiept > h) below_tiept = h;
-			if(row == above_tiept) {
+			if(below_tiept > (int)h) below_tiept = (int)h;
+			if(row == (size_t)above_tiept) {
 				if(row == 0) {
 					compute_tierow_invaffine(&georef, w, 0, grid_spacing, invaffine_tierow_above);
 				} else {
@@ -433,16 +433,16 @@ int main(int argc, char *argv[]) {
 			grid_fraction = ((double)row - (double)above_tiept) / segment_height;
 		}
 //if(!row) printf("pixel[0,0]=%f\n", inbuf_this[0]);
-		for(int col=0; col<w; col++) {
+		for(size_t col=0; col<w; col++) {
 			double val = inbuf_this[col];
 			double brite, spec;
 			if(do_shade) {
 				double dx;
-				int mid_good = !inbuf_ndv_this[col];
-				int left_good = col>0 && !inbuf_ndv_this[col-1];
-				int right_good = col<w-1 && !inbuf_ndv_this[col+1];
-				int up_good = row>0 && !inbuf_ndv_prev[col];
-				int down_good = row<h-1 && !inbuf_ndv_next[col];
+				bool mid_good = !inbuf_ndv_this[col];
+				bool left_good = col>0 && !inbuf_ndv_this[col-1];
+				bool right_good = col<w-1 && !inbuf_ndv_this[col+1];
+				bool up_good = row>0 && !inbuf_ndv_prev[col];
+				bool down_good = row<h-1 && !inbuf_ndv_next[col];
 				if(left_good && right_good) {
 					dx = (inbuf_this[col+1] - inbuf_this[col-1]) / 2.0;
 				} else if(mid_good && right_good) {
@@ -468,11 +468,10 @@ int main(int argc, char *argv[]) {
 				//double dy2 = invaffine_c * dx + invaffine_d * (-dy);
 				
 				double invaffine[4];
-				int i;
 				if(constant_invaffine) {
-					for(i=0; i<4; i++) invaffine[i] = constant_invaffine[i];
+					for(int i=0; i<4; i++) invaffine[i] = constant_invaffine[i];
 				} else {
-					for(i=0; i<4; i++) {
+					for(int i=0; i<4; i++) {
 						invaffine[i] = invaffine_tierow_above[col*4 + i] * (1.0 - grid_fraction) +
 							invaffine_tierow_below[col*4 + i] * grid_fraction;
 					}
@@ -483,7 +482,7 @@ int main(int argc, char *argv[]) {
 				double dy2 = invaffine[2] * (-dx) + invaffine[3] * (-dy);
 				dx2 *= slope_exageration;
 				dy2 *= slope_exageration;
-				//if(col == 0) printf("row=%d d=[%f, %f] d2=[%f, %f]\n", row, dx, dy, dx2, dy2);
+				//if(col == 0) printf("row=%zd d=[%f, %f] d2=[%f, %f]\n", row, dx, dy, dx2, dy2);
 
 				int st_col = SHADE_TABLE_SIZE + (int)(SHADE_TABLE_SCALE * dx2);
 				if(st_col < 0) st_col = 0;
@@ -571,7 +570,7 @@ int main(int argc, char *argv[]) {
 	GDALClose(dst_ds);
 
 	printf("got_nan=%d, got_valid=%d, min=%f, max=%f\n",
-		got_nan, got_valid, min, max);
+		got_nan?1:0, got_valid?1:0, min, max);
 	if(got_overflow) {
 		printf("got an overflow in conversion to 24-bit\n");
 	}
@@ -579,7 +578,7 @@ int main(int argc, char *argv[]) {
 	return 0;
 }
 
-void scale_values(double *vals, int w, double scale, double offset) {
+void scale_values(double *vals, size_t w, double scale, double offset) {
 	double *p = vals;
 	while(w--) {
 		*p = (*p) * scale + offset;
@@ -697,7 +696,7 @@ void compute_invaffine(
 	double lon_0, lat_0;
 	double lon_dx, lat_dx;
 	double lon_dy, lat_dy;
-	int error =
+	bool error =
 		xy2ll(georef, col, row, &lon_0, &lat_0) ||
 		xy2ll(georef, col+epsilon, row, &lon_dx, &lat_dx) ||
 		xy2ll(georef, col, row+epsilon, &lon_dy, &lat_dy);
@@ -771,7 +770,7 @@ void compute_tierow_invaffine(
 
 	double segment_width = 0; // will be initialized on first iteration
 	for(int col=0; col<num_cols; col++) {
-		int left_tiept = grid_spacing * (int)(col / grid_spacing);
+		int left_tiept = grid_spacing * (col / grid_spacing);
 		if(col == left_tiept) {
 			for(int i=0; i<4; i++) tiecol_left[i] = tiecol_right[i];
 			int right_tiept = col+grid_spacing;

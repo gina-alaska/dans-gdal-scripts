@@ -30,8 +30,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include "ndv.h"
 
 void compute_histogram(GDALRasterBandH *src_bands, int band_count, ndv_def_t *ndv_def, 
-	int w, int h, int **histograms, int input_range);
-void print_band_stats(int band_idx, int *histogram, int input_range, int npix);
+	size_t w, size_t h, int **histograms, int input_range);
+void print_band_stats(int band_idx, int *histogram, int input_range, size_t npix);
 void get_scale_from_stddev(int *histogram, int input_range,
 	double dst_avg, double dst_stddev, double *scale_out, double *offset_out);
 void get_scale_from_percentile(int *histogram, int input_range, int output_range,
@@ -147,8 +147,8 @@ int main(int argc, char *argv[]) {
 	GDALDatasetH src_ds = GDALOpen(src_fn, GA_ReadOnly);
 	if(!src_ds) fatal_error("open failed");
 
-	int w = GDALGetRasterXSize(src_ds);
-	int h = GDALGetRasterYSize(src_ds);
+	size_t w = GDALGetRasterXSize(src_ds);
+	size_t h = GDALGetRasterYSize(src_ds);
 	if(!w || !h) fatal_error("missing width/height");
 	int band_count = GDALGetRasterCount(src_ds);
 	printf("Input size is %d, %d, %d\n", w, h, band_count);
@@ -159,7 +159,7 @@ int main(int argc, char *argv[]) {
 		add_ndv_from_raster(&ndv_def, src_ds, band_count, bandlist);
 	}
 
-	int use_ndv = (ndv_def.nranges > 0);
+	bool use_ndv = (ndv_def.nranges > 0);
 	if(use_ndv && !set_out_ndv) {
 		if(ndv_def.nranges == 1 && ndv_def.ranges[0].min[0] == ndv_def.ranges[0].max[0]) {
 			double v = ndv_def.ranges[0].min[0];
@@ -276,9 +276,11 @@ int main(int argc, char *argv[]) {
 
 	printf("\nComputing output...\n");
 
-	int blocksize_x, blocksize_y;
-	GDALGetBlockSize(src_bands[0], &blocksize_x, &blocksize_y);
-	int block_len = blocksize_x*blocksize_y;
+	int blocksize_x_int, blocksize_y_int;
+	GDALGetBlockSize(src_bands[0], &blocksize_x_int, &blocksize_y_int);
+	size_t blocksize_x = blocksize_x_int;
+	size_t blocksize_y = blocksize_y_int;
+	size_t block_len = blocksize_x*blocksize_y;
 
 	GUInt16 **buf_in = MYALLOC(GUInt16 *, band_count);
 	uint8_t **buf_out = MYALLOC(uint8_t *, band_count);
@@ -290,11 +292,11 @@ int main(int argc, char *argv[]) {
 	uint8_t *ndv_mask = MYALLOC(uint8_t, block_len);
 	uint8_t *band_mask = MYALLOC(uint8_t, block_len);
 
-	for(int boff_y=0; boff_y<h; boff_y+=blocksize_y) {
-		int bsize_y = blocksize_y;
+	for(size_t boff_y=0; boff_y<h; boff_y+=blocksize_y) {
+		size_t bsize_y = blocksize_y;
 		if(bsize_y + boff_y > h) bsize_y = h - boff_y;
-		for(int boff_x=0; boff_x<w; boff_x+=blocksize_x) {
-			int bsize_x = blocksize_x;
+		for(size_t boff_x=0; boff_x<w; boff_x+=blocksize_x) {
+			size_t bsize_x = blocksize_x;
 			if(bsize_x + boff_x > w) bsize_x = w - boff_x;
 
 			block_len = bsize_x*bsize_y;
@@ -309,7 +311,7 @@ int main(int argc, char *argv[]) {
 				GDALRasterIO(src_bands[band_idx], GF_Read, boff_x, boff_y, bsize_x, bsize_y, 
 					buf_in[band_idx], bsize_x, bsize_y, GDT_UInt16, 0, 0);
 
-				for(int i=0; i<block_len; i++) {
+				for(size_t i=0; i<block_len; i++) {
 					buf_in_dbl[i] = buf_in[band_idx][i];
 				}
 				if(band_idx == 0) {
@@ -326,7 +328,7 @@ int main(int argc, char *argv[]) {
 				uint8_t *p_out = buf_out[band_idx];
 				uint8_t *p_ndv = ndv_mask;
 
-				for(int i=0; i<block_len; i++) {
+				for(size_t i=0; i<block_len; i++) {
 					if(*p_ndv) {
 						*p_out = out_ndv;
 					} else {
@@ -351,7 +353,7 @@ int main(int argc, char *argv[]) {
 
 void compute_histogram(
 	GDALRasterBandH *src_bands, int band_count, ndv_def_t *ndv_def, 
-	int w, int h, int **histograms, int input_range
+	size_t w, size_t h, int **histograms, int input_range
 ) {
 	printf("\nComputing histogram...\n");
 
@@ -359,9 +361,11 @@ void compute_histogram(
 		for(int i=0; i<input_range; i++) histograms[band_idx][i] = 0;
 	}
 
-	int blocksize_x, blocksize_y;
-	GDALGetBlockSize(src_bands[0], &blocksize_x, &blocksize_y);
-	int block_len = blocksize_x*blocksize_y;
+	int blocksize_x_int, blocksize_y_int;
+	GDALGetBlockSize(src_bands[0], &blocksize_x_int, &blocksize_y_int);
+	size_t blocksize_x = blocksize_x_int;
+	size_t blocksize_y = blocksize_y_int;
+	size_t block_len = blocksize_x*blocksize_y;
 
 	GUInt16 **buf_in = MYALLOC(GUInt16 *, band_count);
 	for(int band_idx=0; band_idx<band_count; band_idx++) {
@@ -371,11 +375,11 @@ void compute_histogram(
 	uint8_t *ndv_mask = MYALLOC(uint8_t, block_len);
 	uint8_t *band_mask = MYALLOC(uint8_t, block_len);
 
-	for(int boff_y=0; boff_y<h; boff_y+=blocksize_y) {
-		int bsize_y = blocksize_y;
+	for(size_t boff_y=0; boff_y<h; boff_y+=blocksize_y) {
+		size_t bsize_y = blocksize_y;
 		if(bsize_y + boff_y > h) bsize_y = h - boff_y;
-		for(int boff_x=0; boff_x<w; boff_x+=blocksize_x) {
-			int bsize_x = blocksize_x;
+		for(size_t boff_x=0; boff_x<w; boff_x+=blocksize_x) {
+			size_t bsize_x = blocksize_x;
 			if(bsize_x + boff_x > w) bsize_x = w - boff_x;
 
 			block_len = bsize_x*bsize_y;
@@ -390,7 +394,7 @@ void compute_histogram(
 				GDALRasterIO(src_bands[band_idx], GF_Read, boff_x, boff_y, bsize_x, bsize_y, 
 					buf_in[band_idx], bsize_x, bsize_y, GDT_UInt16, 0, 0);
 
-				for(int i=0; i<block_len; i++) {
+				for(size_t i=0; i<block_len; i++) {
 					buf_in_dbl[i] = buf_in[band_idx][i];
 				}
 				if(band_idx == 0) {
@@ -404,7 +408,7 @@ void compute_histogram(
 				GUInt16 *p = buf_in[band_idx];
 				int *hg = histograms[band_idx];
 				
-				for(int i=0; i<block_len; i++) {
+				for(size_t i=0; i<block_len; i++) {
 					if(!ndv_mask[i]) hg[p[i]]++;
 				}
 			}
@@ -421,8 +425,8 @@ void compute_histogram(
 	free(band_mask);
 }
 
-void print_band_stats(int band_idx, int *histogram, int input_range, int npix) {
-	int ngood=0;
+void print_band_stats(int band_idx, size_t *histogram, int input_range, size_t npix) {
+	size_t ngood=0;
 	int min=0, max=0;
 	for(int i=0; i<input_range; i++) {
 		if(histogram[i]) {
@@ -436,11 +440,11 @@ void print_band_stats(int band_idx, int *histogram, int input_range, int npix) {
 }
 
 void get_scale_from_stddev(
-	int *histogram, int input_range,
+	size_t *histogram, int input_range,
 	double dst_avg, double dst_stddev,
 	double *scale_out, double *offset_out
 ) {
-	int num_pixels = 0;
+	size_t num_pixels = 0;
 	double pixel_total = 0;
 	for(int i=0; i<input_range; i++) {
 		num_pixels += histogram[i];
@@ -461,17 +465,17 @@ void get_scale_from_stddev(
 }
 
 void get_scale_from_percentile(
-	int *histogram, int input_range, int output_range,
+	size_t *histogram, int input_range, int output_range,
 	double from_percentile, double to_percentile,
 	double *scale_out, double *offset_out
 ) {
-	int num_pixels = 0;
+	size_t num_pixels = 0;
 	for(int i=0; i<input_range; i++) num_pixels += histogram[i];
 
-	int start_count = (int)(num_pixels * from_percentile);
-	int end_count = (int)(num_pixels * to_percentile);
+	size_t start_count = (size_t)(num_pixels * from_percentile);
+	size_t end_count = (size_t)(num_pixels * to_percentile);
 
-	int cnt = 0;
+	size_t cnt = 0;
 	int from_val = -1;
 	int to_val = -1;
 	for(int i=0; i<input_range; i++) {

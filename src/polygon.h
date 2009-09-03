@@ -46,7 +46,7 @@ typedef struct {
 typedef struct {
 	int npts;
 	vertex_t *pts;
-	int is_hole;
+	bool is_hole;
 	int parent_id;
 } ring_t;
 
@@ -71,7 +71,7 @@ bbox_t get_ring_bbox(ring_t *ring);
 bbox_t get_polygon_bbox(mpoly_t *mp);
 bbox_t *make_bboxes(mpoly_t *mp);
 bbox_t union_bbox(bbox_t bb1, bbox_t bb2);
-int bboxes_disjoint(bbox_t *bbox1, bbox_t *bbox2);
+bool bboxes_disjoint(bbox_t *bbox1, bbox_t *bbox2);
 OGRGeometryH ring_to_ogr(ring_t *ring);
 ring_t ogr_to_ring(OGRGeometryH ogr);
 OGRGeometryH mpoly_to_ogr(mpoly_t *mpoly_in);
@@ -79,14 +79,14 @@ mpoly_t ogr_to_mpoly(OGRGeometryH geom_in);
 void split_mpoly_to_polys(mpoly_t *mpoly, int *num_polys, mpoly_t **polys);
 mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance);
 double ring_oriented_area(ring_t *c);
-int ring_is_ccw(ring_t *c);
+bool ring_is_ccw(ring_t *c);
 double ring_area(ring_t *c);
-int polygon_contains_point(mpoly_t *mp, double px, double py);
+bool polygon_contains_point(mpoly_t *mp, double px, double py);
 int ring_ring_relation(ring_t *r1, ring_t *r2);
-int line_intersects_line(
+bool line_intersects_line(
 	vertex_t p1, vertex_t p2,
 	vertex_t p3, vertex_t p4,
-	int fail_on_coincident
+	bool fail_on_coincident
 );
 void line_line_intersection(
 	vertex_t p1, vertex_t p2,
