@@ -134,6 +134,7 @@ void bevel_self_intersections(mpoly_t *mp, double amount) {
 
 	if(VERBOSE) printf("shaving corners\n");
 
+	// FIXME! this goes very slow but could probably be made better
 	for(entry_idx=0; entry_idx<total_num_touch; ) {
 		ring_t *ring = entries[entry_idx].ring;
 		int ring_num_touch = 0;

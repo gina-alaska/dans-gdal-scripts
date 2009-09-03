@@ -1,0 +1,20 @@
+width: 658
+height: 645
+num_bands: 4
+datatype: Byte,Byte,Byte,Byte
+center:
+  x: 329.000000000000000
+  y: 322.500000000000000
+centroid:
+  x: 308.492936847103522
+  y: 313.592287342287364
+geometry_xy:
+  type: rectangle4
+  upper_left_x: 327.373455044833975
+  upper_left_y: 40.194846110348173
+  upper_right_x: 540.089974293059186
+  upper_right_y: 151.177377892030847
+  lower_right_x: 284.971428571428532
+  lower_right_y: 593.382857142857119
+  lower_left_x: 78.053859964093363
+  lower_left_y: 469.232315978456029
