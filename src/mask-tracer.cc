@@ -40,7 +40,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 typedef int pixquad_t;
 
 int dbg_idx = 0;
-static void debug_write_mask(BitGrid mask, size_t w, size_t h) {
+static void debug_write_mask(const BitGrid mask, size_t w, size_t h) {
 	char fn[1000];
 	sprintf(fn, "zz-debug-%04d.pgm", dbg_idx++);
 
@@ -99,7 +99,7 @@ static int is_inside_crossings(row_crossings_t *c, int x) {
 }
 */
 
-static inline pixquad_t get_quad(BitGrid mask, int x, int y, int select_color) {
+static inline pixquad_t get_quad(const BitGrid &mask, int x, int y, bool select_color) {
 	// 1 2
 	// 8 4
 	pixquad_t quad =
@@ -115,8 +115,8 @@ static inline pixquad_t rotate_quad(pixquad_t q, int dir) {
 	return ((q + (q<<4)) >> dir) & 0xf;
 }
 
-static ring_t trace_single_mpoly(BitGrid mask, size_t w, size_t h,
-int initial_x, int initial_y, int select_color) {
+static ring_t trace_single_mpoly(const BitGrid mask, size_t w, size_t h,
+int initial_x, int initial_y, bool select_color) {
 	//printf("trace_single_mpoly enter (%d,%d)\n", initial_x, initial_y);
 
 	ring_t ring;
@@ -184,7 +184,7 @@ ring_t *bounds, int depth, mpoly_t *out_poly, int parent_id,
 long min_area, int no_donuts) {
 	//printf("recursive_trace enter: depth=%d\n", depth);
 
-	int select_color = (depth & 1) ? 0 : 1;
+	bool select_color = !(depth & 1);
 
 	int must_free_bounds = 0;
 	if(!bounds) {
@@ -228,9 +228,6 @@ long min_area, int no_donuts) {
 				GDALTermProgress((double)y/(double)(bound_bottom-bound_top-1), NULL, NULL);
 			}
 
-			//uint8_t *uprow = mask + (y  )*(w+2);
-			//uint8_t *dnrow = mask + (y+1)*(w+2);
-
 			// make sure the range (y-1,y)*(x-1,x) is in bounds
 			crossings_intersection(&cross_both, 
 				crossings + (y-bound_top-1),
@@ -239,15 +236,6 @@ long min_area, int no_donuts) {
 				// make sure the range (y-1,y)*(x-1,x) is in bounds
 				int from = 1+cross_both.crossings[cidx*2  ];
 				int to   =   cross_both.crossings[cidx*2+1];
-
-				// find the first possible quad that could match
-				// FIXME!
-			//	uint8_t *mc1 = (uint8_t *)memchr(uprow+from, select_color, to-from);
-			//	uint8_t *mc2 = (uint8_t *)memchr(dnrow+from, select_color, to-from);
-			//	int ic1 = mc1 ? (int)(mc1-uprow)-1 : to;
-			//	int ic2 = mc2 ? (int)(mc2-dnrow)-1 : to;
-			//	if(ic2 < ic1) ic1 = ic2;
-			//	if(ic1 > from) from = ic1;
 
 				for(int x=from; x<to; x++) {
 					//pixquad_t quad = get_quad(mask, x, y, select_color);
@@ -259,20 +247,12 @@ long min_area, int no_donuts) {
 							mask(x  , y-1) ||
 							mask(x-1, y  ) ||
 							mask(x  , y  );
-							//uprow[x  ] || // y-1, x-1
-							//uprow[x+1] || // y-1, x
-							//dnrow[x+1] || // y  , x
-							//dnrow[x  ];   // y  , x-1
 					} else {
 						is_seed = 
 							(!mask(x-1, y-1)) ||
 							(!mask(x  , y-1)) ||
 							(!mask(x-1, y  )) ||
 							(!mask(x  , y  ));
-							//(!uprow[x  ]) || // y-1, x-1
-							//(!uprow[x+1]) || // y-1, x
-							//(!dnrow[x+1]) || // y  , x
-							//(!dnrow[x  ]);   // y  , x-1
 					}
 
 					if(is_seed) {

@@ -48,9 +48,9 @@ public:
 // default dtor, copy, assign are OK
 
 public:
-	inline bool operator()(int x, int y) { return get(x, y); }
+	inline bool operator()(int x, int y) const { return get(x, y); }
 
-	inline bool get(int x, int y) {
+	inline bool get(int x, int y) const {
 		// out-of-bounds is OK and returns false
 		if(x>=0 && y>=0 && x<w && y<h) {
 			size_t p = size_t(y)*w + x;
