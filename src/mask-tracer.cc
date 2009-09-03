@@ -26,6 +26,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 
+#include "mask.h"
+#include "mask-tracer.h"
 #include "common.h"
 #include "polygon.h"
 #include "polygon-rasterizer.h"
@@ -38,15 +40,24 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 typedef int pixquad_t;
 
 int dbg_idx = 0;
-static void debug_write_mask(uint8_t *mask, size_t w, size_t h) {
+static void debug_write_mask(BitGrid mask, size_t w, size_t h) {
 	char fn[1000];
 	sprintf(fn, "zz-debug-%04d.pgm", dbg_idx++);
+
+	uint8_t *row = new uint8_t[w];
+
 	FILE *fh = fopen(fn, "w");
 	if(!fh) fatal_error("cannot open %s", fn);
 	fprintf(fh, "P5\n%zd %zd\n255\n", w, h);
-	for(size_t y=0; y<w; y++)
-		fwrite(mask+(w+2)*(y+1)+1, w, 1, fh);
+	for(size_t y=0; y<h; y++) {
+		for(size_t x=0; x<w; x++) {
+			row[x] = mask(x, y) ? 255 : 0;
+		}
+		fwrite(row, w, 1, fh);
+	}
 	fclose(fh);
+
+	delete[] row;
 }
 
 static ring_t *make_enclosing_ring(size_t w, size_t h) {
@@ -88,16 +99,14 @@ static int is_inside_crossings(row_crossings_t *c, int x) {
 }
 */
 
-static inline pixquad_t get_quad(uint8_t *mask, size_t w, int x, int y, int select_color) {
+static inline pixquad_t get_quad(BitGrid mask, int x, int y, int select_color) {
 	// 1 2
 	// 8 4
-	uint8_t *uprow = mask + (y  )*(w+2);
-	uint8_t *dnrow = mask + (y+1)*(w+2);
 	pixquad_t quad =
-		(uprow[x  ]     ) + // y-1, x-1
-		(uprow[x+1] << 1) + // y-1, x
-		(dnrow[x+1] << 2) + // y  , x
-		(dnrow[x  ] << 3);  // y  , x-1
+		(mask(x-1, y-1) ? 1 : 0) +
+		(mask(x  , y-1) ? 2 : 0) +
+		(mask(x  , y  ) ? 4 : 0) +
+		(mask(x-1, y  ) ? 8 : 0);
 	if(!select_color) quad ^= 0xf;
 	return quad;
 }
@@ -106,7 +115,7 @@ static inline pixquad_t rotate_quad(pixquad_t q, int dir) {
 	return ((q + (q<<4)) >> dir) & 0xf;
 }
 
-static ring_t trace_single_mpoly(uint8_t *mask, size_t w, size_t h,
+static ring_t trace_single_mpoly(BitGrid mask, size_t w, size_t h,
 int initial_x, int initial_y, int select_color) {
 	//printf("trace_single_mpoly enter (%d,%d)\n", initial_x, initial_y);
 
@@ -119,7 +128,7 @@ int initial_x, int initial_y, int select_color) {
 
 	int x = initial_x;
 	int y = initial_y;
-	pixquad_t quad = get_quad(mask, w, x, y, select_color);
+	pixquad_t quad = get_quad(mask, x, y, select_color);
 	int dir;
 	for(dir=0; dir<4; dir++) {
 		pixquad_t rq = rotate_quad(quad, dir);
@@ -138,7 +147,7 @@ int initial_x, int initial_y, int select_color) {
 		}
 		if(x == initial_x && y == initial_y) break;
 		if(x<0 || y<0 || x>(int)w || y>(int)h) fatal_error("fell off edge (%d,%d)", x, y);
-		pixquad_t quad = get_quad(mask, w, x, y, select_color);
+		pixquad_t quad = get_quad(mask, x, y, select_color);
 		quad = rotate_quad(quad, dir);
 		if((quad & 12) != 4) fatal_error("tracer was not on the right side of things (%d)", quad);
 		int rot;
@@ -170,7 +179,7 @@ int initial_x, int initial_y, int select_color) {
 	return ring;
 }
 
-static int recursive_trace(uint8_t *mask, size_t w, size_t h,
+static int recursive_trace(BitGrid mask, size_t w, size_t h,
 ring_t *bounds, int depth, mpoly_t *out_poly, int parent_id, 
 long min_area, int no_donuts) {
 	//printf("recursive_trace enter: depth=%d\n", depth);
@@ -219,8 +228,8 @@ long min_area, int no_donuts) {
 				GDALTermProgress((double)y/(double)(bound_bottom-bound_top-1), NULL, NULL);
 			}
 
-			uint8_t *uprow = mask + (y  )*(w+2);
-			uint8_t *dnrow = mask + (y+1)*(w+2);
+			//uint8_t *uprow = mask + (y  )*(w+2);
+			//uint8_t *dnrow = mask + (y+1)*(w+2);
 
 			// make sure the range (y-1,y)*(x-1,x) is in bounds
 			crossings_intersection(&cross_both, 
@@ -232,29 +241,38 @@ long min_area, int no_donuts) {
 				int to   =   cross_both.crossings[cidx*2+1];
 
 				// find the first possible quad that could match
-				uint8_t *mc1 = (uint8_t *)memchr(uprow+from, select_color, to-from);
-				uint8_t *mc2 = (uint8_t *)memchr(dnrow+from, select_color, to-from);
-				int ic1 = mc1 ? (int)(mc1-uprow)-1 : to;
-				int ic2 = mc2 ? (int)(mc2-dnrow)-1 : to;
-				if(ic2 < ic1) ic1 = ic2;
-				if(ic1 > from) from = ic1;
+				// FIXME!
+			//	uint8_t *mc1 = (uint8_t *)memchr(uprow+from, select_color, to-from);
+			//	uint8_t *mc2 = (uint8_t *)memchr(dnrow+from, select_color, to-from);
+			//	int ic1 = mc1 ? (int)(mc1-uprow)-1 : to;
+			//	int ic2 = mc2 ? (int)(mc2-dnrow)-1 : to;
+			//	if(ic2 < ic1) ic1 = ic2;
+			//	if(ic1 > from) from = ic1;
 
 				for(int x=from; x<to; x++) {
-					//pixquad_t quad = get_quad(mask, w, x, y, select_color);
+					//pixquad_t quad = get_quad(mask, x, y, select_color);
 					//int is_seed = (quad != 0 && quad != 0xf);
 					int is_seed;
 					if(select_color) {
 						is_seed = 
-							uprow[x  ] || // y-1, x-1
-							uprow[x+1] || // y-1, x
-							dnrow[x+1] || // y  , x
-							dnrow[x  ];   // y  , x-1
+							mask(x-1, y-1) ||
+							mask(x  , y-1) ||
+							mask(x-1, y  ) ||
+							mask(x  , y  );
+							//uprow[x  ] || // y-1, x-1
+							//uprow[x+1] || // y-1, x
+							//dnrow[x+1] || // y  , x
+							//dnrow[x  ];   // y  , x-1
 					} else {
 						is_seed = 
-							(!uprow[x  ]) || // y-1, x-1
-							(!uprow[x+1]) || // y-1, x
-							(!dnrow[x+1]) || // y  , x
-							(!dnrow[x  ]);   // y  , x-1
+							(!mask(x-1, y-1)) ||
+							(!mask(x  , y-1)) ||
+							(!mask(x-1, y  )) ||
+							(!mask(x  , y  ));
+							//(!uprow[x  ]) || // y-1, x-1
+							//(!uprow[x+1]) || // y-1, x
+							//(!dnrow[x+1]) || // y  , x
+							//(!dnrow[x  ]);   // y  , x-1
 					}
 
 					if(is_seed) {
@@ -286,11 +304,14 @@ long min_area, int no_donuts) {
 	for(int y=bound_top; y<bound_bottom; y++) {
 		row_crossings_t *r = crossings + (y-bound_top);
 		if(depth>0) {
-			uint8_t *maskrow = mask + (y+1)*(w+2);
 			for(int cidx=0; cidx<r->num_crossings/2; cidx++) {
 				int from = r->crossings[cidx*2  ];
 				int to   = r->crossings[cidx*2+1];
-				memset(maskrow+from+1, select_color, to-from);
+				for(int x=from; x<=to; x++) {
+					if(x>=0 && y>=0 && size_t(x)<w && size_t(y)<h) {
+						mask.set(x, y, select_color);
+					}
+				}
 			}
 		}
 	}
@@ -311,35 +332,15 @@ long min_area, int no_donuts) {
 }
 
 // this function has the side effect of erasing the mask
-mpoly_t trace_mask(uint8_t *mask_8bit, size_t w, size_t h, long min_area, int no_donuts) {
-	if(VERBOSE >= 4) debug_write_mask(mask_8bit, w, h);
-
-	/*
-	uint8_t *mask_8bit = MYALLOC(uint8_t, (w+2)*(h+2));
-	// FIXME - only need to clear borders
-	memset(mask_8bit, 0, (w+2)*(h+2));
-	for(int y=0; y<h; y++) {
-		int mask_rowlen = (w+7)/8;
-		uint8_t mask_bitp = 1;
-		uint8_t *mask_bytep = mask_1bit + mask_rowlen*y;
-		uint8_t *outp = mask_8bit + (y+1)*(w+2) + 1;
-		for(int x=0; x<w; x++) {
-			*(outp++) = (*mask_bytep & mask_bitp) ? 1 : 0;
-			mask_bitp <<= 1;
-			if(!mask_bitp) {
-				mask_bitp = 1;
-				mask_bytep++;
-			}
-		}
-	}
-	*/
+mpoly_t trace_mask(BitGrid mask, size_t w, size_t h, long min_area, int no_donuts) {
+	if(VERBOSE >= 4) debug_write_mask(mask, w, h);
 
 	mpoly_t out_poly;
 
 	out_poly.num_rings = 0;
 	out_poly.rings = NULL;
 
-	recursive_trace(mask_8bit, w, h, NULL, 0, &out_poly, -1, min_area, no_donuts);
+	recursive_trace(mask, w, h, NULL, 0, &out_poly, -1, min_area, no_donuts);
 	printf("Trace found %d rings.\n", out_poly.num_rings);
 
 	//free(mask_8bit);

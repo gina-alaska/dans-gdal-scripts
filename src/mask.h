@@ -30,10 +30,66 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #ifndef MASK_H
 #define MASK_H
 
+#include <boost/noncopyable.hpp>
+#include <boost/smart_ptr.hpp>
 #include "common.h"
 #include "polygon.h"
 #include "debugplot.h"
 #include "ndv.h"
+
+class BitGrid {
+public:
+	BitGrid(int _w, int _h) :
+		w(_w), h(_h),
+		arrlen((size_t(w)*h+7)/8),
+		grid(new uint8_t[arrlen])
+	{ }
+
+// default dtor, copy, assign are OK
+
+public:
+	inline bool operator()(int x, int y) { return get(x, y); }
+
+	inline bool get(int x, int y) {
+		// out-of-bounds is OK and returns false
+		if(x>=0 && y>=0 && x<w && y<h) {
+			size_t p = size_t(y)*w + x;
+			return grid[p/8] & (1 << (p&7));
+		} else {
+			return false;
+		}
+	}
+
+	inline void set(int x, int y, bool val) {
+		assert(x>=0 && y>=0 && x<w && y<h);
+
+		size_t p = size_t(y)*w + x;
+		if(val) {
+			grid[p/8] |= (1 << (p&7));
+		} else {
+			grid[p/8] &= ~(1 << (p&7));
+		}
+	}
+
+	void zero() {
+		for(size_t i=0; i<arrlen; i++) {
+			grid[i] = 0;
+		}
+	}
+
+	void invert() {
+		for(size_t i=0; i<arrlen; i++) {
+			grid[i] = ~grid[i];
+		}
+	}
+
+	void erode();
+
+private:
+	int w, h;
+	size_t arrlen;
+	boost::shared_array<uint8_t> grid;
+};
 
 uint8_t *get_mask_for_dataset(GDALDatasetH ds, int bandlist_size, int *bandlist, 
 	ndv_def_t *ndv_def, report_image_t *dbuf);
@@ -42,5 +98,9 @@ uint8_t *get_mask_for_8bit_raster(size_t w, size_t h, const uint8_t *raster, uin
 void erode_mask(uint8_t *in_mask, size_t w, size_t h);
 void invert_mask(uint8_t *in_mask, size_t w, size_t h);
 vertex_t calc_centroid_from_mask(const uint8_t *mask, size_t w, size_t h);
+
+BitGrid get_bitgrid_for_dataset(GDALDatasetH ds, int bandlist_size, int *bandlist, 
+	ndv_def_t *ndv_def, report_image_t *dbuf);
+BitGrid get_bitgrid_for_8bit_raster(size_t w, size_t h, const uint8_t *raster, uint8_t wanted);
 
 #endif // ifndef MASK_H

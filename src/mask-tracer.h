@@ -28,9 +28,10 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 #ifndef MASK_TRACER_H
 
+#include "mask.h"
 #include "polygon.h"
 
 // this function has the side effect of erasing the mask
-mpoly_t trace_mask(unsigned char *mask_1bit, size_t w, size_t h, long min_area, int no_donuts);
+mpoly_t trace_mask(BitGrid mask, size_t w, size_t h, long min_area, int no_donuts);
 
 #endif // ifndef MASK_TRACER_H

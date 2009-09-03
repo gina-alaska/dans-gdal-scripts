@@ -123,7 +123,7 @@ gdal_trace_outline raster.tif -classify -out-cs en -ogr-out outline.shp\n\
 	exit(1);
 }
 
-mpoly_t calc_ring_from_mask(uint8_t *mask, size_t w, size_t h,
+mpoly_t calc_ring_from_mask(BitGrid mask, size_t w, size_t h,
 	bool major_ring_only, bool no_donuts,
 	long min_ring_area, double bevel_size);
 
@@ -337,7 +337,7 @@ int main(int argc, char **argv) {
 	}
 
 	const uint8_t *raster = NULL;
-	uint8_t *mask = NULL;
+	BitGrid mask(0, 0);
 	uint8_t usage_array[256];
 	GDALColorTableH color_table = NULL;
 	if(classify) {
@@ -352,7 +352,7 @@ int main(int argc, char **argv) {
 			color_table = GDALGetRasterColorTable(band);
 		}
 	} else {
-		mask = get_mask_for_dataset(
+		mask = get_bitgrid_for_dataset(
 			ds, inspect_numbands, inspect_bandids,
 			&ndv_def, dbuf);
 	}
@@ -425,23 +425,23 @@ int main(int argc, char **argv) {
 					color->c1, color->c2, color->c3, color->c4);
 			}
 
-			mask = get_mask_for_8bit_raster(georef.w, georef.h,
+			mask = get_bitgrid_for_8bit_raster(georef.w, georef.h,
 				raster, (uint8_t)class_id);
 		} else {
 			if(class_id != 0) continue;
 		}
 
 		if(do_invert) {
-			invert_mask(mask, georef.w, georef.h);
+			mask.invert();
 		}
 
 		if(do_erosion) {
-			erode_mask(mask, georef.w, georef.h);
+			mask.erode();
 		}
 
 		mpoly_t feature_poly = calc_ring_from_mask(mask, georef.w, georef.h,
 			major_ring_only, no_donuts, min_ring_area, bevel_size);
-		free(mask);
+		mask = BitGrid(0, 0); // free some memory
 
 		if(feature_poly.num_rings && do_pinch_excursions) {
 			printf("Pinching excursions...\n");
@@ -579,7 +579,7 @@ int main(int argc, char **argv) {
 	return 0;
 }
 
-mpoly_t calc_ring_from_mask(uint8_t *mask, size_t w, size_t h,
+mpoly_t calc_ring_from_mask(BitGrid mask, size_t w, size_t h,
 bool major_ring_only, bool no_donuts, 
 long min_ring_area, double bevel_size) {
 	if(major_ring_only) no_donuts = 1;
