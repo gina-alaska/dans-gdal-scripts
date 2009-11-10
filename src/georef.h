@@ -47,7 +47,8 @@ typedef struct {
 	double res_meters_x, res_meters_y; // zero if rotated/unknown
 	char *units_name;
 	double units_val;
-	double semi_major, semi_minor;
+	bool have_semi_major;
+	double semi_major;
 	size_t w, h;
 	OGRSpatialReferenceH spatial_ref;
 	OGRSpatialReferenceH geo_sref;

@@ -253,12 +253,13 @@ georef_t init_georef(geo_opts_t *opt, GDALDatasetH ds) {
 	georef.res_meters_y = 0;
 	georef.units_val = 0;
 	georef.units_name = NULL;
+	georef.have_semi_major = false;
 	if(georef.spatial_ref) {
 		OGRErr err = OGRERR_NONE;
 		georef.semi_major = OSRGetSemiMajor(georef.spatial_ref, &err);
-		if(err != OGRERR_NONE) fatal_error("could not determine globe radius");
-		georef.semi_minor = OSRGetSemiMinor(georef.spatial_ref, &err);
-		if(err != OGRERR_NONE) fatal_error("could not determine globe radius");
+		if(err == OGRERR_NONE) {
+			georef.have_semi_major = true;
+		}
 
 		if(OSRIsProjected(georef.spatial_ref)) {
 			georef.units_val = OSRGetLinearUnits(georef.spatial_ref, &georef.units_name);
@@ -273,8 +274,10 @@ georef_t init_georef(geo_opts_t *opt, GDALDatasetH ds) {
 			// The X-resolution will be fictional anyway since the size of a degree
 			// of longitude varies depending on latitude.
 
-			georef.res_meters_x = georef.semi_major * georef.units_val * georef.res_x;
-			georef.res_meters_y = georef.semi_major * georef.units_val * georef.res_y;
+			if(georef.have_semi_major) {
+				georef.res_meters_x = georef.semi_major * georef.units_val * georef.res_x;
+				georef.res_meters_y = georef.semi_major * georef.units_val * georef.res_y;
+			}
 		}
 	}
 

@@ -177,6 +177,8 @@ int main(int argc, char **argv) {
 
 	// output phase
 
+	fprintf(yaml_fh, "---\n"); // begin YAML document
+
 	fprintf(yaml_fh, "width: %zd\nheight: %zd\n", georef.w, georef.h);
 
 	if(ds) {

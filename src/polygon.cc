@@ -745,6 +745,9 @@ static double estimate_canvas_size_sq(georef_t *georef) {
 	double size = MAX(size1, size2);
 	size *= georef->units_val * georef->units_val;
 	if(OSRIsGeographic(georef->spatial_ref)) {
+		if(!georef->have_semi_major) {
+			fatal_error("could not determine globe radius");
+		}
 		size *= georef->semi_major * georef->semi_major;
 	}
 	return size;
@@ -832,6 +835,9 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 				double lonscale = cos(D2R * MAX(fabs(ll_m_interp.y), fabs(ll_m_proj.y)));
 				double dx = (ll_m_interp.x - ll_m_proj.x) * lonscale;
 				double dy = ll_m_interp.y - ll_m_proj.y;
+				if(!georef->have_semi_major) {
+					fatal_error("could not determine globe radius");
+				}
 				dx *= D2R * georef->semi_major;
 				dy *= D2R * georef->semi_major;
 				double sqr_error = dx*dx + dy*dy;
