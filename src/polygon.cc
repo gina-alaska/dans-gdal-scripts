@@ -730,7 +730,7 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 */
 
 // returns length of longest raster side in meters, squared
-static double estimate_canvas_size_sq(georef_t *georef) {
+static double estimate_canvas_size_sq(georef_t *georef, double semi_major) {
 	double e1, n1, e2, n2;
 	xy2en(georef, 0, 0, &e1, &n1);
 	xy2en(georef, georef->w, 0, &e2, &n2);
@@ -745,10 +745,7 @@ static double estimate_canvas_size_sq(georef_t *georef) {
 	double size = MAX(size1, size2);
 	size *= georef->units_val * georef->units_val;
 	if(OSRIsGeographic(georef->spatial_ref)) {
-		if(!georef->have_semi_major) {
-			fatal_error("could not determine globe radius");
-		}
-		size *= georef->semi_major * georef->semi_major;
+		size *= semi_major * semi_major;
 	}
 	return size;
 }
@@ -758,7 +755,14 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 	ll_poly->num_rings = xy_poly->num_rings;
 	ll_poly->rings = MYALLOC(ring_t, ll_poly->num_rings);
 	
-	double canvas_size_sq = estimate_canvas_size_sq(georef);
+	double semi_major;
+	if(georef->have_semi_major) {
+		semi_major = georef->semi_major;
+	} else {
+		semi_major = 6370997.0;
+		fprintf(stderr, "Warning: could not get globe size, assuming %lf\n", semi_major);
+	}
+	double canvas_size_sq = estimate_canvas_size_sq(georef, semi_major);
 	//printf("canvas_size_sq = %lf\n", canvas_size_sq);
 
 	// FIXME - now that we don't use ll2xy this is probably not needed:
@@ -835,11 +839,8 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 				double lonscale = cos(D2R * MAX(fabs(ll_m_interp.y), fabs(ll_m_proj.y)));
 				double dx = (ll_m_interp.x - ll_m_proj.x) * lonscale;
 				double dy = ll_m_interp.y - ll_m_proj.y;
-				if(!georef->have_semi_major) {
-					fatal_error("could not determine globe radius");
-				}
-				dx *= D2R * georef->semi_major;
-				dy *= D2R * georef->semi_major;
+				dx *= D2R * semi_major;
+				dy *= D2R * semi_major;
 				double sqr_error = dx*dx + dy*dy;
 
 				// if the midpoint is this far off then something is seriously wrong
