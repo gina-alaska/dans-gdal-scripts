@@ -16,3 +16,17 @@ src/.deps/
 src/Makefile
 src/Makefile.in
 stamp-h1
+
+# built files
+*.o
+src/gdal_contrast_stretch
+src/gdal_dem2rgb
+src/gdal_get_projected_bounds
+src/gdal_landsat_pansharp
+src/gdal_list_corners
+src/gdal_make_ndv_mask
+src/gdal_merge_simple
+src/gdal_merge_vrt
+src/gdal_raw2geotiff
+src/gdal_trace_outline
+src/gdal_wkt_to_mask
