@@ -31,3 +31,4 @@ src/gdal_merge_vrt
 src/gdal_raw2geotiff
 src/gdal_trace_outline
 src/gdal_wkt_to_mask
+dans-gdal-scripts-*.tar.gz
