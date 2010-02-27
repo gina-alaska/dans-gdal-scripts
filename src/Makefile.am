@@ -38,7 +38,8 @@ default_palette.h: default_palette.pal
 
 gdal_raw2geotiff_SOURCES = gdal_raw2geotiff.cc common.cc
 
-gdal_dem2rgb_SOURCES = default_palette.h gdal_dem2rgb.cc common.cc georef.cc ndv.cc
+gdal_dem2rgb.o: default_palette.h
+gdal_dem2rgb_SOURCES = gdal_dem2rgb.cc common.cc georef.cc ndv.cc
 
 gdal_list_corners_SOURCES = gdal_list_corners.cc common.cc polygon.cc polygon-rasterizer.cc debugplot.cc georef.cc mask.cc rectangle_finder.cc ndv.cc
 
