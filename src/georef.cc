@@ -29,6 +29,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include "common.h"
 #include "georef.h"
 
+static const double EPSILON = 1e-9;
+
 void usage(const char *cmdname); // externally defined
 
 void print_georef_usage() {
@@ -357,12 +359,12 @@ bool en2ll(
 	double lon = u;
 	double lat = v;
 
-	if(lat < -90.0 || lat > 90.0) return 1; //fatal_error("latitude out of range (%lf)", lat);
+	if(lat < -90.0-EPSILON || lat > 90.0+EPSILON) return 1; //fatal_error("latitude out of range (%lf)", lat);
 	// images in latlong projection that cross the dateline can
 	// have numbers outside of this range...
 	//if(lon < -180.0 || lon > 180.0) return 1; //fatal_error("longitude out of range");
 	// but it shouldn't be outside of *this* range no matter what!
-	if(lon < -360.0 || lon > 540.0) return 1; //fatal_error("longitude out of range (%lf)", lon);
+	if(lon < -360.0-EPSILON || lon > 540.0+EPSILON) return 1; //fatal_error("longitude out of range (%lf)", lon);
 
 	*lon_out = lon;
 	*lat_out = lat;
@@ -386,12 +388,12 @@ bool ll2en(
 ) {
 	if(!georef->inv_xform) fatal_error("missing xform");
 
-	if(lat < -90.0 || lat > 90.0) return 1; //fatal_error("latitude out of range (%lf)", lat);
+	if(lat < -90.0-EPSILON || lat > 90.0+EPSILON) return 1; //fatal_error("latitude out of range (%lf)", lat);
 	// images in latlong projection that cross the dateline can
 	// have numbers outside of this range...
 	//if(lon < -180.0 || lon > 180.0) return 1; //fatal_error("longitude out of range");
 	// but it shouldn't be outside of *this* range no matter what!
-	if(lon < -360.0 || lon > 540.0) return 1; //fatal_error("longitude out of range (%lf)", lon);
+	if(lon < -360.0-EPSILON || lon > 540.0+EPSILON) return 1; //fatal_error("longitude out of range (%lf)", lon);
 
 	double u = lon;
 	double v = lat;
