@@ -32,6 +32,25 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 void plot_points(ring_t *pl, const char *fn);
 
+struct PointStats {
+	PointStats() : 
+		total(0),
+		proj_ok(0),
+		contained(0)
+	{ }
+
+	void printYaml(const char *label) {
+		printf("%s:\n", label);
+		printf("  total: %d\n", total);
+		printf("  proj_ok: %d\n", proj_ok);
+		printf("  contained: %d\n", contained);
+	}
+
+	int total;
+	int proj_ok;
+	int contained;
+};
+
 void usage(const char *cmdname) {
 	printf("Usage: %s [options] \n", cmdname);
 	printf("  -s_wkt <fn>           File containing WKT of source region\n");
@@ -45,6 +64,38 @@ void usage(const char *cmdname) {
 	printf("\n");
 	
 	exit(1);
+}
+
+// This function transforms a point, and then as a check transforms it back to
+// see if it comes back to the same place.  This allows us to detect cases
+// where OCTTransform reports success when really it just returned some
+// meaningless result.
+bool picky_transform(
+	OGRCoordinateTransformationH fwd_xform,
+	OGRCoordinateTransformationH inv_xform,
+	vertex_t *v_in
+) {
+	// tolerance in meters, could probably be much smaller
+	const double toler = 1.0;
+
+	vertex_t v_out = *v_in;
+	if(!OCTTransform(fwd_xform, 1, &v_out.x, &v_out.y, NULL)) {
+		return 0;
+	}
+
+	vertex_t v_back = v_out;
+	if(!OCTTransform(inv_xform, 1, &v_back.x, &v_back.y, NULL)) {
+		return 0;
+	}
+
+	double err = hypot(v_in->x - v_back.x, v_in->y - v_back.y);
+	//fprintf(stderr, "err=%g\n", err);
+	if(err > toler) {
+		return 0;
+	}
+
+	*v_in = v_out;
+	return 1;
 }
 
 int main(int argc, char **argv) {
@@ -124,6 +175,15 @@ int main(int argc, char **argv) {
 	pl.pts = NULL; 
 	pl.npts = 0;
 
+	PointStats ps_border;
+	PointStats ps_interior;
+	PointStats ps_bounds;
+
+	// Sample a regular grid of points, take the ones within the source region,
+	// and project them to the target projection.  This is done to handle the
+	// cases where the projected border does not necessarily encircle the
+	// source region (such as would be the case for a source region that
+	// encircles the pole with a target lonlat projection).
 	int num_grid_steps = 100;
 	for(int grid_xi=0; grid_xi<=num_grid_steps; grid_xi++) {
 		vertex_t src_pt;
@@ -134,17 +194,23 @@ int main(int argc, char **argv) {
 			src_pt.y = src_bbox.min_y + (src_bbox.max_y - src_bbox.min_y) * alpha_y;
 			if(!polygon_contains_point(&src_mp, src_pt.x, src_pt.y)) continue;
 
+			ps_interior.total++;
+
 			vertex_t tgt_pt = src_pt;
-			if(!OCTTransform(fwd_xform, 1, &tgt_pt.x, &tgt_pt.y, NULL)) {
+			if(!picky_transform(fwd_xform, inv_xform, &tgt_pt)) {
 				continue;
 			}
 
+			ps_interior.proj_ok++;
+
 			if(!use_t_bounds || polygon_contains_point(&t_bounds_mp, tgt_pt.x, tgt_pt.y)) {
+				ps_interior.contained++;
 				add_point_to_ring(&pl, tgt_pt);
 			}
 		}
 	}
 
+	// Project points along the source region border to the target projection.
 	double max_step_len = MAX(
 		src_bbox.max_x - src_bbox.min_x,
 		src_bbox.max_y - src_bbox.min_y) / 1000.0;
@@ -163,18 +229,25 @@ int main(int argc, char **argv) {
 				src_pt.x = v1.x + dx * alpha;
 				src_pt.y = v1.y + dy * alpha;
 
+				ps_border.total++;
+
 				vertex_t tgt_pt = src_pt;
-				if(!OCTTransform(fwd_xform, 1, &tgt_pt.x, &tgt_pt.y, NULL)) {
+				if(!picky_transform(fwd_xform, inv_xform, &tgt_pt)) {
 					continue;
 				}
 
+				ps_border.proj_ok++;
+
 				if(!use_t_bounds || polygon_contains_point(&t_bounds_mp, tgt_pt.x, tgt_pt.y)) {
+					ps_border.contained++;
 					add_point_to_ring(&pl, tgt_pt);
 				}
 			}
 		}
 	}
 
+	// Take points along the border of the t_bounds clip shape that lie within the
+	// source region.
 	if(use_t_bounds) {
 		double max_step_len = MAX(
 			t_bounds_bbox.max_x - t_bounds_bbox.min_x,
@@ -194,18 +267,30 @@ int main(int argc, char **argv) {
 					tgt_pt.x = v1.x + dx * alpha;
 					tgt_pt.y = v1.y + dy * alpha;
 
+					ps_bounds.total++;
+
 					vertex_t src_pt = tgt_pt;
-					if(!OCTTransform(inv_xform, 1, &src_pt.x, &src_pt.y, NULL)) {
+					if(!picky_transform(inv_xform, fwd_xform, &src_pt)) {
 						continue;
 					}
 
+					ps_bounds.proj_ok++;
+
 					if(polygon_contains_point(&src_mp, src_pt.x, src_pt.y)) {
+						ps_bounds.contained++;
 						add_point_to_ring(&pl, tgt_pt);
 					}
 				}
 			}
 		}
 	}
+
+	//int debug = 1;
+	//if(debug) {
+	//	ps_border.printYaml("stats_border");
+	//	ps_interior.printYaml("stats_interior");
+	//	ps_bounds.printYaml("stats_bounds");
+	//}
 
 	//fprintf(stderr, "got %d points\n", pl.npts);
 	bbox_t bbox = get_ring_bbox(&pl);
