@@ -59,7 +59,7 @@ Examples:\n\
       -pan landsat8.tif -ndv 0 -o out.tif\n\n\
     gdal_landsat_pansharp -rgb landsat3.tif -rgb landsat2.tif -rgb landsat1.tif \\\n\
       -lum landsat2.tif 0.25 -lum landsat3.tif 0.23 -lum landsat4.tif 0.52 \\\n\
-      -pan landsat8.tif -ndv 0 -out.tif\n\n\
+      -pan landsat8.tif -ndv 0 -o out.tif\n\n\
     gdal_landsat_pansharp -rgb quickbird_rgb.tif -pan quickbird_pan.tif -o out.tif\n\
 ");
 	exit(1);
