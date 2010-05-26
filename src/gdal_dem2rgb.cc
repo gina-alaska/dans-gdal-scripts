@@ -596,6 +596,7 @@ palette_t *parse_palette(const char * const *lines) {
 
 	for(int line_num=0; lines[line_num]; line_num++) {
 		const char *line = lines[line_num];
+		if(line[0] == 0 || line[0] == '#') continue;
 		uint8_t r, g, b;
 		double val;
 		if(4 != sscanf(line, "%lf %hhd %hhd %hhd\n", &val, &r, &g, &b)) {
