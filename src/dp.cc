@@ -30,6 +30,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include "polygon.h"
 #include "dp.h"
 
+namespace dangdal {
+
 // Implementation of Douglas-Peucker polyline reduction algorithm
 // rewrite of code from http://www.3dsoftware.com/Cartography/Programming/PolyLineReduction
 // (and adapted from src/linework/dp.c in SwathViewer)
@@ -39,18 +41,18 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 // FIXME - it is possible to factor out the sqrt call
 #define VECLEN(x,y) sqrt((x)*(x)+(y)*(y))
 
-mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance) {
+Mpoly compute_reduced_pointset(const Mpoly &in_mpoly, double tolerance) {
 	if(VERBOSE) printf("reducing...\n");
 
-	if(!in_mpoly->num_rings) {
-		return empty_polygon();
+	if(!in_mpoly.rings.size()) {
+		return Mpoly();
 	}
 
-	reduced_ring_t *reduced_rings = MYALLOC(reduced_ring_t, in_mpoly->num_rings);
+	std::vector<ReducedRing> reduced_rings(in_mpoly.rings.size());
 
-	int c_idx;
-	for(c_idx=0; c_idx<in_mpoly->num_rings; c_idx++) {
-		reduced_rings[c_idx] = compute_reduced_ring(&in_mpoly->rings[c_idx], tolerance);
+	for(size_t c_idx=0; c_idx<in_mpoly.rings.size(); c_idx++) {
+		reduced_rings[c_idx] = compute_reduced_ring(
+			in_mpoly.rings[c_idx], tolerance);
 	}
 
 	fix_topology(in_mpoly, reduced_rings);
@@ -58,18 +60,20 @@ mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance) {
 	return reduction_to_mpoly(in_mpoly, reduced_rings);
 }
 
-static inline double get_dist_to_seg(double seg_vec_x, double seg_vec_y, 
-vertex_t *seg_vert1, vertex_t *seg_vert2, vertex_t *test_vert) {
-	double vert_vec_x = test_vert->x - seg_vert1->x;
-	double vert_vec_y = test_vert->y - seg_vert1->y;
+static inline double get_dist_to_seg(
+	double seg_vec_x, double seg_vec_y, 
+	Vertex seg_vert1, Vertex seg_vert2, Vertex test_vert
+) {
+	double vert_vec_x = test_vert.x - seg_vert1.x;
+	double vert_vec_y = test_vert.y - seg_vert1.y;
 	double scalar_prod = vert_vec_x*seg_vec_x + vert_vec_y*seg_vec_y;
 	if(scalar_prod < 0.0) {
 		// past beginning of segment - distance from segment
 		// is equal to distance from first endpoint of segment
 		return VECLEN(vert_vec_x, vert_vec_y);
 	} else {
-		vert_vec_x = seg_vert2->x - test_vert->x;
-		vert_vec_y = seg_vert2->y - test_vert->y;
+		vert_vec_x = seg_vert2.x - test_vert.x;
+		vert_vec_y = seg_vert2.y - test_vert.y;
 		scalar_prod = vert_vec_x*seg_vec_x + vert_vec_y*seg_vec_y;
 		if(scalar_prod < 0.0) {
 			// past end of segment - distance from segment
@@ -93,24 +97,23 @@ vertex_t *seg_vert1, vertex_t *seg_vert2, vertex_t *test_vert) {
 	}
 }
 
-reduced_ring_t compute_reduced_ring(ring_t *orig_string, double res) {
+ReducedRing compute_reduced_ring(const Ring &orig_string, double res) {
 //printf("enter dp\n");
 
-	int num_in = orig_string->npts;
-	vertex_t *pts_in = orig_string->pts;
+	const std::vector<Vertex> &pts_in = orig_string.pts;
+	const size_t num_in = pts_in.size();
+
 	double tolerance = res;
 	int i;
 
 	segment_t *stack = MYALLOC(segment_t, num_in);
-	int stack_ptr = 0;
+	size_t stack_ptr = 0;
 
-	segment_t *keep_segs = MYALLOC(segment_t, num_in);
-	int num_keep_segs = 0;
+	ReducedRing keep;
+	keep.segs.reserve(num_in);
 
 	// must keep closure segment
-	keep_segs[num_keep_segs].begin = num_in-1;
-	keep_segs[num_keep_segs].end = 0;
-	num_keep_segs++;
+	keep.segs.push_back(segment_t(num_in-1, 0));
 
 	stack[stack_ptr].begin = 0;
 	stack[stack_ptr].end = num_in-1;
@@ -133,7 +136,7 @@ reduced_ring_t compute_reduced_ring(ring_t *orig_string, double res) {
 			seg_vec_y /= seg_vec_len;
 			for(i=seg_begin+1; i<seg_end; i++) {
 				double dist_to_seg = get_dist_to_seg(seg_vec_x, seg_vec_y,
-					pts_in+seg_begin, pts_in+seg_end, pts_in+i);
+					pts_in[seg_begin], pts_in[seg_end], pts_in[i]);
 				if(dist_to_seg < 0.0) fatal_error("dist_to_seg < 0.0");
 				if(isnan(dist_to_seg)) fatal_error("dist_to_seg == NaN");
 
@@ -175,67 +178,55 @@ reduced_ring_t compute_reduced_ring(ring_t *orig_string, double res) {
 		} else {
 			// segment doesn't need subdivision - tag
 			// endpoint for inclusion
-			if(num_keep_segs == num_in) fatal_error("output stack overflow in dp.c");
-			keep_segs[num_keep_segs].begin = seg_begin;
-			keep_segs[num_keep_segs].end = seg_end;
-			num_keep_segs++;
+			if(keep.segs.size() == num_in) fatal_error("output stack overflow in dp.c");
+			keep.segs.push_back(segment_t(seg_begin, seg_end));
 		}
 	}
 
-//printf("keeping %d of %d\n", num_keep_segs, num_in);
+//printf("keeping %d of %d\n", keep.segs.size(), num_in);
 //printf("exit dp\n");
 
 	free(stack);
 
-	reduced_ring_t ret;
-	ret.segs = keep_segs;
-	ret.num_segs = num_keep_segs;
-
-	return ret;
+	return keep;
 }
 
-static ring_t make_ring_from_segs(ring_t *c_in, reduced_ring_t *r_in) {
-	int i;
-	char *keep_pts = MYALLOC(char, c_in->npts);
-	for(i=0; i<c_in->npts; i++) keep_pts[i] = 0;
+static Ring make_ring_from_segs(const Ring &c_in, const ReducedRing &r_in) {
+	size_t in_npts = c_in.pts.size();
+	std::vector<uint8_t> keep_pts(in_npts, 0);
 
-	for(i=0; i<r_in->num_segs; i++) {
-		keep_pts[r_in->segs[i].begin]++;
-		keep_pts[r_in->segs[i].end]++;
+	for(size_t i=0; i<r_in.segs.size(); i++) {
+		keep_pts[r_in.segs[i].begin]++;
+		keep_pts[r_in.segs[i].end]++;
 	}
 
-	int num_to_keep = 0;
-	for(i=0; i<c_in->npts; i++) {
+	size_t num_to_keep = 0;
+	for(size_t i=0; i<in_npts; i++) {
 		if(keep_pts[i] && keep_pts[i] != 2) {
 			fatal_error("point must be in 0 or 2 segs");
 		}
 		if(keep_pts[i]) num_to_keep++;
 	}
 	// number of points == number of line segments
-	if(num_to_keep != r_in->num_segs) fatal_error("num_to_keep != r_in->num_segs");
+	if(num_to_keep != r_in.segs.size()) fatal_error("num_to_keep != r_in.segs.size()");
 
 //printf("keeping %d of %d\n", num_to_keep, num_in);
 
-	ring_t new_string = *c_in; // copy parent_id, is_hole, etc.
-	new_string.npts = num_to_keep;
-	new_string.pts = MYALLOC(vertex_t, num_to_keep);
-	vertex_t *pts_out = new_string.pts;
-	int idx_out = 0;
-	for(i=0; i<c_in->npts; i++) {
+	Ring new_string = c_in; // copy parent_id, is_hole, etc.
+	new_string.pts.reserve(num_to_keep);
+	for(size_t i=0; i<in_npts; i++) {
 		if(keep_pts[i]) {
-			pts_out[idx_out++] = c_in->pts[i];
+			new_string.pts.push_back(c_in.pts[i]);
 		}
 	}
-	if(idx_out != new_string.npts) {
+	if(new_string.pts.size() != num_to_keep) {
 		fatal_error("count mismatch after point copy in dp.c");
 	}
-
-	free(keep_pts);
 
 	return new_string;
 }
 
-mpoly_t reduction_to_mpoly(mpoly_t *in_mpoly, reduced_ring_t *reduced_rings) {
+Mpoly reduction_to_mpoly(const Mpoly &in_mpoly, const std::vector<ReducedRing> &reduced_rings) {
 	// This function takes only rings with more than two points.
 	// (a polygon with two or less points has no area)
 	// Care is taken to make sure that the containment info
@@ -244,18 +235,19 @@ mpoly_t reduction_to_mpoly(mpoly_t *in_mpoly, reduced_ring_t *reduced_rings) {
 	// have to hope that is works.
 
 	// First, find which rings have at least three points.
-	char *keep_rings = MYALLOC(char, in_mpoly->num_rings);
-	int total_npts_in=0, total_npts_out=0;
-	int c_idx;
-	for(c_idx=0; c_idx<in_mpoly->num_rings; c_idx++) {
-		ring_t *c_in = &in_mpoly->rings[c_idx];
-		reduced_ring_t *r_in = &reduced_rings[c_idx];
+	std::vector<bool> keep_rings(in_mpoly.rings.size());
+	size_t total_npts_in=0, total_npts_out=0;
+	for(size_t c_idx=0; c_idx<in_mpoly.rings.size(); c_idx++) {
+		const Ring &c_in = in_mpoly.rings[c_idx];
+		const ReducedRing &r_in = reduced_rings[c_idx];
 
-		if(VERBOSE >= 2) printf("ring %d: %d => %d pts\n", c_idx, c_in->npts, r_in->num_segs);
-		total_npts_in += c_in->npts;
+		if(VERBOSE >= 2) {
+			printf("ring %zd: %zd => %zd pts\n", c_idx, c_in.pts.size(), r_in.segs.size());
+		}
+		total_npts_in += c_in.pts.size();
 
-		if(r_in->num_segs > 2) {
-			total_npts_out += r_in->num_segs;
+		if(r_in.segs.size() > 2) {
+			total_npts_out += r_in.segs.size();
 			keep_rings[c_idx] = 1;
 		} else {
 			keep_rings[c_idx] = 0;
@@ -264,19 +256,19 @@ mpoly_t reduction_to_mpoly(mpoly_t *in_mpoly, reduced_ring_t *reduced_rings) {
 
 	// If an outer ring has been removed, remove its holes
 	// also.  Extremely unlikely but just in case...
-	for(c_idx=0; c_idx<in_mpoly->num_rings; c_idx++) {
-		ring_t *c_in = &in_mpoly->rings[c_idx];
-		if(c_in->parent_id >= 0) {
-			if(!keep_rings[c_in->parent_id]) {
+	for(size_t c_idx=0; c_idx<in_mpoly.rings.size(); c_idx++) {
+		const Ring &c_in = in_mpoly.rings[c_idx];
+		if(c_in.parent_id >= 0) {
+			if(!keep_rings[c_in.parent_id]) {
 				keep_rings[c_idx] = 0;
 			}
 		}
 	}
 
 	// Map index of old rings to index of new rings.
-	int *new_idx_map = MYALLOC(int, in_mpoly->num_rings);
+	int *new_idx_map = MYALLOC(int, in_mpoly.rings.size());
 	int out_idx = 0;
-	for(c_idx=0; c_idx<in_mpoly->num_rings; c_idx++) {
+	for(size_t c_idx=0; c_idx<in_mpoly.rings.size(); c_idx++) {
 		if(keep_rings[c_idx]) {
 			//printf("map ring %d => %d\n", c_idx, out_idx);
 			new_idx_map[c_idx] = out_idx++;
@@ -284,84 +276,86 @@ mpoly_t reduction_to_mpoly(mpoly_t *in_mpoly, reduced_ring_t *reduced_rings) {
 			new_idx_map[c_idx] = -1;
 		}
 	}
-	int num_out_rings = out_idx;
+	size_t num_out_rings = out_idx;
 
-	if(!num_out_rings) return empty_polygon();
+	if(!num_out_rings) return Mpoly();
 
 	// Now create the new rings and update parent_id using the
 	// remapped index values.
-	ring_t *out_rings = MYALLOC(ring_t, num_out_rings);
-	for(c_idx=0; c_idx<in_mpoly->num_rings; c_idx++) {
-		ring_t *c_in = &in_mpoly->rings[c_idx];
-		reduced_ring_t *r_in = &reduced_rings[c_idx];
+	Mpoly out_mp;
+	out_mp.rings.resize(num_out_rings);
+	for(size_t c_idx=0; c_idx<in_mpoly.rings.size(); c_idx++) {
+		const Ring &c_in = in_mpoly.rings[c_idx];
+		const ReducedRing &r_in = reduced_rings[c_idx];
 
 		out_idx = new_idx_map[c_idx];
 		if(out_idx < 0) continue;
 
-		ring_t new_string = make_ring_from_segs(c_in, r_in);
+		Ring new_string = make_ring_from_segs(c_in, r_in);
 
-		int old_parent_id = in_mpoly->rings[c_idx].parent_id;
+		int old_parent_id = in_mpoly.rings[c_idx].parent_id;
 		if(old_parent_id >= 0) {
 			int new_parent_id = new_idx_map[old_parent_id];
 			//printf("map parent_id %d => %d\n", old_parent_id, new_parent_id);
 			new_string.parent_id = new_parent_id;
 		}
 
-		out_rings[out_idx] = new_string;
+		out_mp.rings[out_idx] = new_string;
 	}
 
-	if(VERBOSE) printf("reduced %d => %d rings, %d => %d pts\n",
-		in_mpoly->num_rings, num_out_rings, total_npts_in, total_npts_out);
+	if(VERBOSE) printf("reduced %zd => %zd rings, %zd => %zd pts\n",
+		in_mpoly.rings.size(), num_out_rings, total_npts_in, total_npts_out);
 
-	return (mpoly_t){ num_out_rings, out_rings };
+	return out_mp;
 }
 
-static inline int segs_cross(ring_t *c1, segment_t *s1, ring_t *c2, segment_t *s2) {
-	if(c1 == c2) {
+static inline int segs_cross(
+	bool same_ring, 
+	const Ring &c1, const segment_t &s1,
+	const Ring &c2, const segment_t &s2
+) {
+	if(same_ring) {
 		// don't test crossing if segments are identical or neighbors
 		if(
-			(s1->begin == s2->begin) ||
-			(s1->begin == s2->end) ||
-			(s1->end == s2->begin) ||
-			(s1->end == s2->end)
+			(s1.begin == s2.begin) ||
+			(s1.begin == s2.end) ||
+			(s1.end == s2.begin) ||
+			(s1.end == s2.end)
 		) return 0;
 	}
 	
 	return line_intersects_line(
-		c1->pts[s1->begin], c1->pts[s1->end],
-		c2->pts[s2->begin], c2->pts[s2->end],
+		c1.pts[s1.begin], c1.pts[s1.end],
+		c2.pts[s2.begin], c2.pts[s2.end],
 		1);
 }
 
-void fix_topology(mpoly_t *mpoly, reduced_ring_t *reduced_rings) {
-	int r1_idx, r2_idx;
-	int seg1_idx, seg2_idx;
-
+void fix_topology(const Mpoly &mpoly, std::vector<ReducedRing> &reduced_rings) {
 	printf("Analyzing topology: ");
 	fflush(stdout);
 
 	// clear problem flags
-	for(r1_idx=0; r1_idx < mpoly->num_rings; r1_idx++) {
-		reduced_ring_t *r1 = &reduced_rings[r1_idx];
-		for(seg1_idx=0; seg1_idx < r1->num_segs; seg1_idx++) {
-			r1->segs[seg1_idx].is_problem = 0;
+	for(size_t r1_idx=0; r1_idx < mpoly.rings.size(); r1_idx++) {
+		ReducedRing &r1 = reduced_rings[r1_idx];
+		for(size_t seg1_idx=0; seg1_idx < r1.segs.size(); seg1_idx++) {
+			r1.segs[seg1_idx].is_problem = 0;
 		}
 	}
 
-	bbox_t *bboxes = make_bboxes(mpoly);
+	std::vector<Bbox> bboxes = mpoly.getRingBboxes();
 
 	// flag segments that cross
 	int have_problems = 0;
-	for(r1_idx=0; r1_idx < mpoly->num_rings; r1_idx++) {
-		GDALTermProgress(pow((double)r1_idx / (double)mpoly->num_rings, 2), NULL, NULL);
-		ring_t *c1 = &mpoly->rings[r1_idx];
-		reduced_ring_t *r1 = &reduced_rings[r1_idx];
-		bbox_t bbox1 = bboxes[r1_idx];
+	for(size_t r1_idx=0; r1_idx < mpoly.rings.size(); r1_idx++) {
+		GDALTermProgress(pow((double)r1_idx / (double)mpoly.rings.size(), 2), NULL, NULL);
+		const Ring &c1 = mpoly.rings[r1_idx];
+		ReducedRing &r1 = reduced_rings[r1_idx];
+		const Bbox bbox1 = bboxes[r1_idx];
 		if(bbox1.empty) continue;
-		for(r2_idx=0; r2_idx < mpoly->num_rings; r2_idx++) {
+		for(size_t r2_idx=0; r2_idx < mpoly.rings.size(); r2_idx++) {
 			if(r2_idx > r1_idx) continue; // symmetry optimization
 
-			bbox_t bbox2 = bboxes[r2_idx];
+			const Bbox bbox2 = bboxes[r2_idx];
 			if(bbox2.empty) continue;
 
 			if(
@@ -371,19 +365,20 @@ void fix_topology(mpoly_t *mpoly, reduced_ring_t *reduced_rings) {
 				bbox2.min_y > bbox1.max_y
 			) continue;
 
-			ring_t *c2 = &mpoly->rings[r2_idx];
-			reduced_ring_t *r2 = &reduced_rings[r2_idx];
+			const Ring &c2 = mpoly.rings[r2_idx];
+			ReducedRing &r2 = reduced_rings[r2_idx];
 
-			for(seg1_idx=0; seg1_idx < r1->num_segs; seg1_idx++) {
-				for(seg2_idx=0; seg2_idx < r2->num_segs; seg2_idx++) {
+			for(size_t seg1_idx=0; seg1_idx < r1.segs.size(); seg1_idx++) {
+				for(size_t seg2_idx=0; seg2_idx < r2.segs.size(); seg2_idx++) {
 					if(r2_idx == r1_idx && seg2_idx > seg1_idx) continue; // symmetry optimization
 
-					int crosses = segs_cross(c1, &r1->segs[seg1_idx], c2, &r2->segs[seg2_idx]);
+					int crosses = segs_cross(r1_idx==r2_idx, 
+						c1, r1.segs[seg1_idx], c2, r2.segs[seg2_idx]);
 					if(crosses) {
 						//printf("found a crossing: %d,%d,%d,%d\n",
 						//	r1_idx, seg1_idx, r2_idx, seg2_idx);
-						r1->segs[seg1_idx].is_problem = 1;
-						r2->segs[seg2_idx].is_problem = 1;
+						r1.segs[seg1_idx].is_problem = 1;
+						r2.segs[seg2_idx].is_problem = 1;
 						have_problems += 2;
 					}
 				} // seg loop
@@ -391,8 +386,6 @@ void fix_topology(mpoly_t *mpoly, reduced_ring_t *reduced_rings) {
 		} // ring loop
 	} // ring loop
 	GDALTermProgress(1, NULL, NULL);
-
-	free(bboxes);
 
 	if(have_problems) {
 		if(VERBOSE) printf("fixing %d crossed segments from reduction\n", have_problems/2);
@@ -403,55 +396,53 @@ void fix_topology(mpoly_t *mpoly, reduced_ring_t *reduced_rings) {
 		//printf("%d crossings to fix\n", have_problems/2);
 		did_something = 0;
 		// subdivide problem segments
-		for(r1_idx=0; r1_idx < mpoly->num_rings; r1_idx++) {
-			reduced_ring_t *r1 = &reduced_rings[r1_idx];
-			int orig_num_segs = r1->num_segs; // this number will change as we go, so copy it
-			for(seg1_idx=0; seg1_idx < orig_num_segs; seg1_idx++) {
-				if(!r1->segs[seg1_idx].is_problem) continue;
-				int begin = r1->segs[seg1_idx].begin;
-				int end = r1->segs[seg1_idx].end;
+		for(size_t r1_idx=0; r1_idx < mpoly.rings.size(); r1_idx++) {
+			ReducedRing &r1 = reduced_rings[r1_idx];
+			size_t orig_num_segs = r1.segs.size(); // this number will change as we go, so copy it
+			for(size_t seg1_idx=0; seg1_idx < orig_num_segs; seg1_idx++) {
+				if(!r1.segs[seg1_idx].is_problem) continue;
+				int begin = r1.segs[seg1_idx].begin;
+				int end = r1.segs[seg1_idx].end;
 				if(end < begin) continue; // this is a closure segment (and so doesn't have a midpoint)
 				if(end == begin+1) continue; // no midpoint
 
 				// subdivide this segment
 				int mid = (begin + end) / 2;
-				r1->segs[seg1_idx].end = mid;
-				r1->segs[r1->num_segs].begin = mid;
-				r1->segs[r1->num_segs].end = end;
-				r1->segs[r1->num_segs].is_problem = 1;
-				r1->num_segs++;
+				r1.segs[seg1_idx].end = mid;
+				r1.segs.push_back(segment_t(mid, end, 1));
 				did_something = 1;
 			} // seg loop
 		} // ring loop
 
 		have_problems = 0;
 		// now test for resolved problems and new problems
-		for(r1_idx=0; r1_idx < mpoly->num_rings; r1_idx++) {
-			ring_t *c1 = &mpoly->rings[r1_idx];
-			reduced_ring_t *r1 = &reduced_rings[r1_idx];
-			for(seg1_idx=0; seg1_idx < r1->num_segs; seg1_idx++) {
-				if(!r1->segs[seg1_idx].is_problem) continue;
-				r1->segs[seg1_idx].is_problem = 0;
-				for(r2_idx=0; r2_idx < mpoly->num_rings; r2_idx++) {
-					ring_t *c2 = &mpoly->rings[r2_idx];
-					reduced_ring_t *r2 = &reduced_rings[r2_idx];
-					for(seg2_idx=0; seg2_idx < r2->num_segs; seg2_idx++) {
-						int crosses = segs_cross(c1, &r1->segs[seg1_idx], c2, &r2->segs[seg2_idx]);
+		for(size_t r1_idx=0; r1_idx < mpoly.rings.size(); r1_idx++) {
+			const Ring &c1 = mpoly.rings[r1_idx];
+			ReducedRing &r1 = reduced_rings[r1_idx];
+			for(size_t seg1_idx=0; seg1_idx < r1.segs.size(); seg1_idx++) {
+				if(!r1.segs[seg1_idx].is_problem) continue;
+				r1.segs[seg1_idx].is_problem = 0;
+				for(size_t r2_idx=0; r2_idx < mpoly.rings.size(); r2_idx++) {
+					const Ring &c2 = mpoly.rings[r2_idx];
+					ReducedRing &r2 = reduced_rings[r2_idx];
+					for(size_t seg2_idx=0; seg2_idx < r2.segs.size(); seg2_idx++) {
+						int crosses = segs_cross(r1_idx==r2_idx,
+							c1, r1.segs[seg1_idx], c2, r2.segs[seg2_idx]);
 						if(crosses) {
 							if(VERBOSE) {
-								printf("found a crossing (still): %d,%d,%d,%d (%f,%f)-(%f,%f) (%f,%f)-(%f,%f)\n",
+								printf("found a crossing (still): %zd,%zd,%zd,%zd (%f,%f)-(%f,%f) (%f,%f)-(%f,%f)\n",
 									r1_idx, seg1_idx, r2_idx, seg2_idx,
-									c1->pts[r1->segs[seg1_idx].begin].x,
-									c1->pts[r1->segs[seg1_idx].begin].y,
-									c1->pts[r1->segs[seg1_idx].end].x,
-									c1->pts[r1->segs[seg1_idx].end].y,
-									c2->pts[r2->segs[seg2_idx].begin].x,
-									c2->pts[r2->segs[seg2_idx].begin].y,
-									c2->pts[r2->segs[seg2_idx].end].x,
-									c2->pts[r2->segs[seg2_idx].end].y);
+									c1.pts[r1.segs[seg1_idx].begin].x,
+									c1.pts[r1.segs[seg1_idx].begin].y,
+									c1.pts[r1.segs[seg1_idx].end].x,
+									c1.pts[r1.segs[seg1_idx].end].y,
+									c2.pts[r2.segs[seg2_idx].begin].x,
+									c2.pts[r2.segs[seg2_idx].begin].y,
+									c2.pts[r2.segs[seg2_idx].end].x,
+									c2.pts[r2.segs[seg2_idx].end].y);
 							}
-							r1->segs[seg1_idx].is_problem = 1;
-							r2->segs[seg2_idx].is_problem = 1;
+							r1.segs[seg1_idx].is_problem = 1;
+							r2.segs[seg2_idx].is_problem = 1;
 							have_problems++;
 						}
 					} // seg loop
@@ -464,3 +455,5 @@ void fix_topology(mpoly_t *mpoly, reduced_ring_t *reduced_rings) {
 		printf("WARNING: Could not fix all topology problems.\n  Please inspect output shapefile manually.\n");
 	}
 }
+
+} // namespace dangdal

@@ -30,20 +30,28 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 #include "polygon.h"
 
-typedef struct {
-	int begin;
-	int end;
-	char is_problem;
-} segment_t;
+namespace dangdal {
 
-typedef struct {
-	segment_t *segs;
-	int num_segs;
-} reduced_ring_t;
+struct segment_t {
+	segment_t() : begin(0), end(0), is_problem(0) { }
 
-mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance);
-reduced_ring_t compute_reduced_ring(ring_t *orig_string, double res);
-void fix_topology(mpoly_t *mpoly, reduced_ring_t *reduced_rings);
-mpoly_t reduction_to_mpoly(mpoly_t *in_mpoly, reduced_ring_t *reduced_rings);
+	segment_t(size_t _begin, size_t _end, bool _is_problem=false) :
+		begin(_begin), end(_end), is_problem(_is_problem) { }
+
+	size_t begin;
+	size_t end;
+	bool is_problem;
+};
+
+struct ReducedRing {
+	std::vector<segment_t> segs;
+};
+
+Mpoly compute_reduced_pointset(const Mpoly &in_mpoly, double tolerance);
+ReducedRing compute_reduced_ring(const Ring &orig_string, double res);
+void fix_topology(const Mpoly &mpoly, const std::vector<ReducedRing> &reduced_rings);
+Mpoly reduction_to_mpoly(const Mpoly &in_mpoly, const std::vector<ReducedRing> &reduced_rings);
+
+} // namespace dangdal
 
 #endif // ifndef DP_H
