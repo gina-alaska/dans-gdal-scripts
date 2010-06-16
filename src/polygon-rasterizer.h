@@ -30,6 +30,9 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #define POLYGON_RASTERIZER_H
 
 #include "common.h"
+#include "polygon.h"
+
+namespace dangdal {
 
 typedef struct {
 	int num_crossings;
@@ -37,9 +40,11 @@ typedef struct {
 	int *crossings;
 } row_crossings_t;
 
-row_crossings_t *get_row_crossings(mpoly_t *mpoly, int min_y, int num_rows);
+row_crossings_t *get_row_crossings(const Mpoly &mpoly, int min_y, int num_rows);
 void free_row_crossings(row_crossings_t *rc, int num_rows);
-void mask_from_mpoly(mpoly_t *mpoly, size_t w, size_t h, const char *fn);
+void mask_from_mpoly(const Mpoly &mpoly, size_t w, size_t h, const char *fn);
 void crossings_intersection(row_crossings_t *out, row_crossings_t *in1, row_crossings_t *in2);
+
+} // namespace dangdal
 
 #endif // ifndef POLYGON_RASTERIZER_H

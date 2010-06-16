@@ -35,6 +35,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include "mask.h"
 #include "rectangle_finder.h"
 
+using namespace dangdal;
+
 void usage(const char *cmdname) {
 	printf("Usage:\n  %s [options] [image_name]\n", cmdname);
 	printf("\n");
@@ -232,9 +234,9 @@ int main(int argc, char **argv) {
 	double lon, lat;
 	double east, north;
 
-	vertex_t center;
+	Vertex center;
 	fprintf(yaml_fh, "center:\n");
-	center = (vertex_t){ (double)georef.w/2.0, (double)georef.h/2.0 };
+	center = Vertex((double)georef.w/2.0, (double)georef.h/2.0);
 	if(georef.fwd_xform && georef.fwd_affine) {
 		xy2ll_or_die(&georef, center.x, center.y, &lon, &lat);
 		fprintf(yaml_fh, "  lon: %.15f\n", lon);
@@ -249,7 +251,7 @@ int main(int argc, char **argv) {
 	fprintf(yaml_fh, "  y: %.15f\n", center.y);
 
 	if(do_inspect) {
-		vertex_t centroid;
+		Vertex centroid;
 		fprintf(yaml_fh, "centroid:\n");
 		centroid = mask.centroid();
 		if(georef.fwd_xform && georef.fwd_affine) {
@@ -267,17 +269,15 @@ int main(int argc, char **argv) {
 	}
 
 	if(inspect_rect4) {
-		ring_t rect4 = calc_rect4_from_mask(mask, georef.w, georef.h, dbuf, fuzzy_match);
+		Ring rect4 = calc_rect4_from_mask(mask, georef.w, georef.h, dbuf, fuzzy_match);
 
-		if(rect4.npts != 4) {
+		if(rect4.pts.size() != 4) {
 			fatal_error("could not find four-sided region");
 		}
 
 		if(mask_out_fn) {
-			mpoly_t *bpoly = MYALLOC(mpoly_t, 1);
-			bpoly->num_rings = 1;
-			bpoly->rings = MYALLOC(ring_t, 1);
-			bpoly->rings[0] = rect4;
+			Mpoly bpoly;
+			bpoly.rings.push_back(rect4);
 
 			mask_from_mpoly(bpoly, georef.w, georef.h, mask_out_fn);
 		}

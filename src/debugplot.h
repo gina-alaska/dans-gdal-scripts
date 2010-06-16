@@ -32,6 +32,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include "common.h"
 #include "polygon.h"
 
+namespace dangdal {
+
 #define PLOT_RECT4 1
 #define PLOT_CONTOURS 2
 #define PLOT_PINCH 3
@@ -47,9 +49,11 @@ report_image_t *create_plot(double w, double h);
 void write_plot(report_image_t *dbuf, const char *fn);
 void plot_point_big(report_image_t *dbuf, double x, double y, unsigned char r, unsigned char g, unsigned char b);
 void plot_point(report_image_t *dbuf, double x, double y, unsigned char r, unsigned char g, unsigned char b);
-void plot_line(report_image_t *dbuf, vertex_t p0, vertex_t p1, 
+void plot_line(report_image_t *dbuf, Vertex p0, Vertex p1, 
 	unsigned char r, unsigned char g, unsigned char b);
-void debug_plot_ring(report_image_t *dbuf, ring_t *ring, uint8_t r, uint8_t g, uint8_t b);
-void debug_plot_mpoly(report_image_t *dbuf, mpoly_t *mpoly);
+void debug_plot_ring(report_image_t *dbuf, const Ring &ring, uint8_t r, uint8_t g, uint8_t b);
+void debug_plot_mpoly(report_image_t *dbuf, const Mpoly &mpoly);
+
+} // namespace dangdal
 
 #endif // ifndef DEBUGPLOT_H

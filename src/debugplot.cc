@@ -28,6 +28,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 #include "debugplot.h"
 
+namespace dangdal {
+
 report_image_t *create_plot(double w, double h) {
 	if(w<0 || h<0) fatal_error("negative size for debug plot (%g,%g)", w, h);
 
@@ -88,7 +90,7 @@ void plot_point(report_image_t *dbuf, double x, double y, uint8_t r, uint8_t g, 
 	}
 }
 
-void plot_line(report_image_t *dbuf, vertex_t p0, vertex_t p1, 
+void plot_line(report_image_t *dbuf, Vertex p0, Vertex p1, 
 uint8_t r, uint8_t g, uint8_t b) {
 	double dx = (p1.x-p0.x) / dbuf->canvas_w * (double)dbuf->img_w;
 	double dy = (p1.y-p0.y) / dbuf->canvas_h * (double)dbuf->img_h;
@@ -100,32 +102,39 @@ uint8_t r, uint8_t g, uint8_t b) {
 	}
 }
 
-void debug_plot_ring(report_image_t *dbuf, ring_t *ring, uint8_t r, uint8_t g, uint8_t b) {
-	for(int i=0; i<ring->npts; i++) {
-		vertex_t p0 = ring->pts[i];
-		vertex_t p1 = ring->pts[(i+1)%ring->npts];
+void debug_plot_ring(
+	report_image_t *dbuf, const Ring &ring,
+	uint8_t r, uint8_t g, uint8_t b
+) {
+	for(size_t i=0; i<ring.pts.size(); i++) {
+		Vertex p0 = ring.pts[i];
+		Vertex p1 = ring.pts[(i+1)%ring.pts.size()];
 		plot_line(dbuf, p0, p1, r, g, b);
 	}
 }
 
 
-void debug_plot_mpoly(report_image_t *dbuf, mpoly_t *mpoly) {
+void debug_plot_mpoly(report_image_t *dbuf, const Mpoly &mpoly) {
 	if(VERBOSE) printf("plotting...\n");
 
-	for(int i=0; i<mpoly->num_rings; i++) {
+	for(size_t i=0; i<mpoly.rings.size(); i++) {
 		int v = (i%62)+1;
 		uint8_t r = ((v&1) ? 150 : 0) + ((v&8) ? 100 : 0);
 		uint8_t g = ((v&2) ? 150 : 0) + ((v&16) ? 100 : 0);
 		uint8_t b = ((v&4) ? 150 : 0) + ((v&32) ? 100 : 0);
-		ring_t *ring = mpoly->rings + i;
-		if(ring->is_hole) { r=255; g=0; b=0; }
+		const Ring &ring = mpoly.rings[i];
+		if(ring.is_hole) { r=255; g=0; b=0; }
 		else { r=255; g=255; b=0; }
-		if(VERBOSE) printf("ring %d: %d pts color=%02x%02x%02x\n", i, ring->npts, r, g, b);
+		if(VERBOSE) {
+			printf("ring %zd: %zd pts color=%02x%02x%02x\n",
+				i, ring.pts.size(), r, g, b);
+		}
 		debug_plot_ring(dbuf, ring, r, g, b);
-		for(int j=0; j<ring->npts; j++) {
-			vertex_t p = ring->pts[j];
+		for(size_t j=0; j<ring.pts.size(); j++) {
+			Vertex p = ring.pts[j];
 			plot_point(dbuf, p.x, p.y, 255, 255, 255);
 		}
 	}
 }
 
+} // namespace dangdal

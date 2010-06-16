@@ -37,6 +37,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include "debugplot.h"
 #include "ndv.h"
 
+namespace dangdal {
+
 class BitGrid {
 public:
 	BitGrid(int _w, int _h) :
@@ -85,7 +87,7 @@ public:
 
 	void erode();
 
-	vertex_t centroid();
+	Vertex centroid();
 
 private:
 	int w, h;
@@ -97,5 +99,7 @@ uint8_t *read_dataset_8bit(GDALDatasetH ds, int band_idx, uint8_t *usage_array, 
 BitGrid get_bitgrid_for_dataset(GDALDatasetH ds, int bandlist_size, int *bandlist, 
 	ndv_def_t *ndv_def, report_image_t *dbuf);
 BitGrid get_bitgrid_for_8bit_raster(size_t w, size_t h, const uint8_t *raster, uint8_t wanted);
+
+} // namespace dangdal
 
 #endif // ifndef MASK_H

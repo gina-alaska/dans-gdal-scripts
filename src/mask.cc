@@ -32,6 +32,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include "debugplot.h"
 #include "ndv.h"
 
+namespace dangdal {
+
 uint8_t *read_dataset_8bit(GDALDatasetH ds, int band_idx, uint8_t *usage_array, report_image_t *dbuf) {
 	for(int i=0; i<256; i++) usage_array[i] = 0;
 
@@ -287,7 +289,7 @@ void BitGrid::erode() { // FIXME - untested
 	delete[] rowl;
 }
 
-vertex_t BitGrid::centroid() {
+Vertex BitGrid::centroid() {
 	long accum_x=0, accum_y=0, cnt=0;
 	for(int y=0; y<h; y++) {
 		for(int x=0; x<w; x++) {
@@ -298,8 +300,10 @@ vertex_t BitGrid::centroid() {
 			}
 		}
 	}
-	return (vertex_t){
+	return Vertex(
 		double(accum_x) / cnt,
 		double(accum_y) / cnt
-	};
+	);
 }
+
+} // namespace dangdal

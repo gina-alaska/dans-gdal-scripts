@@ -32,8 +32,10 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include "debugplot.h"
 #include "mask.h"
 
+namespace dangdal {
+
 typedef struct {
-	vertex_t p0, p1;
+	Vertex p0, p1;
 	double angle;
 	double seg_len;
 	int group;
@@ -53,7 +55,7 @@ double ang_diff(double a1, double a2) {
 	return d<=180.0 ? d : 360.0-d;
 }
 
-ring_t calc_rect4_from_convex_hull(BitGrid mask, int w, int h, report_image_t *dbuf) {
+Ring calc_rect4_from_convex_hull(BitGrid mask, int w, int h, report_image_t *dbuf) {
 	int *chrows_left = MYALLOC(int, h);
 	int *chrows_right = MYALLOC(int, h);
 	for(int j=0; j<h; j++) {
@@ -275,15 +277,14 @@ ring_t calc_rect4_from_convex_hull(BitGrid mask, int w, int h, report_image_t *d
 	}
 
 	//if(VERBOSE) printf("%d edges\n", num_groups);
-	vertex_t *verts = MYALLOC(vertex_t, num_groups);
+	std::vector<Vertex> verts(num_groups);
 	for(int i=0; i<num_groups; i++) {
 		int j = i ? i-1 : num_groups-1;
 		edge_t e1 = groups[i].best_edge;
 		edge_t e2 = groups[j].best_edge;
-		line_line_intersection(
+		verts[i] = line_line_intersection(
 			e1.p0, e1.p1,
-			e2.p0, e2.p1,
-			&verts[i]);
+			e2.p0, e2.p1);
 		if(VERBOSE) printf("vert[%d] = %.15f, %.15f\n", i, verts[i].x, verts[i].y);
 	}
 
@@ -296,16 +297,14 @@ ring_t calc_rect4_from_convex_hull(BitGrid mask, int w, int h, report_image_t *d
 		}
 	}
 
-	ring_t rect4;
-	if(num_groups == 4) {
-		rect4.npts = 4;
+	if(verts.size() == 4) {
+		Ring rect4;
 		rect4.pts = verts;
+		return rect4;
 	} else {
-		rect4.npts = 0;
-		rect4.pts = NULL;
 		printf("could not find a 4-sided bounding polygon\n");
+		return Ring();
 	}
-	return rect4;
 }
 
 //static int is_in_crossings(row_crossings_t *r, int x) {
@@ -317,20 +316,19 @@ ring_t calc_rect4_from_convex_hull(BitGrid mask, int w, int h, report_image_t *d
 //	return v;
 //}
 
-static int ringdiff(ring_t *r1, ring_t *r2, BitGrid mask) {
-	mpoly_t mp1, mp2;
-	mp1.num_rings = mp2.num_rings = 1;
-	mp1.rings = r1;
-	mp2.rings = r2;
+static int ringdiff(const Ring &r1, const Ring &r2, BitGrid mask) {
+	Mpoly mp1, mp2;
+	mp1.rings.push_back(r1);
+	mp2.rings.push_back(r2);
 
-	bbox_t bb = union_bbox(get_ring_bbox(r1), get_ring_bbox(r2));
+	Bbox bb = box_union(r1.getBbox(), r2.getBbox());
 	//int min_x = (int)floor(bb.min_x);
 	int min_y = (int)floor(bb.min_y);
 	int max_x = (int)ceil (bb.max_x);
 	int max_y = (int)ceil (bb.max_y);
 
-	row_crossings_t *rcs1 = get_row_crossings(&mp1, min_y, max_y-min_y+1);
-	row_crossings_t *rcs2 = get_row_crossings(&mp2, min_y, max_y-min_y+1);
+	row_crossings_t *rcs1 = get_row_crossings(mp1, min_y, max_y-min_y+1);
+	row_crossings_t *rcs2 = get_row_crossings(mp2, min_y, max_y-min_y+1);
 
 	int tally = 0;
 	for(int y=min_y; y<=max_y; y++) {
@@ -399,23 +397,26 @@ static int rand_delta(int amt) {
 	return rand_range(-amt, amt);
 }
 
-static void perturb(ring_t *in, ring_t *out, int amt) {
+static void perturb(const Ring &in, Ring &out, int amt) {
+	assert(in.pts.size() == 4);
+	assert(out.pts.size() == 4);
+
 	int parallelogram = 1;
 	if(parallelogram) {
 		for(int v=0; v<3; v++) {
-			out->pts[v] = in->pts[v];
-			out->pts[v].x += rand_delta(amt);
-			out->pts[v].y += rand_delta(amt);
+			out.pts[v] = in.pts[v];
+			out.pts[v].x += rand_delta(amt);
+			out.pts[v].y += rand_delta(amt);
 		}
-		out->pts[3].x = out->pts[0].x + out->pts[2].x - out->pts[1].x;
-		out->pts[3].y = out->pts[0].y + out->pts[2].y - out->pts[1].y;
+		out.pts[3].x = out.pts[0].x + out.pts[2].x - out.pts[1].x;
+		out.pts[3].y = out.pts[0].y + out.pts[2].y - out.pts[1].y;
 	} else {
 		int corner = rand_range(0, 3);
 		for(int v=0; v<4; v++) {
-			out->pts[v] = in->pts[v];
+			out.pts[v] = in.pts[v];
 			if(v == corner) {
-				out->pts[v].x += rand_delta(amt);
-				out->pts[v].y += rand_delta(amt);
+				out.pts[v].x += rand_delta(amt);
+				out.pts[v].y += rand_delta(amt);
 			}
 		}
 	}
@@ -464,33 +465,33 @@ static ring_t anneal(ring_t *input, int recurse, BitGrid mask, int w, int h) {
 }
 */
 
-static ring_t anneal(ring_t *input, BitGrid mask) {
-	ring_t best = duplicate_ring(input);
-	ring_t pert = duplicate_ring(input);
+static Ring anneal(const Ring &input, BitGrid mask) {
+	Ring best = input;
+	Ring pert = input;
 
 	for(int iter=0; iter<10000; iter++) { // FIXME - arbitrary
 		int amt = (int)ceil(200.0 * exp(-iter / 50.0)); // FIXME - arbitrary
-		perturb(&best, &pert, amt);
-		int diff = ringdiff(&best, &pert, mask);
+		perturb(best, pert, amt);
+		int diff = ringdiff(best, pert, mask);
 		if(diff > 0) {
 			// swap best and pert
-			ring_t t = best; best = pert; pert = t;
+			Ring t = best; best = pert; pert = t;
 		}
 	}
 
-	free_ring(&pert);
 	return best;
 }
 
-ring_t calc_rect4_from_mask(BitGrid mask, int w, int h, report_image_t *dbuf, bool use_ai) {
-	ring_t best = calc_rect4_from_convex_hull(mask, w, h, dbuf);
+Ring calc_rect4_from_mask(BitGrid mask, int w, int h, report_image_t *dbuf, bool use_ai) {
+	Ring best = calc_rect4_from_convex_hull(mask, w, h, dbuf);
+	if(best.pts.size() == 0) return best;
 
 	if(use_ai) {
-		best = anneal(&best, mask);
+		best = anneal(best, mask);
 
 		if(dbuf && dbuf->mode == PLOT_RECT4) {
-			for(int i=0; i<best.npts; i++) {
-				int i2 = (i+1) % best.npts;
+			for(size_t i=0; i<best.pts.size(); i++) {
+				size_t i2 = (i+1) % best.pts.size();
 				plot_line(dbuf, best.pts[i], best.pts[i2], 0, 255, 0);
 				plot_point_big(dbuf, best.pts[i].x, best.pts[i].y, 255, 255, 0);
 				plot_point_big(dbuf, best.pts[i2].x, best.pts[i2].y, 255, 255, 0);
@@ -500,3 +501,5 @@ ring_t calc_rect4_from_mask(BitGrid mask, int w, int h, report_image_t *dbuf, bo
 
 	return best;
 }
+
+} // namespace dangdal

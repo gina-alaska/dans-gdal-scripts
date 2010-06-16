@@ -32,6 +32,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 #define EPSILON 1e-9
 
+namespace dangdal {
+
 typedef struct {
 	int num_crossings;
 	int array_size;
@@ -83,7 +85,7 @@ static void dbl_crossings_sort(row_crossings_dbl_t *r) {
 // This function returns a list of pixel ranges for each row.  The ranges consist of pixels
 // that are entirely contained within the polygon.  The results will be slightly wrong for
 // polygons whose vertices are not integers.
-row_crossings_t *get_row_crossings(mpoly_t *mpoly, int min_y, int num_rows) {
+row_crossings_t *get_row_crossings(const Mpoly &mpoly, int min_y, int num_rows) {
 	row_crossings_dbl_t *rows_top = MYALLOC(row_crossings_dbl_t, num_rows);
 	row_crossings_dbl_t *rows_bot = MYALLOC(row_crossings_dbl_t, num_rows);
 
@@ -96,13 +98,15 @@ row_crossings_t *get_row_crossings(mpoly_t *mpoly, int min_y, int num_rows) {
 		rows_bot[i].crossings = NULL;
 	}
 
-	for(int i=0; i<mpoly->num_rings; i++) {
-		ring_t *c = mpoly->rings + i;
-		for(int j=0; j<c->npts; j++) {
-			double x0 = c->pts[j].x;
-			double y0 = c->pts[j].y;
-			double x1 = c->pts[(j+1)%c->npts].x;
-			double y1 = c->pts[(j+1)%c->npts].y;
+	for(size_t i=0; i<mpoly.rings.size(); i++) {
+		const Ring &c = mpoly.rings[i];
+		size_t npts = c.pts.size();
+		for(size_t j=0; j<npts; j++) {
+			size_t j_plus1 = (j==npts-1) ? 0 : (j+1);
+			double x0 = c.pts[j].x;
+			double y0 = c.pts[j].y;
+			double x1 = c.pts[j_plus1].x;
+			double y1 = c.pts[j_plus1].y;
 			if(y0 == y1) continue;
 			if(y0 > y1) {
 				double tmp;
@@ -180,7 +184,7 @@ void free_row_crossings(row_crossings_t *rc, int num_rows) {
 	free(rc);
 }
 
-void mask_from_mpoly(mpoly_t *mpoly, size_t w, size_t h, const char *fn) {
+void mask_from_mpoly(const Mpoly &mpoly, size_t w, size_t h, const char *fn) {
 	printf("mask draw: begin\n");
 
 	row_crossings_t *rows = get_row_crossings(mpoly, 0, h);
@@ -260,3 +264,5 @@ void crossings_intersection(row_crossings_t *out, row_crossings_t *in1, row_cros
 		out->crossings[out->num_crossings++] = close;
 	}
 }
+
+} // namespace dangdal
