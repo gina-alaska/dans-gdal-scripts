@@ -29,75 +29,106 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #ifndef POLYGON_H
 #define POLYGON_H
 
+#include <vector>
 #include <ogr_api.h>
 #include "common.h"
 #include "georef.h"
 
+namespace dangdal {
+
 // returned by ring_ring_relation
-#define RING_CONTAINS 1
-#define RING_CONTAINED_BY 2
-#define RING_CROSSES 3
-#define RING_DISJOINT 4
+enum RingRelation {
+	CONTAINS,
+	CONTAINED_BY,
+	CROSSES,
+	DISJOINT
+};
 
-typedef struct {
+struct Vertex {
+	Vertex() : x(0), y(0) { }
+	Vertex(double _x, double _y) : x(_x), y(_y) { }
+
 	double x, y;
-} vertex_t;
+};
 
-typedef struct {
-	int npts;
-	vertex_t *pts;
+class Bbox {
+public:
+	Bbox() :
+		min_x(0), max_x(0),
+		min_y(0), max_y(0),
+		empty(true)
+	{ }
+
+	void expand(const Vertex v) {
+		if(empty) {
+			empty = false;
+			min_x = max_x = v.x;
+			min_y = max_y = v.y;
+		} else {
+			if(v.x < min_x) min_x = v.x;
+			if(v.y < min_y) min_y = v.y;
+			if(v.x > max_x) max_x = v.x;
+			if(v.y > max_y) max_y = v.y;
+		}
+	}
+
+	void expand(const Bbox bb);
+
+	double min_x, max_x, min_y, max_y;
+	bool empty;
+};
+
+Bbox box_union(const Bbox bb1, const Bbox bb2);
+bool is_disjoint(const Bbox bb1, const Bbox bb2);
+
+class Ring {
+public:
+	Ring() : is_hole(false), parent_id(-1) { }
+
+	Bbox getBbox() const;
+	double orientedArea() const;
+	double area() const;
+	bool isCCW() const;
+	bool contains(Vertex p) const;
+
+	std::vector<Vertex> pts;
 	bool is_hole;
 	int parent_id;
-} ring_t;
+};
 
-typedef struct {
-	int num_rings;
-	ring_t *rings;
-} mpoly_t;
+class Mpoly {
+public:
+	Bbox getBbox() const;
+	std::vector<Bbox> getRingBboxes() const;
+	bool contains(Vertex p) const;
 
-typedef struct {
-	double min_x, max_x, min_y, max_y;
-	char empty;
-} bbox_t;
+	void xy2en(georef_t *georef);
+	void en2xy(georef_t *georef);
+	void xy2ll_with_interp(georef_t *georef, double toler);
 
-mpoly_t empty_polygon();
-ring_t duplicate_ring(ring_t *in_ring);
-void free_ring(ring_t *ring);
-void free_mpoly(mpoly_t *mpoly);
-void insert_point_into_ring(ring_t *ring, int idx);
-void add_point_to_ring(ring_t *ring, vertex_t v);
-void delete_ring_from_mpoly(mpoly_t *mp, int idx);
-bbox_t get_ring_bbox(ring_t *ring);
-bbox_t get_polygon_bbox(mpoly_t *mp);
-bbox_t *make_bboxes(mpoly_t *mp);
-bbox_t union_bbox(bbox_t bb1, bbox_t bb2);
-bool bboxes_disjoint(bbox_t *bbox1, bbox_t *bbox2);
-OGRGeometryH ring_to_ogr(ring_t *ring);
-ring_t ogr_to_ring(OGRGeometryH ogr);
-OGRGeometryH mpoly_to_ogr(mpoly_t *mpoly_in);
-mpoly_t ogr_to_mpoly(OGRGeometryH geom_in);
-void split_mpoly_to_polys(mpoly_t *mpoly, int *num_polys, mpoly_t **polys);
-mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance);
-double ring_oriented_area(ring_t *c);
-bool ring_is_ccw(ring_t *c);
-double ring_area(ring_t *c);
-bool polygon_contains_point(mpoly_t *mp, double px, double py);
-int ring_ring_relation(ring_t *r1, ring_t *r2);
+	std::vector<Ring> rings;
+};
+
+OGRGeometryH ring_to_ogr(const Ring &ring);
+Ring ogr_to_ring(OGRGeometryH ogr);
+OGRGeometryH mpoly_to_ogr(const Mpoly mpoly_in);
+Mpoly ogr_to_mpoly(OGRGeometryH geom_in);
+std::vector<Mpoly> split_mpoly_to_polys(const Mpoly &mpoly);
 bool line_intersects_line(
-	vertex_t p1, vertex_t p2,
-	vertex_t p3, vertex_t p4,
+	Vertex p1, Vertex p2,
+	Vertex p3, Vertex p4,
 	bool fail_on_coincident
 );
-void line_line_intersection(
-	vertex_t p1, vertex_t p2,
-	vertex_t p3, vertex_t p4,
-	vertex_t *p_out
+Vertex line_line_intersection(
+	Vertex p1, Vertex p2,
+	Vertex p3, Vertex p4
 );
-void bevel_self_intersections(mpoly_t *mp, double amount);
-mpoly_t *mpoly_xy2en(georef_t *georef, mpoly_t *xy_poly);
-mpoly_t *mpoly_en2xy(georef_t *georef, mpoly_t *en_poly);
-mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double toler);
+RingRelation ring_ring_relation(const Ring &r1, const Ring &r2);
+Mpoly mpoly_from_wktfile(const char *fn);
 
-mpoly_t mpoly_from_wktfile(const char *fn);
+//mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance);
+//void bevel_self_intersections(mpoly_t *mp, double amount);
+
+} // namespace dangdal
 
 #endif // ifndef POLYGON_H

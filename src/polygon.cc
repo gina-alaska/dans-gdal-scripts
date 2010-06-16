@@ -30,223 +30,148 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include "polygon.h"
 #include "georef.h"
 
-mpoly_t empty_polygon() {
-	mpoly_t empty;
-	empty.num_rings = 0;
-	empty.rings = NULL;
-	return empty;
-}
+namespace dangdal {
 
-ring_t duplicate_ring(ring_t *in_ring) {
-	ring_t out_ring = *in_ring; // copy metadata
-	out_ring.pts = MYALLOC(vertex_t, out_ring.npts);
-	memcpy(out_ring.pts, in_ring->pts, sizeof(vertex_t) * out_ring.npts);
-	return out_ring;
-}
-
-void free_ring(ring_t *ring) {
-	if(ring->pts) free(ring->pts);
-}
-
-void free_mpoly(mpoly_t *mpoly) {
-	int i;
-	for(i=0; i<mpoly->num_rings; i++) {
-		free_ring(mpoly->rings + i);
-	}
-	if(mpoly->rings) free(mpoly->rings);
-}
-
-void insert_point_into_ring(ring_t *ring, int idx) {
-	if(idx<0 || idx>ring->npts) fatal_error("idx out of range in insert_point_into_ring");
-	ring->pts = REMYALLOC(vertex_t, ring->pts, (ring->npts+1));
-	memmove(ring->pts + idx + 1, ring->pts + idx, sizeof(vertex_t) * (ring->npts - idx));
-	ring->npts++;
-}
-
-void add_point_to_ring(ring_t *ring, vertex_t v) {
-	ring->pts = REMYALLOC(vertex_t, ring->pts, (ring->npts+1));
-	ring->pts[ring->npts] = v;
-	ring->npts++;
-}
-
-void delete_ring_from_mpoly(mpoly_t *mp, int idx) {
-	free_ring(&mp->rings[idx]);
-	memmove(&mp->rings[idx], &mp->rings[idx+1], 
-		sizeof(ring_t) * (mp->num_rings-1-idx));
-	mp->num_rings--;
-}
-
-bbox_t get_ring_bbox(ring_t *ring) {
-	bbox_t bbox;
-
-	if(ring->npts == 0) {
-		bbox.min_x = bbox.max_x = 0;
-		bbox.min_y = bbox.max_y = 0;
-		bbox.empty = 1;
-	} else {
-		bbox.empty = 0;
-
-		bbox.min_x = bbox.max_x = ring->pts[0].x;
-		bbox.min_y = bbox.max_y = ring->pts[0].y;
-		int i;
-		for(i=0; i<ring->npts; i++) {
-			vertex_t v = ring->pts[i];
-			if(v.x < bbox.min_x) bbox.min_x = v.x;
-			if(v.y < bbox.min_y) bbox.min_y = v.y;
-			if(v.x > bbox.max_x) bbox.max_x = v.x;
-			if(v.y > bbox.max_y) bbox.max_y = v.y;
-		}
+Bbox Ring::getBbox() const {
+	Bbox bbox;
+	for(size_t i=0; i<pts.size(); i++) {
+		bbox.expand(pts[i]);
 	}
 	return bbox;
 }
 
-bbox_t get_polygon_bbox(mpoly_t *mp) {
-	bbox_t bbox;
-	bbox.min_x = bbox.max_x = 0;
-	bbox.min_y = bbox.max_y = 0;
-	bbox.empty = 1;
-	for(int i=0; i<mp->num_rings; i++) {
-		bbox_t rbb = get_ring_bbox(mp->rings + i);
-		bbox = union_bbox(bbox, rbb);
+Bbox Mpoly::getBbox() const {
+	Bbox bbox;
+	for(size_t i=0; i<rings.size(); i++) {
+		bbox.expand(rings[i].getBbox());
 	}
 	return bbox;
 }
 
-bbox_t *make_bboxes(mpoly_t *mp) {
-	int nrings = mp->num_rings;
-	bbox_t *bboxes = MYALLOC(bbox_t, nrings);
-	int i;
-	for(i=0; i<nrings; i++) {
-		bboxes[i] = get_ring_bbox(mp->rings + i);
+std::vector<Bbox> Mpoly::getRingBboxes() const {
+	const size_t nrings = rings.size();
+	std::vector<Bbox> bboxes(nrings);
+	for(size_t i=0; i<nrings; i++) {
+		bboxes[i] = rings[i].getBbox();
 	}
 	return bboxes;
 }
 
-bbox_t union_bbox(bbox_t bb1, bbox_t bb2) {
-	bbox_t bb;
-	if(bb1.empty) {
-		// bb2 may be empty also...
-		bb = bb2;
-	} else if(bb2.empty) {
-		bb = bb1;
+void Bbox::expand(const Bbox bb) {
+	if(bb.empty) {
+		// no-op
+	} else if(empty) {
+		*this = bb;
 	} else {
-		bb.empty = 0;
-		bb.min_x = MIN(bb1.min_x, bb2.min_x);
-		bb.min_y = MIN(bb1.min_y, bb2.min_y);
-		bb.max_x = MAX(bb1.max_x, bb2.max_x);
-		bb.max_y = MAX(bb1.max_y, bb2.max_y);
+		expand(Vertex(min_x, min_y));
+		expand(Vertex(max_x, max_y));
 	}
-	return bb;
 }
 
-bool bboxes_disjoint(bbox_t *bbox1, bbox_t *bbox2) {
+Bbox box_union(const Bbox bb1, const Bbox bb2) {
+	Bbox u = bb1;
+	u.expand(bb2);
+	return u;
+}
+
+bool is_disjoint(const Bbox bb1, const Bbox bb2) {
 	return
-		bbox1->empty || bbox2->empty ||
-		bbox1->min_x > bbox2->max_x ||
-		bbox1->min_y > bbox2->max_y ||
-		bbox2->min_x > bbox1->max_x ||
-		bbox2->min_y > bbox1->max_y;
+		bb1.empty || bb2.empty ||
+		bb1.min_x >  bb2.max_x ||
+		bb1.min_y >  bb2.max_y ||
+		bb2.min_x >  bb1.max_x ||
+		bb2.min_y >  bb1.max_y;
 }
 
-OGRGeometryH ring_to_ogr(ring_t *ring) {
+OGRGeometryH ring_to_ogr(const Ring &ring) {
 	OGRGeometryH ogr = OGR_G_CreateGeometry(wkbLinearRing);
-	int i;
-	for(i=0; i<ring->npts+1; i++) {
-		int j_in = i==ring->npts ? 0 : i;
-		OGR_G_AddPoint_2D(ogr, ring->pts[j_in].x, ring->pts[j_in].y);
+	const size_t npts = ring.pts.size();;
+	for(size_t i=0; i<npts+1; i++) {
+		size_t j_in = (i==npts) ? 0 : i;
+		OGR_G_AddPoint_2D(ogr, ring.pts[j_in].x, ring.pts[j_in].y);
 	}
 	return ogr;
 }
 
-ring_t ogr_to_ring(OGRGeometryH ogr) {
+Ring ogr_to_ring(OGRGeometryH ogr) {
 	//OGRwkbGeometryType type = OGR_G_GetGeometryType(ogr);
 	//if(type != wkbLinearRing) {
 	//	fatal_error("type != wkbLinearRing in ogr_to_ring (it was %s)",
 	//		OGR_G_GetGeometryName(ogr));
 	//}
-	ring_t ring;
-	ring.npts = OGR_G_GetPointCount(ogr);
-	if(!ring.npts) fatal_error("ring has no points");
-	ring.pts = MYALLOC(vertex_t, ring.npts);
-	for(int i=0; i<ring.npts; i++) {
+	Ring ring;
+	size_t npts = OGR_G_GetPointCount(ogr);
+	if(!npts) fatal_error("ring has no points");
+	ring.pts.resize(npts);
+	for(size_t i=0; i<npts; i++) {
 		ring.pts[i].x = OGR_G_GetX(ogr, i);
 		ring.pts[i].y = OGR_G_GetY(ogr, i);
 	}
 	return ring;
 }
 
-OGRGeometryH mpoly_to_ogr(mpoly_t *mpoly_in) {
-	int num_rings_in = mpoly_in->num_rings;
+OGRGeometryH mpoly_to_ogr(const Mpoly mpoly_in) {
+	size_t num_rings_in = mpoly_in.rings.size();
 
-	int *num_holes = MYALLOC(int, num_rings_in);
-	int **holes = MYALLOC(int *, num_rings_in);
-	for(int outer_idx=0; outer_idx<num_rings_in; outer_idx++) {
-		num_holes[outer_idx] = 0;
-		holes[outer_idx] = NULL;
-	}
+	std::vector<std::vector<int> > holes;
+	holes.resize(num_rings_in);
 
-	int num_geom_out = 0;
-	for(int outer_idx=0; outer_idx<num_rings_in; outer_idx++) {
-		ring_t *ring = mpoly_in->rings + outer_idx;
-		if(ring->is_hole) {
-			int parent = ring->parent_id;
-			holes[parent] = REMYALLOC(int, holes[parent], (num_holes[parent]+1));
-			holes[parent][num_holes[parent]++] = outer_idx;
+	size_t num_geom_out = 0;
+	for(size_t outer_idx=0; outer_idx<num_rings_in; outer_idx++) {
+		const Ring &ring = mpoly_in.rings[outer_idx];
+		if(ring.is_hole) {
+			int parent = ring.parent_id;
+			holes[parent].push_back(outer_idx);
 		} else {
 			num_geom_out++;
 		}
 	}
 
-	int use_multi = num_geom_out > 1;
+	bool use_multi = num_geom_out > 1;
 
 	OGRGeometryH geom_out = OGR_G_CreateGeometry(
 		use_multi ? wkbMultiPolygon : wkbPolygon);
 
-	for(int outer_idx=0; outer_idx<num_rings_in; outer_idx++) {
-		ring_t *ring = mpoly_in->rings + outer_idx;
-		if(ring->is_hole) continue;
+	for(size_t outer_idx=0; outer_idx<num_rings_in; outer_idx++) {
+		const Ring &ring = mpoly_in.rings[outer_idx];
+		if(ring.is_hole) continue;
 
-		OGRGeometryH poly_out = use_multi ? OGR_G_CreateGeometry(wkbPolygon) : geom_out;
+		OGRGeometryH poly_out = use_multi ?
+			OGR_G_CreateGeometry(wkbPolygon) : geom_out;
 		OGR_G_AddGeometry(poly_out, ring_to_ogr(ring));
 
-		for(int hole_idx=0; hole_idx<num_holes[outer_idx]; hole_idx++) {
-			ring_t *hole = mpoly_in->rings + holes[outer_idx][hole_idx];
-			if(hole->parent_id != outer_idx) fatal_error("could not sort out holes");
+		for(size_t hole_idx=0; hole_idx<holes[outer_idx].size(); hole_idx++) {
+			const Ring &hole = mpoly_in.rings[holes[outer_idx][hole_idx]];
+			if(hole.parent_id != int(outer_idx)) fatal_error("could not sort out holes");
 			OGR_G_AddGeometry(poly_out, ring_to_ogr(hole));
 		}
 
-		if(OGR_G_GetGeometryCount(poly_out) != num_holes[outer_idx]+1) {
-			fatal_error("GeometryCount != num_holes+1 (%d vs. %d)", 
-				OGR_G_GetGeometryCount(poly_out), num_holes[outer_idx]+1);
+		if(size_t(OGR_G_GetGeometryCount(poly_out)) != holes[outer_idx].size()+1) {
+			fatal_error("GeometryCount != num_holes+1 (%d vs. %zd)", 
+				OGR_G_GetGeometryCount(poly_out), holes[outer_idx].size()+1);
 		}
 
 		if(use_multi) OGR_G_AddGeometry(geom_out, poly_out);
 	}
 
-	if(use_multi && OGR_G_GetGeometryCount(geom_out) != num_geom_out) {
-		fatal_error("GeometryCount != num_geom_out (%d vs. %d)",
+	if(use_multi && size_t(OGR_G_GetGeometryCount(geom_out)) != num_geom_out) {
+		fatal_error("GeometryCount != num_geom_out (%d vs. %zd)",
 			OGR_G_GetGeometryCount(geom_out), num_geom_out);
 	}
-
-	for(int i=0; i<num_rings_in; i++) {
-		if(holes[i]) free(holes[i]);
-	}
-	free(holes);
-	free(num_holes);
 
 	return geom_out;
 }
 
-mpoly_t ogr_to_mpoly(OGRGeometryH geom_in) {
+Mpoly ogr_to_mpoly(OGRGeometryH geom_in) {
 	OGRwkbGeometryType type = OGR_G_GetGeometryType(geom_in);
 	if(type == wkbPolygon) {
-		mpoly_t mpoly_out;
-		mpoly_out.num_rings = OGR_G_GetGeometryCount(geom_in);
-		if(mpoly_out.num_rings < 1) fatal_error("num_rings<1 in ogr_to_mpoly");
+		Mpoly mpoly_out;
+		const size_t num_rings = OGR_G_GetGeometryCount(geom_in);
+		if(num_rings < 1) fatal_error("num_rings<1 in ogr_to_mpoly");
 
-		mpoly_out.rings = MYALLOC(ring_t, mpoly_out.num_rings);
+		mpoly_out.rings.resize(num_rings);
 
-		for(int i=0; i<mpoly_out.num_rings; i++) {
+		for(size_t i=0; i<num_rings; i++) {
 			mpoly_out.rings[i] = ogr_to_ring(OGR_G_GetGeometryRef(geom_in, i));
 			mpoly_out.rings[i].is_hole = (i>0);
 			mpoly_out.rings[i].parent_id = (i>0) ? 0 : -1;
@@ -254,93 +179,79 @@ mpoly_t ogr_to_mpoly(OGRGeometryH geom_in) {
 
 		return mpoly_out;
 	} else if(type == wkbMultiPolygon || type == wkbGeometryCollection) {
-		int num_geom = OGR_G_GetGeometryCount(geom_in);
-		mpoly_t *polys = MYALLOC(mpoly_t, num_geom);
-		int total_rings = 0;
-		for(int i=0; i<num_geom; i++) {
+		size_t num_geom = OGR_G_GetGeometryCount(geom_in);
+		std::vector<Mpoly> polys(num_geom);
+		size_t total_rings = 0;
+		for(size_t i=0; i<num_geom; i++) {
 			OGRGeometryH g = OGR_G_GetGeometryRef(geom_in, i);
 			polys[i] = ogr_to_mpoly(g);
-			total_rings += polys[i].num_rings;
+			total_rings += polys[i].rings.size();
 		}
+		if(total_rings < 1) fatal_error("num_rings<1 in ogr_to_mpoly");
 
-		mpoly_t mpoly_out;
-		mpoly_out.num_rings = total_rings;
-		if(mpoly_out.num_rings < 1) fatal_error("num_rings<1 in ogr_to_mpoly");
-		mpoly_out.rings = MYALLOC(ring_t, mpoly_out.num_rings);
+		Mpoly mpoly_out;
+		mpoly_out.rings.resize(total_rings);
 
 		int o = 0;
-		for(int i=0; i<num_geom; i++) {
-			for(int j=0; j<polys[i].num_rings; j++) {
-				ring_t ring = polys[i].rings[j];
+		for(size_t i=0; i<num_geom; i++) {
+			for(size_t j=0; j<polys[i].rings.size(); j++) {
+				Ring &ring = polys[i].rings[j];
 				if(ring.is_hole) ring.parent_id += o;
 				mpoly_out.rings[o+j] = ring;
 			}
-			o += polys[i].num_rings;
-			free(polys[i].rings);
+			o += polys[i].rings.size();
 		}
-		free(polys);
 		return mpoly_out;
 	} else {
 		fatal_error("not a polygon type: %d\n", type);
 	}
 }
 
-void split_mpoly_to_polys(mpoly_t *mpoly_in, int *num_polys, mpoly_t **polys) {
-	int num_rings_in = mpoly_in->num_rings;
+std::vector<Mpoly> split_mpoly_to_polys(const Mpoly &mpoly_in) {
+	size_t num_rings_in = mpoly_in.rings.size();
 
-	int *num_holes = MYALLOC(int, num_rings_in);
-	int **holes = MYALLOC(int *, num_rings_in);
-	for(int outer_idx=0; outer_idx<num_rings_in; outer_idx++) {
-		num_holes[outer_idx] = 0;
-		holes[outer_idx] = NULL;
-	}
+	std::vector<std::vector<int> > holes;
+	holes.resize(num_rings_in);
 
-	int num_geom_out = 0;
-	for(int outer_idx=0; outer_idx<num_rings_in; outer_idx++) {
-		ring_t *ring = mpoly_in->rings + outer_idx;
-		if(ring->is_hole) {
-			int parent = ring->parent_id;
-			holes[parent] = REMYALLOC(int, holes[parent], (num_holes[parent]+1));
-			holes[parent][num_holes[parent]++] = outer_idx;
+	size_t num_geom_out = 0;
+	for(size_t outer_idx=0; outer_idx<num_rings_in; outer_idx++) {
+		const Ring &ring = mpoly_in.rings[outer_idx];
+		if(ring.is_hole) {
+			int parent = ring.parent_id;
+			holes[parent].push_back(outer_idx);
 		} else {
 			num_geom_out++;
 		}
 	}
 
-	*num_polys = num_geom_out;
-	*polys = MYALLOC(mpoly_t, num_geom_out);
-	int poly_out_idx = 0;
+	std::vector<Mpoly> polys(num_geom_out);
+	size_t poly_out_idx = 0;
 
-	for(int outer_idx=0; outer_idx<num_rings_in; outer_idx++) {
-		ring_t *ring = mpoly_in->rings + outer_idx;
-		if(ring->is_hole) continue;
+	for(size_t outer_idx=0; outer_idx<num_rings_in; outer_idx++) {
+		const Ring &ring = mpoly_in.rings[outer_idx];
+		if(ring.is_hole) continue;
 
-		mpoly_t out_poly;
-		out_poly.num_rings = num_holes[outer_idx]+1;
-		out_poly.rings = MYALLOC(ring_t, out_poly.num_rings);
-		int ring_out_idx = 0;
+		Mpoly &out_poly = polys[poly_out_idx];
+		out_poly.rings.resize(holes[outer_idx].size()+1);
+		size_t ring_out_idx = 0;
 
-		ring_t dup_ring = duplicate_ring(ring);
+		Ring dup_ring(ring);
 		dup_ring.parent_id = -1;
 		out_poly.rings[ring_out_idx++] = dup_ring;
 
-		for(int hole_idx=0; hole_idx<num_holes[outer_idx]; hole_idx++) {
-			ring_t *hole = mpoly_in->rings + holes[outer_idx][hole_idx];
-			if(hole->parent_id != outer_idx) fatal_error("could not sort out holes");
+		for(size_t hole_idx=0; hole_idx<holes[outer_idx].size(); hole_idx++) {
+			const Ring &hole = mpoly_in.rings[holes[outer_idx][hole_idx]];
+			if(hole.parent_id != int(outer_idx)) fatal_error("could not sort out holes");
 
-			ring_t dup_ring = duplicate_ring(hole);
+			Ring dup_ring(hole);
 			dup_ring.parent_id = 0;
 			out_poly.rings[ring_out_idx++] = dup_ring;
 		}
 
-		(*polys)[poly_out_idx++] = out_poly;
+		poly_out_idx++;
 	}
 
-	for(int i=0; i<num_rings_in; i++) {
-		if(holes[i]) free(holes[i]);
-	}
-	free(holes);
-	free(num_holes);
+	return polys;
 }
 
 /*
@@ -403,15 +314,15 @@ void write_mpoly_wkt(char *wkt_fn, mpoly_t mpoly, int split_polys) {
 */
 
 bool line_intersects_line(
-	vertex_t p1, vertex_t p2,
-	vertex_t p3, vertex_t p4,
+	Vertex p1, Vertex p2,
+	Vertex p3, Vertex p4,
 	bool fail_on_coincident
 ) {
 	if(
-		MAX(p1.x, p2.x) < MIN(p3.x, p4.x) ||
-		MIN(p1.x, p2.x) > MAX(p3.x, p4.x) ||
-		MAX(p1.y, p2.y) < MIN(p3.y, p4.y) ||
-		MIN(p1.y, p2.y) > MAX(p3.y, p4.y)
+		std::max(p1.x, p2.x) < std::min(p3.x, p4.x) ||
+		std::min(p1.x, p2.x) > std::max(p3.x, p4.x) ||
+		std::max(p1.y, p2.y) < std::min(p3.y, p4.y) ||
+		std::min(p1.y, p2.y) > std::max(p3.y, p4.y)
 	) return 0;
 	double numer_a = (p4.x-p3.x)*(p1.y-p3.y) - (p4.y-p3.y)*(p1.x-p3.x);
 	double numer_b = (p2.x-p1.x)*(p1.y-p3.y) - (p2.y-p1.y)*(p1.x-p3.x);
@@ -433,10 +344,9 @@ bool line_intersects_line(
 	return ua>=0 && ua<=1 && ub>=0 && ub<=1;
 }
 
-void line_line_intersection(
-	vertex_t p1, vertex_t p2,
-	vertex_t p3, vertex_t p4,
-	vertex_t *p_out
+Vertex line_line_intersection(
+	Vertex p1, Vertex p2,
+	Vertex p3, Vertex p4
 ) {
 	double numer_a = (p4.x-p3.x)*(p1.y-p3.y) - (p4.y-p3.y)*(p1.x-p3.x);
 	//double numer_b = (p2.x-p1.x)*(p1.y-p3.y) - (p2.y-p1.y)*(p1.x-p3.x);
@@ -444,41 +354,45 @@ void line_line_intersection(
 	if(!denom) fatal_error("lines are parallel");
 	double ua = numer_a / denom;
 	//double ub = numer_b / denom;
-	(*p_out).x = p1.x + ua*(p2.x-p1.x);
-	(*p_out).y = p1.y + ua*(p2.y-p1.y);
+	double x = p1.x + ua*(p2.x-p1.x);
+	double y = p1.y + ua*(p2.y-p1.y);
+	return Vertex(x, y);
 }
 
-double ring_oriented_area(ring_t *c) {
+double Ring::orientedArea() const {
 	double accum = 0;
-	int i;
-	for(i=0; i<c->npts; i++) {
-		double x0 = c->pts[i].x;
-		double y0 = c->pts[i].y;
-		double x1 = c->pts[(i+1)%c->npts].x;
-		double y1 = c->pts[(i+1)%c->npts].y;
+	const size_t npts = pts.size();
+	for(size_t i=0; i<npts; i++) {
+		size_t j = (i==npts-1) ? 0 : (npts+1);
+		double x0 = pts[i].x;
+		double y0 = pts[i].y;
+		double x1 = pts[j].x;
+		double y1 = pts[j].y;
 		accum += x0*y1 - x1*y0;
 	}
 	return accum / 2.0;
 }
 
-bool ring_is_ccw(ring_t *c) {
-	return ring_oriented_area(c) > 0;
+bool Ring::isCCW() const {
+	return orientedArea() > 0;
 }
 
-double ring_area(ring_t *c) {
-	return fabs(ring_oriented_area(c));
+double Ring::area() const {
+	return fabs(orientedArea());
 }
 
-static int ring_contains_point(ring_t *ring, double px, double py) {
-	int npts = ring->npts;
-	vertex_t *pts = ring->pts;
+bool Ring::contains(Vertex p) const {
+	const double px = p.x;
+	const double py = p.y;
+
+	const size_t npts = pts.size();
 	int num_crossings = 0;
-	int i;
-	for(i=0; i<npts; i++) {
+	for(size_t i=0; i<npts; i++) {
+		double i2 = (i==npts-1) ? 0 : (npts+1);
 		double x0 = pts[i].x;
 		double y0 = pts[i].y;
-		double x1 = pts[(i+1) % npts].x;
-		double y1 = pts[(i+1) % npts].y;
+		double x1 = pts[i2].x;
+		double y1 = pts[i2].y;
 		// we want to know whether a ray from (px,py) in the (1,0) direction
 		// passes through this segment
 		if(x0 < px && x1 < px) continue;
@@ -500,44 +414,48 @@ static int ring_contains_point(ring_t *ring, double px, double py) {
 	return num_crossings & 1;
 }
 
-bool polygon_contains_point(mpoly_t *mp, double px, double py) {
+bool Mpoly::contains(Vertex p) const {
 	int num_crossings = 0;
-	for(int r_idx=0; r_idx<mp->num_rings; r_idx++) {
-		if(ring_contains_point(mp->rings+r_idx, px, py)) num_crossings++;
+	for(size_t r_idx=0; r_idx<rings.size(); r_idx++) {
+		if(rings[r_idx].contains(p)) num_crossings++;
 	}
 	// if it is within an odd number of rings it is not in a hole
 	return num_crossings & 1;
 }
 
-int ring_ring_relation(ring_t *r1, ring_t *r2) {
-	bbox_t bb1 = get_ring_bbox(r1);
-	bbox_t bb2 = get_ring_bbox(r2);
-	if(bboxes_disjoint(&bb1, &bb2)) return RING_DISJOINT;
+RingRelation ring_ring_relation(const Ring &r1, const Ring &r2) {
+	Bbox bb1 = r1.getBbox();
+	Bbox bb2 = r2.getBbox();
+	if(is_disjoint(bb1, bb2)) return DISJOINT;
 
-	int n1 = r1->npts;
-	int n2 = r2->npts;
+	size_t n1 = r1.pts.size();
+	size_t n2 = r2.pts.size();
+	if(n1==0 || n2==0) return DISJOINT;
+
 	// test for crossings
-	for(int i1=0; i1<n1; i1++) {
-		vertex_t p1a = r1->pts[i1];
-		vertex_t p1b = r1->pts[(i1+1) % n1];
+	for(size_t i1=0; i1<n1; i1++) {
+		size_t i1_plus1 = (i1==n1-1) ? 0 : i1+1;
+		Vertex p1a = r1.pts[i1];
+		Vertex p1b = r1.pts[i1_plus1];
 		if(
 			(p1a.x < bb2.min_x && p1b.x < bb2.min_x) ||
 			(p1a.y < bb2.min_y && p1b.y < bb2.min_y) ||
 			(p1a.x > bb2.max_x && p1b.x > bb2.max_x) ||
 			(p1a.y > bb2.max_y && p1b.y > bb2.max_y)
 		) continue;
-		for(int i2=0; i2<n2; i2++) {
-			vertex_t p2a = r2->pts[i2];
-			vertex_t p2b = r2->pts[(i2+1) % n2];
-			if(line_intersects_line(p1a, p1b, p2a, p2b, 0)) return RING_CROSSES;
+		for(size_t i2=0; i2<n2; i2++) {
+			size_t i2_plus1 = (i2==n2-1) ? 0 : i2+1;
+			Vertex p2a = r2.pts[i2];
+			Vertex p2b = r2.pts[i2_plus1];
+			if(line_intersects_line(p1a, p1b, p2a, p2b, false)) {
+				return CROSSES;
+			}
 		}
 	}
 
-	if(ring_contains_point(
-		r1, r2->pts[0].x, r2->pts[0].y)) return RING_CONTAINS;
-	else if(ring_contains_point(
-		r2, r1->pts[0].x, r1->pts[0].y)) return RING_CONTAINED_BY;
-	else return RING_DISJOINT;
+	if(r1.contains(r2.pts[0])) return CONTAINS;
+	else if(r2.contains(r1.pts[0])) return CONTAINED_BY;
+	else return DISJOINT;
 }
 
 /*
@@ -615,56 +533,32 @@ void compute_containments(mpoly_t *mp) {
 }
 */
 
-mpoly_t *mpoly_xy2en(georef_t *georef, mpoly_t *xy_poly) {
-	mpoly_t *en_poly = MYALLOC(mpoly_t, 1);
-	en_poly->num_rings = xy_poly->num_rings;
-	en_poly->rings = MYALLOC(ring_t, en_poly->num_rings);
-
-	int r_idx;
-	for(r_idx=0; r_idx<xy_poly->num_rings; r_idx++) {
-		ring_t *xy_ring = xy_poly->rings + r_idx;
-		ring_t *en_ring = en_poly->rings + r_idx;
-
-		*en_ring = duplicate_ring(xy_ring);
-
-		int v_idx;
-		for(v_idx=0; v_idx<en_ring->npts; v_idx++) {
-			double x = xy_ring->pts[v_idx].x;
-			double y = xy_ring->pts[v_idx].y;
+void Mpoly::xy2en(georef_t *georef) {
+	for(size_t r_idx=0; r_idx<rings.size(); r_idx++) {
+		Ring &ring = rings[r_idx];
+		for(size_t v_idx=0; v_idx<ring.pts.size(); v_idx++) {
+			double x = ring.pts[v_idx].x;
+			double y = ring.pts[v_idx].y;
 			double east, north;
-			xy2en(georef, x, y, &east, &north);
-			en_ring->pts[v_idx].x = east;
-			en_ring->pts[v_idx].y = north;
+			::xy2en(georef, x, y, &east, &north);
+			ring.pts[v_idx].x = east;
+			ring.pts[v_idx].y = north;
 		}
 	}
-
-	return en_poly;
 }
 
-mpoly_t *mpoly_en2xy(georef_t *georef, mpoly_t *en_poly) {
-	mpoly_t *xy_poly = MYALLOC(mpoly_t, 1);
-	xy_poly->num_rings = en_poly->num_rings;
-	xy_poly->rings = MYALLOC(ring_t, xy_poly->num_rings);
-
-	int r_idx;
-	for(r_idx=0; r_idx<en_poly->num_rings; r_idx++) {
-		ring_t *en_ring = en_poly->rings + r_idx;
-		ring_t *xy_ring = xy_poly->rings + r_idx;
-
-		*xy_ring = duplicate_ring(en_ring);
-
-		int v_idx;
-		for(v_idx=0; v_idx<xy_ring->npts; v_idx++) {
-			double east = en_ring->pts[v_idx].x;
-			double north = en_ring->pts[v_idx].y;
+void Mpoly::en2xy(georef_t *georef) {
+	for(size_t r_idx=0; r_idx<rings.size(); r_idx++) {
+		Ring &ring = rings[r_idx];
+		for(size_t v_idx=0; v_idx<ring.pts.size(); v_idx++) {
+			double east  = ring.pts[v_idx].x;
+			double north = ring.pts[v_idx].y;
 			double x, y;
-			en2xy(georef, east, north, &x, &y);
-			xy_ring->pts[v_idx].x = x;
-			xy_ring->pts[v_idx].y = y;
+			::en2xy(georef, east, north, &x, &y);
+			ring.pts[v_idx].x = x;
+			ring.pts[v_idx].y = y;
 		}
 	}
-
-	return xy_poly;
 }
 
 // This way is very simple and robust, but doesn't know anything
@@ -680,7 +574,7 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 	if(err != OGRERR_NONE) fatal_error("could not determine globe radius");
 
 	double toler_radians = toler_pixels * 
-		MIN(georef->res_meters_x, georef->res_meters_y) / earth_radius;
+		std::min(georef->res_meters_x, georef->res_meters_y) / earth_radius;
 	// error is (approximately) proportional to segment length squared
 	// FIXME - need to multiply this by some constant
 	double max_seg_len = sqrt(toler_radians);
@@ -742,7 +636,7 @@ static double estimate_canvas_size_sq(georef_t *georef, double semi_major) {
 	dy = (n1 - n2);
 	double size2 = dx*dx + dy*dy;
 
-	double size = MAX(size1, size2);
+	double size = std::max(size1, size2);
 	size *= georef->units_val * georef->units_val;
 	if(OSRIsGeographic(georef->spatial_ref)) {
 		size *= semi_major * semi_major;
@@ -750,10 +644,10 @@ static double estimate_canvas_size_sq(georef_t *georef, double semi_major) {
 	return size;
 }
 
-mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double toler) {
-	mpoly_t *ll_poly = MYALLOC(mpoly_t, 1);
-	ll_poly->num_rings = xy_poly->num_rings;
-	ll_poly->rings = MYALLOC(ring_t, ll_poly->num_rings);
+void Mpoly::xy2ll_with_interp(georef_t *georef, double toler) {
+	size_t nrings = rings.size();
+	Mpoly ll_poly;
+	ll_poly.rings.resize(nrings);
 	
 	double semi_major;
 	if(georef->have_semi_major) {
@@ -772,15 +666,15 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 	double epsilon = 5e-7;
 	double shrink = ((double)georef->w - 2.0*epsilon) / (double)georef->w;
 
-	int r_idx;
-	for(r_idx=0; r_idx<xy_poly->num_rings; r_idx++) {
-		// make a copy of input - we will modify this
-		ring_t xy_ring = duplicate_ring(xy_poly->rings + r_idx);
+	for(size_t r_idx=0; r_idx<nrings; r_idx++) {
+		// note that this is *not* a reference, since it will potentially
+		// be modified
+		Ring xy_ring = rings[r_idx];
 		// this will be the output
-		ring_t ll_ring = duplicate_ring(xy_poly->rings + r_idx);
+		Ring &ll_ring = ll_poly.rings[r_idx];
+		ll_ring.pts.resize(xy_ring.pts.size());
 
-		int v_idx;
-		for(v_idx=0; v_idx<ll_ring.npts; v_idx++) {
+		for(size_t v_idx=0; v_idx<ll_ring.pts.size(); v_idx++) {
 			double x = xy_ring.pts[v_idx].x;
 			double y = xy_ring.pts[v_idx].y;
 			double lon, lat;
@@ -791,52 +685,56 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 
 		int num_consec = 0;
 
-		for(v_idx=0; v_idx<ll_ring.npts; ) {
-			if(xy_ring.npts != ll_ring.npts) fatal_error("xy_ring.npts != ll_ring.npts");
+		for(size_t v_idx=0; v_idx<ll_ring.pts.size(); ) {
+			if(xy_ring.pts.size() != ll_ring.pts.size()) {
+				fatal_error("xy_ring.npts != ll_ring.npts");
+			}
+			size_t npts = xy_ring.pts.size();
 
-			vertex_t *xy1 = xy_ring.pts + v_idx;
-			vertex_t *xy2 = xy_ring.pts + (v_idx + 1) % xy_ring.npts;
-			vertex_t xy_m = (vertex_t) { 
-				(xy1->x + xy2->x)/2.0,
-				(xy1->y + xy2->y)/2.0 };
+			const Vertex xy1 = xy_ring.pts[v_idx];
+			const Vertex xy2 = xy_ring.pts[(v_idx + 1) % npts];
+			const Vertex xy_m(
+				(xy1.x + xy2.x)/2.0,
+				(xy1.y + xy2.y)/2.0);
 
-			vertex_t ll_m_proj;
+			Vertex ll_m_proj;
 			xy2ll_or_die(georef, 
 				xy_m.x*shrink+epsilon, xy_m.y,
 				&ll_m_proj.x, &ll_m_proj.y);
 
-			vertex_t *ll1 = ll_ring.pts + v_idx;
-			vertex_t *ll2 = ll_ring.pts + (v_idx + 1) % ll_ring.npts;
+			Vertex &ll1 = ll_ring.pts[v_idx];
+			Vertex &ll2 = ll_ring.pts[(v_idx + 1) % npts];
 
-			while(ll1->x - ll2->x >  180) ll1->x -= 360;
-			while(ll1->x - ll2->x < -180) ll1->x += 360;
+			while(ll1.x - ll2.x >  180) ll1.x -= 360;
+			while(ll1.x - ll2.x < -180) ll1.x += 360;
 
-			int need_midpt = 0;
+			bool need_midpt = 0;
 
 			// avoid topological errors by not allowing segments
 			// to be longer than 90 degrees
 			if(!need_midpt) {
-				double dx = fabs(ll1->x - ll2->x);
-				double dy = ll1->y - ll2->y;
+				double dx = fabs(ll1.x - ll2.x);
+				double dy = ll1.y - ll2.y;
 				double sqr_error = dx*dx + dy*dy;
 				double max_error = 90; // degrees
 
 				need_midpt = sqr_error > max_error*max_error;
 
 				if(VERBOSE && need_midpt) {
-					printf("  inserting midpoint at %d,%d (lon/lat difference %g > %g)\n",
+					printf("  inserting midpoint at %zd,%zd (lon/lat difference %g > %g)\n",
 						r_idx, v_idx, sqrt(sqr_error), max_error);
 				}
 			}
 
 			if(!need_midpt) {
-				vertex_t ll_m_interp;
-				ll_m_interp.x = (ll1->x + ll2->x)/2.0;
-				ll_m_interp.y = (ll1->y + ll2->y)/2.0;
+				Vertex ll_m_interp(
+					(ll1.x + ll2.x)/2.0,
+					(ll1.y + ll2.y)/2.0);
 
 				while(ll_m_interp.x - ll_m_proj.x >  180) ll_m_interp.x -= 360;
 				while(ll_m_interp.x - ll_m_proj.x < -180) ll_m_interp.x += 360;
-				double lonscale = cos(D2R * MAX(fabs(ll_m_interp.y), fabs(ll_m_proj.y)));
+				double lonscale = cos(D2R * 
+					std::max(fabs(ll_m_interp.y), fabs(ll_m_proj.y)));
 				double dx = (ll_m_interp.x - ll_m_proj.x) * lonscale;
 				double dy = ll_m_interp.y - ll_m_proj.y;
 				dx *= D2R * semi_major;
@@ -846,11 +744,11 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 				// if the midpoint is this far off then something is seriously wrong
 				if(sqr_error > canvas_size_sq) {
 					fprintf(stderr, "\nInfo on bad point:\n");
-					fprintf(stderr, "xy1 = %lf,%lf\n", xy1->x, xy1->y);
-					fprintf(stderr, "xy2 = %lf,%lf\n", xy2->x, xy2->y);
+					fprintf(stderr, "xy1 = %lf,%lf\n", xy1.x, xy1.y);
+					fprintf(stderr, "xy2 = %lf,%lf\n", xy2.x, xy2.y);
 					fprintf(stderr, "xy_m = %lf,%lf\n", xy_m.x, xy_m.y);
-					fprintf(stderr, "ll1 = %lf,%lf\n", ll1->x, ll1->y);
-					fprintf(stderr, "ll2 = %lf,%lf\n", ll2->x, ll2->y);
+					fprintf(stderr, "ll1 = %lf,%lf\n", ll1.x, ll1.y);
+					fprintf(stderr, "ll2 = %lf,%lf\n", ll2.x, ll2.y);
 					fprintf(stderr, "ll_m_proj = %lf,%lf\n", ll_m_proj.x, ll_m_proj.y);
 					fprintf(stderr, "ll_m_interp = %lf,%lf\n", ll_m_interp.x, ll_m_interp.y);
 					fprintf(stderr, "error = %lf > %lf\n", sqr_error, canvas_size_sq);
@@ -860,7 +758,7 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 				need_midpt = toler && sqr_error > toler*toler;
 
 				if(VERBOSE && need_midpt) {
-					printf("  inserting midpoint at %d,%d (delta=%lf,%lf > %lf)\n",
+					printf("  inserting midpoint at %zd,%zd (delta=%lf,%lf > %lf)\n",
 						r_idx, v_idx, dx, dy, toler);
 					printf("    testll=[%lf,%lf] projll=[%lf,%lf]\n", 
 						ll_m_interp.x, ll_m_interp.y, ll_m_proj.x, ll_m_proj.y);
@@ -871,15 +769,13 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 				if(num_consec++ > 10) fatal_error("convergence error in mpoly_xy2ll_with_interp");
 
 				if(VERBOSE) {
-					printf("    xy=[%lf,%lf]:[%lf,%lf]\n", xy1->x, xy1->y, xy2->x, xy2->y);
-					printf("    ll=[%lf,%lf]:[%lf,%lf]\n", ll1->x, ll1->y, ll2->x, ll2->y);
+					printf("    xy=[%lf,%lf]:[%lf,%lf]\n", xy1.x, xy1.y, xy2.x, xy2.y);
+					printf("    ll=[%lf,%lf]:[%lf,%lf]\n", ll1.x, ll1.y, ll2.x, ll2.y);
 					printf("    midxy=[%lf,%lf] midll=[%lf,%lf]\n", 
 						xy_m.x, xy_m.y, ll_m_proj.x, ll_m_proj.y);
 				}
-				insert_point_into_ring(&xy_ring, v_idx+1);
-				insert_point_into_ring(&ll_ring, v_idx+1);
-				xy_ring.pts[v_idx+1] = xy_m;
-				ll_ring.pts[v_idx+1] = ll_m_proj;
+				xy_ring.pts.insert(xy_ring.pts.begin()+v_idx+1, xy_m);
+				ll_ring.pts.insert(ll_ring.pts.begin()+v_idx+1, ll_m_proj);
 			} else {
 				v_idx++;
 				num_consec = 0;
@@ -890,7 +786,7 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 		// kludge.  We no longer care whether the projection is
 		// single-valued and we don't want the loss of accuracy
 		// that comes from multiplying by shrink.
-		for(v_idx=0; v_idx<ll_ring.npts; v_idx++) {
+		for(size_t v_idx=0; v_idx<ll_ring.pts.size(); v_idx++) {
 			double x = xy_ring.pts[v_idx].x;
 			double y = xy_ring.pts[v_idx].y;
 
@@ -900,12 +796,9 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 			ll_ring.pts[v_idx].x = lon;
 			ll_ring.pts[v_idx].y = lat;
 		}
-
-		free_ring(&xy_ring);
-		ll_poly->rings[r_idx] = ll_ring;
 	}
 
-	return ll_poly;
+	*this = ll_poly;
 }
 
 static char *read_whole_file(FILE *fin) {
@@ -925,7 +818,7 @@ static char *read_whole_file(FILE *fin) {
 	return buffer;
 }
 
-mpoly_t mpoly_from_wktfile(const char *fn) {
+Mpoly mpoly_from_wktfile(const char *fn) {
 	FILE *fh = fopen(fn, "r");
 	if(!fh) fatal_error("cannot read file [%s]", fn);
 	char *wkt_in = read_whole_file(fh);
@@ -942,6 +835,7 @@ mpoly_t mpoly_from_wktfile(const char *fn) {
 		fatal_error("OGR_G_CreateFromWkt failed: %d", err);
 	}
 	
-	mpoly_t mp = ogr_to_mpoly(geom);
-	return mp;
+	return ogr_to_mpoly(geom);
 }
+
+} // namespace dangdal
