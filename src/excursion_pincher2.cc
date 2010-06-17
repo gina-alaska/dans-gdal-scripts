@@ -170,8 +170,12 @@ static double subring_area(const Ring &ring, int from, int to) {
 	return accum / 2.0;
 }
 
-static int next_keep(int npts, bool *keep, int i) {
-	for(int j=(i+1)%npts; j!=i; j=(j+1)%npts) {
+static size_t next_keep(size_t npts, bool *keep, size_t i) {
+	size_t i_plus1 = (i+1<npts) ? (i+1) : 0;
+	for(int j=i_plus1; j<npts; j++) {
+		if(keep[j]) return j;
+	}
+	for(int j=0; j<i; j++) {
 		if(keep[j]) return j;
 	}
 	return i;
