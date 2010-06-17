@@ -37,6 +37,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 namespace dangdal {
 
+typedef std::vector<uint8_t> Keeps;
+
 static inline double seg_ang(Vertex v0, Vertex v1) {
 	double dx = v1.x - v0.x;
 	double dy = v1.y - v0.y;
@@ -128,9 +130,8 @@ static FindNextConvexRetval find_next_convex(
 	}
 }
 
-static bool *find_chull(const Ring &ring) {
-	bool *keep = MYALLOC(bool, ring.pts.size());
-	for(size_t i=0; i<ring.pts.size(); i++) keep[i] = false;
+static Keeps find_chull(const Ring &ring) {
+	Keeps keep(ring.pts.size(), false);
 
 	size_t start_idx = find_bottom_pt(ring);
 	keep[start_idx] = true;
@@ -171,7 +172,7 @@ static double subring_area(const Ring &ring, size_t from, size_t to) {
 	return accum / 2.0;
 }
 
-static size_t next_keep(size_t npts, bool *keep, size_t i) {
+static size_t next_keep(size_t npts, const Keeps &keep, size_t i) {
 	size_t i_plus1 = (i+1<npts) ? (i+1) : 0;
 	for(size_t j=i_plus1; j<npts; j++) {
 		if(keep[j]) return j;
@@ -182,14 +183,14 @@ static size_t next_keep(size_t npts, bool *keep, size_t i) {
 	return i;
 }
 
-static size_t prev_keep(size_t npts, bool *keep, size_t i) {
+static size_t prev_keep(size_t npts, const Keeps &keep, size_t i) {
 	for(size_t j=(i+npts-1)%npts; j!=i; j=(j+npts-1)%npts) {
 		if(keep[j]) return j;
 	}
 	return i;
 }
 
-static bool reach_point(const Ring &ring, bool *keep, size_t from, size_t to, double ang) {
+static bool reach_point(const Ring &ring, Keeps &keep, size_t from, size_t to, double ang) {
 	size_t npts = ring.pts.size();
 	const std::vector<Vertex> &pts = ring.pts;
 
@@ -266,7 +267,7 @@ static bool reach_point(const Ring &ring, bool *keep, size_t from, size_t to, do
 	return 0;
 }
 
-static bool add_tiepoint(const Ring &ring, bool *keep, size_t mid) {
+static bool add_tiepoint(const Ring &ring, Keeps &keep, size_t mid) {
 	size_t npts = ring.pts.size();
 	const std::vector<Vertex> &pts = ring.pts;
 
@@ -327,13 +328,13 @@ static bool is_mostly_linear(const Ring &ring, size_t from, size_t to) {
 	return 1;
 }
 
-static bool keep_linears(const Ring &ring, bool *keep_orig, size_t from, size_t to, bool *touchpts) {
+static bool keep_linears(const Ring &ring, Keeps &keep_orig, size_t from, size_t to, Keeps &touchpts) {
 	size_t npts = ring.pts.size();
 	const std::vector<Vertex> &pts = ring.pts;
 
 	if(to == (from+1)%npts) return 0;
 
-	bool *keep_new = MYALLOC(bool, npts);
+	Keeps keep_new(npts);
 
 	double min_length = 20; // FIXME
 
@@ -350,7 +351,7 @@ static bool keep_linears(const Ring &ring, bool *keep_orig, size_t from, size_t 
 			if(r_idx == to) break;
 		}
 		if(longest != l_idx) {
-			memcpy(keep_new, keep_orig, sizeof(bool) * npts);
+			std::copy(keep_orig.begin(), keep_orig.end(), keep_new.begin());
 			bool error = 0;
 			if(l_idx != from) {
 				if(add_tiepoint(ring, keep_new, l_idx)) error = 1;
@@ -367,31 +368,29 @@ static bool keep_linears(const Ring &ring, bool *keep_orig, size_t from, size_t 
 					keep_new[i] = true;
 					if(i == longest) break;
 				}
-				memcpy(keep_orig, keep_new, sizeof(bool) * npts);
-				free(keep_new);
+				std::copy(keep_new.begin(), keep_new.end(), keep_orig.begin());
 				return 1;
 			}
 		}
 	}
-	free(keep_new);
 	return 0;
 }
 
-static std::pair<bool, size_t> refine_seg(const Ring &ring, bool *keep_orig, size_t from, size_t to) {
+static std::pair<bool, size_t> refine_seg(const Ring &ring, Keeps &keep_orig, size_t from, size_t to) {
 	size_t npts = ring.pts.size();
 	const std::vector<Vertex> &pts = ring.pts;
 
 	double start_area = subring_area(ring, from, to);
 	double start_perim = seg_len(pts[from], pts[to]);
 
-	bool *keep_new = MYALLOC(bool, npts);
-	bool *keep_best = MYALLOC(bool, npts);
+	Keeps keep_new(npts);
+	Keeps keep_best(npts);
 
 	double best_improvement = 0;
 	size_t best_touchpt = 0;
 
 	for(size_t testpt=(from+1)%npts; testpt!=to; testpt=(testpt+1)%npts) {
-		memcpy(keep_new, keep_orig, sizeof(bool) * npts);
+		std::copy(keep_orig.begin(), keep_orig.end(), keep_new.begin());
 
 		if(add_tiepoint(ring, keep_new, testpt)) continue;
 
@@ -438,7 +437,7 @@ static std::pair<bool, size_t> refine_seg(const Ring &ring, bool *keep_orig, siz
 
 		if(improvement > best_improvement) {
 			best_improvement = improvement;
-			memcpy(keep_best, keep_new, sizeof(bool) * npts);
+			std::copy(keep_new.begin(), keep_new.end(), keep_best.begin());
 			best_touchpt = testpt;
 		}
 	}
@@ -453,16 +452,14 @@ static std::pair<bool, size_t> refine_seg(const Ring &ring, bool *keep_orig, siz
 			}
 		}
 
-		memcpy(keep_orig, keep_best, sizeof(bool) * npts);
+		std::copy(keep_best.begin(), keep_best.end(), keep_orig.begin());
 		return std::pair<bool, size_t>(true, best_touchpt);
 	} else {
 		return std::pair<bool, size_t>(false, 0);
 	}
-	free(keep_new);
-	free(keep_best);
 }
 
-static void refine_ring(const Ring &ring, bool *keep, bool *touchpts) {
+static void refine_ring(const Ring &ring, Keeps &keep, Keeps &touchpts) {
 	size_t npts = ring.pts.size();
 	for(size_t i=0; i<npts; i++) {
 		if(!keep[i]) continue;
@@ -505,8 +502,8 @@ static Ring pinch_ring_excursions(const Ring &ring_in) {
 
 	const std::vector<Vertex> &pts = ring.pts;
 
-	bool *keep = find_chull(ring);
-	bool *touchpts = MYALLOC(bool, ring.pts.size());
+	Keeps keep = find_chull(ring);
+	Keeps touchpts(ring.pts.size());
 	for(size_t i=0; i<ring.pts.size(); i++) touchpts[i] = false;
 
 	refine_ring(ring, keep, touchpts);
@@ -532,9 +529,6 @@ static Ring pinch_ring_excursions(const Ring &ring_in) {
 //			}
 //		}
 //	}
-
-	free(keep);
-	free(touchpts);
 
 	return outring;
 }
