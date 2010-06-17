@@ -26,7 +26,9 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 
+#include <limits>
 #include <cassert>
+
 #include "common.h"
 #include "polygon.h"
 #include "debugplot.h"
@@ -47,12 +49,13 @@ static inline double seg_len(Vertex v0, Vertex v1) {
 	return sqrt(dx*dx + dy*dy);
 }
 
-static int find_bottom_pt(const Ring &ring) {
-	double min = 0;
-	int min_idx = -1;
-	for(int i=0; i<ring.pts.size(); i++) {
+static size_t find_bottom_pt(const Ring &ring) {
+	assert(ring.pts.size());
+	double min = ring.pts[0].y;
+	size_t min_idx = 0;
+	for(size_t i=1; i<ring.pts.size(); i++) {
 		double y = ring.pts[i].y;
-		if(i==0 || y<min) {
+		if(y<min) {
 			min = y;
 			min_idx = i;
 		}
@@ -60,7 +63,27 @@ static int find_bottom_pt(const Ring &ring) {
 	return min_idx;
 }
 
-static int find_next_convex(const Ring &ring, int start_idx, int limit_idx, double start_ang, double *ang_out) {
+struct FindNextConvexRetval {
+	FindNextConvexRetval(
+		bool _error, size_t _idx, double _ang
+	) : error(_error), idx(_idx), ang(_ang) { }
+
+	FindNextConvexRetval(
+		size_t _idx, double _ang
+	) : error(false), idx(_idx), ang(_ang) { }
+
+	static const FindNextConvexRetval ERROR() {
+		return FindNextConvexRetval(true, 0, 0);
+	}
+
+	bool error;
+	size_t idx;
+	double ang;
+};
+
+static FindNextConvexRetval find_next_convex(
+	const Ring &ring, int start_idx, int limit_idx, double start_ang
+) {
 	int npts = ring.pts.size();
 	const std::vector<Vertex> &pts = ring.pts;
 	Vertex v0 = pts[start_idx];
@@ -81,7 +104,7 @@ static int find_next_convex(const Ring &ring, int start_idx, int limit_idx, doub
 			if(DEBUG) printf("test for seg crosses initial ray (%g*PI and %g*PI)\n", last_ad, angdiff);
 			if(fabs(last_ad-angdiff) > M_PI) {
 				if(DEBUG) printf("seg crosses initial ray (%g*PI and %g*PI)\n", last_ad, angdiff);
-				return -1;
+				return FindNextConvexRetval::ERROR();
 			}
 		}
 		last_ad = angdiff;
@@ -93,13 +116,13 @@ static int find_next_convex(const Ring &ring, int start_idx, int limit_idx, doub
 		if(i == limit_idx) break;
 	}
 	if(best_vert < 0) {
-		return limit_idx;
+		return FindNextConvexRetval(limit_idx,
+			std::numeric_limits<double>::signaling_NaN());
 	} else if(min_angdiff >= M_PI) {
 		if(DEBUG) printf("point on wrong side of half-plane (ang=%g*PI) idx=%d\n", min_angdiff/M_PI, best_vert);
-		return -1;
+		return FindNextConvexRetval::ERROR();
 	} else {
-		if(ang_out) *ang_out = best_segang;
-		return best_vert;
+		return FindNextConvexRetval(best_vert, best_segang);
 	}
 }
 
@@ -110,10 +133,12 @@ static bool *find_chull(const Ring &ring) {
 	int start_idx = find_bottom_pt(ring);
 	keep[start_idx] = true;
 	double ang = 0;
-	int idx = start_idx;
+	size_t idx = start_idx;
 	for(;;) {
-		idx = find_next_convex(ring, idx, start_idx, ang, &ang);
-		if(idx < 0) fatal_error("could not get convex hull");
+		FindNextConvexRetval r = find_next_convex(ring, idx, start_idx, ang);
+		if(r.error) fatal_error("could not get convex hull");
+		idx = r.idx;
+		ang = r.ang;
 		if(idx == start_idx) break;
 		keep[idx] = true;
 	}
@@ -159,7 +184,7 @@ static int prev_keep(int npts, bool *keep, int i) {
 	return i;
 }
 
-static int reach_point(const Ring &ring, bool *keep, int from, int to, double ang) {
+static bool reach_point(const Ring &ring, bool *keep, int from, int to, double ang) {
 	int npts = ring.pts.size();
 	const std::vector<Vertex> &pts = ring.pts;
 
@@ -169,8 +194,10 @@ static int reach_point(const Ring &ring, bool *keep, int from, int to, double an
 
 	int idx = from;
 	for(;;) {
-		idx = find_next_convex(ring, idx, to, ang, &ang);
-		if(idx < 0) return -1;
+		FindNextConvexRetval r = find_next_convex(ring, idx, to, ang);
+		if(r.error) return 1;
+		idx = r.idx;
+		ang = r.ang;
 		keep[idx] = true;
 		if(idx == to) break;
 	}
@@ -201,7 +228,7 @@ static int reach_point(const Ring &ring, bool *keep, int from, int to, double an
 			)) {
 				if(line_intersects_line(pts[pk], pts[nk], p1, p2, 0)) {
 					if(DEBUG) printf("line intersects line\n");
-					return -1;
+					return 1;
 				}
 			}
 		}
@@ -221,7 +248,7 @@ static int reach_point(const Ring &ring, bool *keep, int from, int to, double an
 			)) {
 				if(line_intersects_line(pts[pk], pts[nk], p1, p2, 0)) {
 					if(DEBUG) printf("line intersects line\n");
-					return -1;
+					return 1;
 				}
 			}
 			i = i2;
@@ -234,7 +261,7 @@ static int reach_point(const Ring &ring, bool *keep, int from, int to, double an
 	return 0;
 }
 
-static int add_tiepoint(const Ring &ring, bool *keep, int mid) {
+static bool add_tiepoint(const Ring &ring, bool *keep, int mid) {
 	int npts = ring.pts.size();
 	const std::vector<Vertex> &pts = ring.pts;
 
@@ -246,14 +273,14 @@ static int add_tiepoint(const Ring &ring, bool *keep, int mid) {
 		pts[mid].x, pts[mid].y, pts[left].x, pts[left].y, pts[right].x, pts[right].y);
 
 	double ang = seg_ang(pts[left], pts[right]);
-	int error = reach_point(ring, keep, left, mid, ang);
-	if(error) return -1;
+	bool error = reach_point(ring, keep, left, mid, ang);
+	if(error) return 1;
 
 	int pk = prev_keep(npts, keep, mid);
 	if(pk == mid) fatal_error("pk == mid");
 	ang = seg_ang(pts[mid], pts[pk]);
 	error = reach_point(ring, keep, mid, right, ang);
-	if(error) return -1;
+	if(error) return 1;
 
 	return 0;
 }
@@ -321,11 +348,11 @@ static int keep_linears(const Ring &ring, bool *keep_orig, int from, int to, boo
 			memcpy(keep_new, keep_orig, sizeof(bool) * npts);
 			int error = 0;
 			if(l_idx != from) {
-				if(add_tiepoint(ring, keep_new, l_idx) < 0) error++;
+				if(add_tiepoint(ring, keep_new, l_idx)) error++;
 			}
 //if(error) fatal_error("oops"); // FIXME
 			if(longest != to) {
-				if(add_tiepoint(ring, keep_new, longest) < 0) error++;
+				if(add_tiepoint(ring, keep_new, longest)) error++;
 			}
 //if(error) fatal_error("oops"); // FIXME
 			if(!error) {
@@ -361,7 +388,7 @@ static int refine_seg(const Ring &ring, bool *keep_orig, int from, int to) {
 	for(int testpt=(from+1)%npts; testpt!=to; testpt=(testpt+1)%npts) {
 		memcpy(keep_new, keep_orig, sizeof(bool) * npts);
 
-		if(add_tiepoint(ring, keep_new, testpt) < 0) continue;
+		if(add_tiepoint(ring, keep_new, testpt)) continue;
 
 		double left_area = 0;
 		double left_perim = 0;
