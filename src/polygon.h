@@ -30,6 +30,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #define POLYGON_H
 
 #include <vector>
+#include <algorithm>
 #include <ogr_api.h>
 #include "common.h"
 #include "georef.h"
@@ -90,6 +91,7 @@ public:
 	double area() const;
 	bool isCCW() const;
 	bool contains(Vertex p) const;
+	void reverse() { std::reverse(pts.begin(), pts.end()); }
 
 	std::vector<Vertex> pts;
 	bool is_hole;

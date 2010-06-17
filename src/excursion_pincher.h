@@ -30,7 +30,11 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 #include "polygon.h"
 
-mpoly_t pinch_excursions(mpoly_t *mp_in, report_image_t *dbuf);
-mpoly_t pinch_excursions2(mpoly_t *mp_in, report_image_t *dbuf);
+namespace dangdal {
+
+Mpoly pinch_excursions(const Mpoly &mp_in, report_image_t *dbuf);
+Mpoly pinch_excursions2(const Mpoly &mp_in, report_image_t *dbuf);
+
+} // namespace dangdal
 
 #endif // ifndef EXCURSION_PINCHER_H
