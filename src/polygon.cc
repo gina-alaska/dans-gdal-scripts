@@ -363,7 +363,7 @@ double Ring::orientedArea() const {
 	double accum = 0;
 	const size_t npts = pts.size();
 	for(size_t i=0; i<npts; i++) {
-		size_t j = (i==npts-1) ? 0 : (npts+1);
+		size_t j = (i==npts-1) ? 0 : (i+1);
 		double x0 = pts[i].x;
 		double y0 = pts[i].y;
 		double x1 = pts[j].x;
@@ -430,11 +430,11 @@ void Mpoly::deleteRing(size_t idx) {
 RingRelation ring_ring_relation(const Ring &r1, const Ring &r2) {
 	Bbox bb1 = r1.getBbox();
 	Bbox bb2 = r2.getBbox();
-	if(is_disjoint(bb1, bb2)) return DISJOINT;
+	if(is_disjoint(bb1, bb2)) return RINGREL_DISJOINT;
 
 	size_t n1 = r1.pts.size();
 	size_t n2 = r2.pts.size();
-	if(n1==0 || n2==0) return DISJOINT;
+	if(n1==0 || n2==0) return RINGREL_DISJOINT;
 
 	// test for crossings
 	for(size_t i1=0; i1<n1; i1++) {
@@ -452,14 +452,14 @@ RingRelation ring_ring_relation(const Ring &r1, const Ring &r2) {
 			Vertex p2a = r2.pts[i2];
 			Vertex p2b = r2.pts[i2_plus1];
 			if(line_intersects_line(p1a, p1b, p2a, p2b, false)) {
-				return CROSSES;
+				return RINGREL_CROSSES;
 			}
 		}
 	}
 
-	if(r1.contains(r2.pts[0])) return CONTAINS;
-	else if(r2.contains(r1.pts[0])) return CONTAINED_BY;
-	else return DISJOINT;
+	if(r1.contains(r2.pts[0])) return RINGREL_CONTAINS;
+	else if(r2.contains(r1.pts[0])) return RINGREL_CONTAINED_BY;
+	else return RINGREL_DISJOINT;
 }
 
 /*

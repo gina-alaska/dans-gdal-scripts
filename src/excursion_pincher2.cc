@@ -178,10 +178,10 @@ static int reach_point(const Ring &ring, bool *keep, int from, int to, double an
 		int nk = next_keep(npts, keep, pk);
 		if(DEBUG) printf("test seg %g,%g : %g,%g\n", pts[pk].x, pts[pk].y, pts[nk].x, pts[nk].y);
 
-		double min_x = MIN(pts[pk].x, pts[nk].x);
-		double max_x = MAX(pts[pk].x, pts[nk].x);
-		double min_y = MIN(pts[pk].y, pts[nk].y);
-		double max_y = MAX(pts[pk].y, pts[nk].y);
+		double min_x = std::min(pts[pk].x, pts[nk].x);
+		double max_x = std::max(pts[pk].x, pts[nk].x);
+		double min_y = std::min(pts[pk].y, pts[nk].y);
+		double max_y = std::max(pts[pk].y, pts[nk].y);
 
 		// FIXME - this is the slowest part
 		// FIXME - doesn't handle crossing across a vertex here or in dp.c
@@ -193,10 +193,10 @@ static int reach_point(const Ring &ring, bool *keep, int from, int to, double an
 			// the time penalty of a function call for the common case of
 			// the bbox not matching
 			if(!(
-				max_x < MIN(p1.x, p2.x) ||
-				min_x > MAX(p1.x, p2.x) ||
-				max_y < MIN(p1.y, p2.y) ||
-				min_y > MAX(p1.y, p2.y) ||
+				max_x < std::min(p1.x, p2.x) ||
+				min_x > std::max(p1.x, p2.x) ||
+				max_y < std::min(p1.y, p2.y) ||
+				min_y > std::max(p1.y, p2.y) ||
 				i==pk || i==nk || i2==pk || i2==nk
 			)) {
 				if(line_intersects_line(pts[pk], pts[nk], p1, p2, 0)) {
@@ -213,10 +213,10 @@ static int reach_point(const Ring &ring, bool *keep, int from, int to, double an
 			// the time penalty of a function call for the common case of
 			// the bbox not matching
 			if(!(
-				max_x < MIN(p1.x, p2.x) ||
-				min_x > MAX(p1.x, p2.x) ||
-				max_y < MIN(p1.y, p2.y) ||
-				min_y > MAX(p1.y, p2.y) ||
+				max_x < std::min(p1.x, p2.x) ||
+				min_x > std::max(p1.x, p2.x) ||
+				max_y < std::min(p1.y, p2.y) ||
+				min_y > std::max(p1.y, p2.y) ||
 				i==pk || i==nk || i2==pk || i2==nk
 			)) {
 				if(line_intersects_line(pts[pk], pts[nk], p1, p2, 0)) {
@@ -547,21 +547,21 @@ Mpoly pinch_excursions2(const Mpoly &mp_in, report_image_t *dbuf) {
 
 			RingRelation rel = ring_ring_relation(mp_out.rings[r1_idx], mp_out.rings[r2_idx]);
 //printf("relation of %d and %d is %d\n", r1_idx, r2_idx, rel);
-			if(rel == CONTAINS) {
+			if(rel == RINGREL_CONTAINS) {
 //printf("deleting %d\n", r2_idx);
 				//if(dbuf && dbuf->mode == PLOT_PINCH) {
 				//	debug_plot_ring(dbuf, mp_out.rings[r2_idx], 0, 0, 128);
 				//}
 				mp_out.deleteRing(r2_idx);
 				goto REDO_R2; // indexes shifted - reset loop
-			} else if(rel == CONTAINED_BY) {
+			} else if(rel == RINGREL_CONTAINED_BY) {
 //printf("deleting %d\n", r1_idx);
 				//if(dbuf && dbuf->mode == PLOT_PINCH) {
 				//	debug_plot_ring(dbuf, mp_out.rings[r1_idx], 0, 0, 128);
 				//}
 				mp_out.deleteRing(r1_idx);
 				goto REDO_R1; // indexes shifted - reset loop
-			} else if(rel == CROSSES) {
+			} else if(rel == RINGREL_CROSSES) {
 //printf("merging %d and %d\n", r1_idx, r2_idx);
 				Ring r3 = ring_ring_union(mp_out.rings[r1_idx], mp_out.rings[r2_idx]);
 				//if(dbuf && dbuf->mode == PLOT_PINCH) {

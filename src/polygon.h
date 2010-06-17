@@ -39,10 +39,10 @@ namespace dangdal {
 
 // returned by ring_ring_relation
 enum RingRelation {
-	CONTAINS,
-	CONTAINED_BY,
-	CROSSES,
-	DISJOINT
+	RINGREL_CONTAINS,
+	RINGREL_CONTAINED_BY,
+	RINGREL_CROSSES,
+	RINGREL_DISJOINT
 };
 
 struct Vertex {
