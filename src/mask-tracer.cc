@@ -32,6 +32,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include "polygon.h"
 #include "polygon-rasterizer.h"
 
+namespace dangdal {
+
 #define DIR_UP 0
 #define DIR_RT 1
 #define DIR_DN 2
@@ -60,18 +62,13 @@ static void debug_write_mask(const BitGrid mask, size_t w, size_t h) {
 	delete[] row;
 }
 
-static ring_t *make_enclosing_ring(size_t w, size_t h) {
-	ring_t *ring = MYALLOC(ring_t, 1);
-	ring->npts = 4;
-	ring->pts = MYALLOC(vertex_t, ring->npts);
-	ring->pts[0].x = -1;
-	ring->pts[0].y = -1;
-	ring->pts[1].x = w;
-	ring->pts[1].y = -1;
-	ring->pts[2].x = w;
-	ring->pts[2].y = h;
-	ring->pts[3].x = -1;
-	ring->pts[3].y = h;
+static Ring make_enclosing_ring(size_t w, size_t h) {
+	Ring ring;
+	ring.pts.reserve(4);
+	ring.pts.push_back(Vertex(-1, -1));
+	ring.pts.push_back(Vertex( w, -1));
+	ring.pts.push_back(Vertex( w,  h));
+	ring.pts.push_back(Vertex(-1,  h));
 	return ring;
 }
 
@@ -115,16 +112,12 @@ static inline pixquad_t rotate_quad(pixquad_t q, int dir) {
 	return ((q + (q<<4)) >> dir) & 0xf;
 }
 
-static ring_t trace_single_mpoly(const BitGrid mask, size_t w, size_t h,
+static Ring trace_single_mpoly(const BitGrid mask, size_t w, size_t h,
 int initial_x, int initial_y, bool select_color) {
 	//printf("trace_single_mpoly enter (%d,%d)\n", initial_x, initial_y);
 
-	ring_t ring;
-	int ringbuf_size = 4;
-	ring.pts = MYALLOC(vertex_t, ringbuf_size);
-	ring.pts[0].x = initial_x;
-	ring.pts[0].y = initial_y;
-	ring.npts = 1;
+	Ring ring;
+	ring.pts.push_back(Vertex(initial_x, initial_y));
 
 	int x = initial_x;
 	int y = initial_y;
@@ -161,55 +154,37 @@ int initial_x, int initial_y, bool select_color) {
 		dir = (dir + rot + 4) % 4;
 
 		if(rot) {
-			if(ring.npts == ringbuf_size) {
-				if(ringbuf_size) ringbuf_size *= 2;
-				else ringbuf_size = 4;
-				ring.pts = REMYALLOC(vertex_t, ring.pts, ringbuf_size);
-			}
-			ring.pts[ring.npts].x = x;
-			ring.pts[ring.npts].y = y;
-			ring.npts++;
+			ring.pts.push_back(Vertex(x, y));
 		}
-	}
-
-	if(ringbuf_size > ring.npts) {
-		ring.pts = REMYALLOC(vertex_t, ring.pts, ring.npts);
 	}
 
 	return ring;
 }
 
 static int recursive_trace(BitGrid mask, size_t w, size_t h,
-ring_t *bounds, int depth, mpoly_t *out_poly, int parent_id, 
+const Ring &bounds, int depth, Mpoly &out_poly, int parent_id, 
 long min_area, int no_donuts) {
 	//printf("recursive_trace enter: depth=%d\n", depth);
 
 	bool select_color = !(depth & 1);
 
-	int must_free_bounds = 0;
-	if(!bounds) {
-		bounds = make_enclosing_ring(w, h);
-		must_free_bounds = 1;
-	}
-
 	int bound_left, bound_right;
 	int bound_top, bound_bottom;
-	bound_left = bound_right = (int)bounds->pts[0].x;
-	bound_top = bound_bottom = (int)bounds->pts[0].y;
-	for(int v_idx=0; v_idx<bounds->npts; v_idx++) {
-		int x = (int)bounds->pts[v_idx].x;
-		int y = (int)bounds->pts[v_idx].y;
+	bound_left = bound_right = (int)bounds.pts[0].x;
+	bound_top = bound_bottom = (int)bounds.pts[0].y;
+	for(size_t v_idx=0; v_idx<bounds.pts.size(); v_idx++) {
+		int x = (int)bounds.pts[v_idx].x;
+		int y = (int)bounds.pts[v_idx].y;
 		if(x < bound_left) bound_left = x;
 		if(x > bound_right) bound_right = x;
 		if(y < bound_top) bound_top = y;
 		if(y > bound_bottom) bound_bottom = y;
 	}
 
-	mpoly_t bounds_mp;
-	bounds_mp.num_rings = 1;
-	bounds_mp.rings = bounds;
+	Mpoly bounds_mp;
+	bounds_mp.rings.push_back(bounds);
 
-	row_crossings_t *crossings = get_row_crossings(&bounds_mp, bound_top, bound_bottom-bound_top);
+	row_crossings_t *crossings = get_row_crossings(bounds_mp, bound_top, bound_bottom-bound_top);
 	int skip_this = min_area && (compute_area(crossings, bound_bottom-bound_top) < min_area);
 	int skip_child = skip_this || (depth && no_donuts);
 
@@ -256,23 +231,21 @@ long min_area, int no_donuts) {
 					}
 
 					if(is_seed) {
-						ring_t r = trace_single_mpoly(mask, w, h, x, y, select_color);
+						Ring r = trace_single_mpoly(mask, w, h, x, y, select_color);
 
 						r.parent_id = parent_id;
 						r.is_hole = depth % 2;
 						//r.parent_id = -1;
 						//r.is_hole = 0;
 
-						out_poly->rings = REMYALLOC(ring_t, out_poly->rings, (out_poly->num_rings + 1));
-						int outer_ring_id = (out_poly->num_rings++);
-						out_poly->rings[outer_ring_id] = r;
+						size_t outer_ring_id = out_poly.rings.size();
+						out_poly.rings.push_back(r);
 
 						int was_skip = recursive_trace(
-							mask, w, h, &r, depth+1, out_poly, outer_ring_id,
+							mask, w, h, r, depth+1, out_poly, outer_ring_id,
 							min_area, no_donuts);
 						if(was_skip) {
-							free(r.pts);
-							out_poly->num_rings--;
+							out_poly.rings.pop_back();
 						}
 					}
 				} 
@@ -297,11 +270,6 @@ long min_area, int no_donuts) {
 	}
 	free_row_crossings(crossings, bound_bottom-bound_top);
 
-	if(must_free_bounds) {
-		free(bounds->pts);
-		free(bounds);
-	}
-
 	if(VERBOSE >= 4) debug_write_mask(mask, w, h);
 
 	if(!depth) {
@@ -312,16 +280,13 @@ long min_area, int no_donuts) {
 }
 
 // this function has the side effect of erasing the mask
-mpoly_t trace_mask(BitGrid mask, size_t w, size_t h, long min_area, int no_donuts) {
+Mpoly trace_mask(BitGrid mask, size_t w, size_t h, long min_area, int no_donuts) {
 	if(VERBOSE >= 4) debug_write_mask(mask, w, h);
 
-	mpoly_t out_poly;
+	Mpoly out_poly;
 
-	out_poly.num_rings = 0;
-	out_poly.rings = NULL;
-
-	recursive_trace(mask, w, h, NULL, 0, &out_poly, -1, min_area, no_donuts);
-	printf("Trace found %d rings.\n", out_poly.num_rings);
+	recursive_trace(mask, w, h, make_enclosing_ring(w, h), 0, out_poly, -1, min_area, no_donuts);
+	printf("Trace found %zd rings.\n", out_poly.rings.size());
 
 	//free(mask_8bit);
 
@@ -329,3 +294,5 @@ mpoly_t trace_mask(BitGrid mask, size_t w, size_t h, long min_area, int no_donut
 
 	return out_poly;
 }
+
+} // namespace dangdal

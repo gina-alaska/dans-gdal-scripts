@@ -30,6 +30,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include "polygon.h"
 #include "debugplot.h"
 
+#include <cassert>
+
 #define DEBUG 0
 
 namespace dangdal {
@@ -46,9 +48,10 @@ static inline double seg_len(Vertex v0, Vertex v1) {
 	return sqrt(dx*dx + dy*dy);
 }
 
-static int find_bottom_pt(const Ring &ring) {
+static size_t find_bottom_pt(const Ring &ring) {
+	assert(ring.pts.size());
 	double min = 0;
-	int min_idx = -1;
+	size_t min_idx = 0;
 	for(size_t i=0; i<ring.pts.size(); i++) {
 		double y = ring.pts[i].y;
 		if(i==0 || y<min) {
@@ -128,13 +131,12 @@ static bool *find_chull(const Ring &ring) {
 	return keep;
 }
 
-static double subring_area(const Ring &ring, int from, int to) {
+static double subring_area(const Ring &ring, size_t from, size_t to) {
 	const size_t npts = ring.pts.size();
 
 	double accum = 0;
-	int i;
-	for(i=from; ; i=(i+1)%npts) {
-		int i2 = i==to ? from : (i+1)%npts;
+	for(size_t i=from; ; i=(i+1)%npts) {
+		size_t i2 = i==to ? from : (i+1)%npts;
 		double x0 = ring.pts[i].x;
 		double y0 = ring.pts[i].y;
 		double x1 = ring.pts[i2].x;
@@ -158,8 +160,8 @@ static size_t next_keep(size_t npts, bool *keep, size_t i) {
 	return i;
 }
 
-static int prev_keep(size_t npts, bool *keep, int i) {
-	for(int j=(i+npts-1)%npts; j!=i; j=(j+npts-1)%npts) {
+static size_t prev_keep(size_t npts, bool *keep, size_t i) {
+	for(size_t j=(i+npts-1)%npts; j!=i; j=(j+npts-1)%npts) {
 		if(keep[j]) return j;
 	}
 	return i;
@@ -252,7 +254,7 @@ static bool add_tiepoint(const Ring &ring, bool *keep, size_t mid) {
 		ring.pts[mid].x, ring.pts[mid].y, ring.pts[left].x, ring.pts[left].y, ring.pts[right].x, ring.pts[right].y);
 
 	double ang = seg_ang(ring.pts[left], ring.pts[right]);
-	int error = reach_point(ring, keep, left, mid, ang);
+	bool error = reach_point(ring, keep, left, mid, ang);
 	if(error) return true;
 
 	size_t pk = prev_keep(npts, keep, mid);
@@ -265,11 +267,11 @@ static bool add_tiepoint(const Ring &ring, bool *keep, size_t mid) {
 }
 
 /*
-static int chord_crosses_arc(const Ring &ring, int c0, int c1, int from, int to) {
+static bool chord_crosses_arc(const Ring &ring, size_t c0, size_t c1, size_t from, size_t to) {
 	const size_t npts = ring.pts.size();
 
-	for(int i=from; i!=to; i=(i+1)%npts) {
-		int i2 = (i+1)%npts;
+	for(size_t i=from; i!=to; i=(i+1)%npts) {
+		size_t i2 = (i+1)%npts;
 		if(i==c0 || i==c1 || i2==c0 || i2==c1) continue;
 		if(line_intersects_line(ring.pts[c0], ring.pts[c1], ring.pts[i], ring.pts[i2], 0)) return 1;
 	}
@@ -286,12 +288,12 @@ static double dist_to_seg(Vertex p1, Vertex p2, Vertex p3) {
 	return dist_from_line;
 }
 
-static int is_mostly_linear(const Ring &ring, int from, int to) {
+static bool is_mostly_linear(const Ring &ring, size_t from, size_t to) {
 	const size_t npts = ring.pts.size();
 
 	Vertex p1 = ring.pts[from];
 	Vertex p2 = ring.pts[to];
-	for(int i=(from+1)%npts; i!=to; i=(i+1)%npts) {
+	for(size_t i=(from+1)%npts; i!=to; i=(i+1)%npts) {
 		double dist = dist_to_seg(p1, p2, ring.pts[i]);
 		if(dist > 1.0) return 0;
 	}
@@ -299,7 +301,7 @@ static int is_mostly_linear(const Ring &ring, int from, int to) {
 	return 1;
 }
 
-static int keep_linears(const Ring &ring, bool *keep_orig, size_t from, size_t to, bool *touchpts) {
+static bool keep_linears(const Ring &ring, bool *keep_orig, size_t from, size_t to, bool *touchpts) {
 	const size_t npts = ring.pts.size();
 
 	if(to == (from+1)%npts) return 0;
@@ -322,13 +324,13 @@ static int keep_linears(const Ring &ring, bool *keep_orig, size_t from, size_t t
 		}
 		if(longest != l_idx) {
 			memcpy(keep_new, keep_orig, sizeof(bool) * npts);
-			int error = 0;
+			bool error = 0;
 			if(l_idx != from) {
-				if(add_tiepoint(ring, keep_new, l_idx) < 0) error++;
+				if(add_tiepoint(ring, keep_new, l_idx) < 0) error = 1;
 			}
 //if(error) fatal_error("oops"); // FIXME
 			if(longest != to) {
-				if(add_tiepoint(ring, keep_new, longest) < 0) error++;
+				if(add_tiepoint(ring, keep_new, longest) < 0) error = 1;
 			}
 //if(error) fatal_error("oops"); // FIXME
 			if(!error) {
@@ -445,7 +447,7 @@ static void refine_ring(const Ring &ring, bool *keep, bool *touchpts) {
 			if(VERBOSE) printf("area = %g, refining segment %zd,%zd\n", area, i, j);
 			if(area > 0) {
 if(VERBOSE) printf("do linear\n");
-				int did_linear = keep_linears(ring, keep, i, j, touchpts);
+				bool did_linear = keep_linears(ring, keep, i, j, touchpts);
 				if(did_linear) continue;
 if(VERBOSE) printf("do refine\n");
 				bool got_touchpt;
@@ -475,7 +477,7 @@ static Ring pinch_ring_excursions(const Ring &ring_in) {
 
 	refine_ring(ring, keep, touchpts);
 
-	int nkeep = 0;
+	size_t nkeep = 0;
 	for(size_t i=0; i<npts; i++) {
 		if(keep[i]) nkeep++;
 	}
@@ -489,7 +491,7 @@ static Ring pinch_ring_excursions(const Ring &ring_in) {
 
 //	if(dbuf && dbuf->mode == PLOT_PINCH) {
 //		debug_plot_ring(dbuf, &outring, 255, 0, 0);
-//		for(int i=0; i<npts; i++) {
+//		for(size_t i=0; i<npts; i++) {
 //			if(touchpts[i]) {
 //				Vertex p = ring.pts[i];
 //				plot_point_big(dbuf, p.x, p.y, 255, 255, 255);

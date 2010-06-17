@@ -31,7 +31,11 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include "mask.h"
 #include "polygon.h"
 
+namespace dangdal {
+
 // this function has the side effect of erasing the mask
-mpoly_t trace_mask(BitGrid mask, size_t w, size_t h, long min_area, int no_donuts);
+Mpoly trace_mask(BitGrid mask, size_t w, size_t h, long min_area, bool no_donuts);
+
+} // namespace dangdal
 
 #endif // ifndef MASK_TRACER_H
