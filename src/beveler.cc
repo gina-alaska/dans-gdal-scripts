@@ -205,7 +205,7 @@ void bevel_self_intersections(Mpoly &mp, double amount) {
 		if(vout_idx != new_numpts) {
 			fatal_error("wrong number of points in beveled ring (%zd vs. %zd)", vout_idx, new_numpts);
 		}
-		*ring = Ring(new_ring);
+		ring->pts = new_ring.pts;
 
 		entry_idx += ring_num_touch;
 	}

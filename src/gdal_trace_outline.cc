@@ -574,12 +574,14 @@ long min_ring_area, double bevel_size) {
 	Mpoly mp = trace_mask(mask, w, h, min_ring_area, no_donuts);
 
 	if(VERBOSE) {
-		size_t total_pts = 0;
+		size_t num_inner = 0, num_outer = 0, total_pts = 0;
 		for(size_t r_idx=0; r_idx<mp.rings.size(); r_idx++) {
+			if(mp.rings[r_idx].is_hole) num_inner++;
+			else num_outer++;
 			total_pts += mp.rings[r_idx].pts.size();
 		}
-		printf("tracer produced %zd rings with a total of %zd points\n",
-			mp.rings.size(), total_pts);
+		printf("tracer produced %zd rings (%zd outer, %zd holes) with a total of %zd points\n",
+			mp.rings.size(), num_outer, num_inner, total_pts);
 	}
 
 	// this is now done directly by tracer
