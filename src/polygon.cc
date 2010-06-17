@@ -26,6 +26,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 
+#include <string>
+
 #include "common.h"
 #include "polygon.h"
 #include "georef.h"
@@ -805,36 +807,32 @@ void Mpoly::xy2ll_with_interp(georef_t *georef, double toler) {
 	*this = ll_poly;
 }
 
-static char *read_whole_file(FILE *fin) {
-	size_t chunk_size = 1024;
-	size_t data_len = 0;
-	size_t buf_len = chunk_size+1;
-	char *buffer = MYALLOC(char, buf_len);
+static std::string read_whole_file(FILE *fin) {
+	size_t chunk_size = 65536;
+	std::string accum;
+	std::string chunk(chunk_size, 0);
 	size_t num_read;
-	while(0 < (num_read = fread(buffer+data_len, 1, chunk_size, fin))) {
-		data_len += num_read;
-		if(data_len+chunk_size+1 > buf_len) {
-			buf_len += chunk_size;
-			buffer = REMYALLOC(char, buffer, buf_len);
-		}
+	while(0 < (num_read = fread(&chunk[0], 1, chunk_size, fin))) {
+		accum.append(chunk, 0, num_read);
 	}
-	buffer[data_len++] = 0;
-	return buffer;
+	return accum;
 }
 
 Mpoly mpoly_from_wktfile(const char *fn) {
 	FILE *fh = fopen(fn, "r");
 	if(!fh) fatal_error("cannot read file [%s]", fn);
-	char *wkt_in = read_whole_file(fh);
-	int i;
-	for(i=0; wkt_in[i]; i++) {
-		if(wkt_in[i] == '\r') wkt_in[i] = ' ';
-		if(wkt_in[i] == '\n') wkt_in[i] = ' ';
-		if(wkt_in[i] == '\t') wkt_in[i] = ' ';
+	std::string wkt = read_whole_file(fh);
+	for(size_t i=0; i<wkt.size(); i++) {
+		if(wkt[i] == '\r') wkt[i] = ' ';
+		if(wkt[i] == '\n') wkt[i] = ' ';
+		if(wkt[i] == '\t') wkt[i] = ' ';
 	}
 
 	OGRGeometryH geom;
-	OGRErr err = OGR_G_CreateFromWkt(&wkt_in, NULL, &geom);
+	char *wkt_str = strdup(wkt.c_str());
+	char *wkt_str2 = wkt_str;
+	OGRErr err = OGR_G_CreateFromWkt(&wkt_str2, NULL, &geom);
+	free(wkt_str);
 	if(OGRERR_NONE != err) {
 		fatal_error("OGR_G_CreateFromWkt failed: %d", err);
 	}
