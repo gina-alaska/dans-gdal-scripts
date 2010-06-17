@@ -37,20 +37,20 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 namespace dangdal {
 
 typedef struct {
-	ring_t *ring;
-	int vert_idx;
+	Ring *ring; // FIXME! use ring_idx here
+	size_t vert_idx;
 } vertsort_entry;
 
 static int compare_coords(const void *ap, const void *bp) {
 	vertsort_entry *a = (vertsort_entry *)ap;
 	vertsort_entry *b = (vertsort_entry *)bp;
-	vertex_t *va = a->ring->pts + a->vert_idx;
-	vertex_t *vb = b->ring->pts + b->vert_idx;
+	const Vertex &va = a->ring->pts[a->vert_idx];
+	const Vertex &vb = b->ring->pts[b->vert_idx];
 	return 
-		va->x < vb->x ? -1 :
-		va->x > vb->x ?  1 :
-		va->y < vb->y ? -1 :
-		va->y > vb->y ?  1 :
+		va.x < vb.x ? -1 :
+		va.x > vb.x ?  1 :
+		va.y < vb.y ? -1 :
+		va.y > vb.y ?  1 :
 		0;
 }
 
@@ -75,20 +75,20 @@ void bevel_self_intersections(Mpoly &mp, double amount) {
 		GDALTermProgress(0, NULL, NULL);
 	}
 
-	int total_pts = 0;
-	for(int i=0; i<mp->num_rings; i++) {
-		total_pts += mp->rings[i].npts;
+	size_t total_pts = 0;
+	for(size_t i=0; i<mp.rings.size(); i++) {
+		total_pts += mp.rings[i].pts.size();
 	}
 
 	if(VERBOSE) printf("allocating %zd megs for beveler\n",
 		(total_pts*sizeof(vertsort_entry)) >> 20);
 	vertsort_entry *entries = MYALLOC(vertsort_entry, total_pts);
-	int entry_idx = 0;
-	for(int r_idx=0; r_idx<mp->num_rings; r_idx++) {
-		ring_t *ring = mp->rings + r_idx;
-		for(int v_idx=0; v_idx<ring->npts; v_idx++) {
+	size_t entry_idx = 0;
+	for(size_t r_idx=0; r_idx<mp.rings.size(); r_idx++) {
+		Ring &ring = mp.rings[r_idx]; // FIXME! const
+		for(size_t v_idx=0; v_idx<ring.pts.size(); v_idx++) {
 			vertsort_entry *entry = entries + (entry_idx++);
-			entry->ring = ring;
+			entry->ring = &ring;
 			entry->vert_idx = v_idx;
 		}
 	}
@@ -99,17 +99,17 @@ void bevel_self_intersections(Mpoly &mp, double amount) {
 	qsort(entries, total_pts, sizeof(vertsort_entry), compare_coords);
 	GDALTermProgress(0.8, NULL, NULL);
 
-	int total_num_touch = 0;
-	int prev_was_same = 0;
-	for(int i=0; i<total_pts-1; i++) {
-		//printf("%lf %lf %d %d\n",
+	size_t total_num_touch = 0;
+	bool prev_was_same = 0;
+	for(size_t i=0; i<total_pts-1; i++) {
+		//printf("%lf %lf %zd %zd\n",
 		//	entries[i].x, entries[i].y,
 		//	entries[i].ring_idx, entries[i].vert_idx);
-		vertex_t *va = entries[i  ].ring->pts + entries[i  ].vert_idx;
-		vertex_t *vb = entries[i+1].ring->pts + entries[i+1].vert_idx;
+		const Vertex &va = entries[i  ].ring->pts[entries[i  ].vert_idx];
+		const Vertex &vb = entries[i+1].ring->pts[entries[i+1].vert_idx];
 		if(
-			va->x == vb->x &&
-			va->y == vb->y
+			va.x == vb.x &&
+			va.y == vb.y
 		) {
 			if(prev_was_same) {
 				fatal_error("should not have triple intersections in beveler");
@@ -121,7 +121,7 @@ void bevel_self_intersections(Mpoly &mp, double amount) {
 		}
 	}
 
-	if(VERBOSE) printf("found %d self-intersections\n", total_num_touch);
+	if(VERBOSE) printf("found %zd self-intersections\n", total_num_touch);
 	if(!total_num_touch) {
 		free(entries);
 		GDALTermProgress(1, NULL, NULL);
@@ -138,8 +138,8 @@ void bevel_self_intersections(Mpoly &mp, double amount) {
 
 	// FIXME! this goes very slow but could probably be made better
 	for(entry_idx=0; entry_idx<total_num_touch; ) {
-		ring_t *ring = entries[entry_idx].ring;
-		int ring_num_touch = 0;
+		Ring *ring = entries[entry_idx].ring;
+		size_t ring_num_touch = 0;
 		while(
 			entry_idx+ring_num_touch < total_num_touch &&
 			entries[entry_idx+ring_num_touch].ring == ring
@@ -147,24 +147,30 @@ void bevel_self_intersections(Mpoly &mp, double amount) {
 			ring_num_touch++;
 		}
 
-		if(VERBOSE >= 2) printf("ring %zd: num_touch=%d\n", ring - mp->rings, ring_num_touch);
+		if(VERBOSE >= 2) printf("ring %zd: num_touch=%zd\n", ring - &mp.rings[0], ring_num_touch);
 
-		int new_numpts = ring->npts + ring_num_touch;
-		vertex_t *new_pts = MYALLOC(vertex_t, new_numpts);
+		size_t new_numpts = ring->pts.size() + ring_num_touch;
+		Ring new_ring;
+		new_ring.pts.resize(new_numpts);
 
-		int vin_idx = 0;
-		int vout_idx = 0;
-		for(int subent=0; subent<ring_num_touch; subent++) {
-			int touch_vidx = entries[entry_idx+subent].vert_idx;
-			if(VERBOSE >= 2) printf("touch at %d\n", touch_vidx);
-			int numcp = touch_vidx - vin_idx;
-			if(numcp < 0) {
+		size_t vin_idx = 0;
+		size_t vout_idx = 0;
+		for(size_t subent=0; subent<ring_num_touch; subent++) {
+			size_t touch_vidx = entries[entry_idx+subent].vert_idx;
+			if(VERBOSE >= 2) printf("touch at %zd\n", touch_vidx);
+			if(touch_vidx < vin_idx) {
 				fatal_error("verts out of sequence");
-			} else if(numcp > 0) {
-				if(vin_idx + numcp > ring->npts) {
+			}
+			size_t numcp = touch_vidx - vin_idx;
+			if(numcp > 0) {
+				if(vin_idx + numcp > ring->pts.size()) {
 					fatal_error("index out of bounds");
 				}
-				memcpy(new_pts+vout_idx, ring->pts+vin_idx, numcp*sizeof(vertex_t));
+				std::copy(
+					ring->pts.begin() + vin_idx,
+					ring->pts.begin() + vin_idx + numcp,
+					new_ring.pts.begin() + vout_idx
+				);
 				vout_idx += numcp;
 				vin_idx += numcp;
 			}
@@ -173,31 +179,33 @@ void bevel_self_intersections(Mpoly &mp, double amount) {
 				fatal_error("didn't copy the right amount of points");
 			}
 
-			vertex_t this_v = ring->pts[vin_idx];
-			vertex_t prev_v = ring->pts[(vin_idx+ring->npts-1) % ring->npts];
-			vertex_t next_v = ring->pts[(vin_idx+1) % ring->npts];
+			Vertex this_v = ring->pts[vin_idx];
+			Vertex prev_v = ring->pts[(vin_idx+ring->pts.size()-1) % ring->pts.size()];
+			Vertex next_v = ring->pts[(vin_idx+1) % ring->pts.size()];
 			double sx_prev = SGN(prev_v.x - this_v.x);
 			double sy_prev = SGN(prev_v.y - this_v.y);
 			double sx_next = SGN(next_v.x - this_v.x);
 			double sy_next = SGN(next_v.y - this_v.y);
-			new_pts[vout_idx++] = (vertex_t){ this_v.x + sx_prev*amount, this_v.y + sy_prev*amount };
-			new_pts[vout_idx++] = (vertex_t){ this_v.x + sx_next*amount, this_v.y + sy_next*amount };
+			new_ring.pts[vout_idx++] = Vertex(this_v.x + sx_prev*amount, this_v.y + sy_prev*amount);
+			new_ring.pts[vout_idx++] = Vertex(this_v.x + sx_next*amount, this_v.y + sy_next*amount);
 			vin_idx++;
 		}
 
-		if(vin_idx < ring->npts) {
-			int numcp = ring->npts - vin_idx;
-			memcpy(new_pts+vout_idx, ring->pts+vin_idx, numcp*sizeof(vertex_t));
+		if(vin_idx < ring->pts.size()) {
+			size_t numcp = ring->pts.size() - vin_idx;
+			std::copy(
+				ring->pts.begin() + vin_idx,
+				ring->pts.begin() + vin_idx + numcp,
+				new_ring.pts.begin() + vout_idx
+			);
 			vout_idx += numcp;
 			vin_idx += numcp;
 		}
 
 		if(vout_idx != new_numpts) {
-			fatal_error("wrong number of points in beveled ring (%d vs. %d)", vout_idx, new_numpts);
+			fatal_error("wrong number of points in beveled ring (%zd vs. %zd)", vout_idx, new_numpts);
 		}
-		free(ring->pts);
-		ring->npts = new_numpts;
-		ring->pts = new_pts;
+		*ring = Ring(new_ring);
 
 		entry_idx += ring_num_touch;
 	}

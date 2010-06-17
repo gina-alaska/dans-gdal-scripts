@@ -334,12 +334,11 @@ void fix_topology(const Mpoly &mpoly, std::vector<ReducedRing> &reduced_rings) {
 	printf("Analyzing topology: ");
 	fflush(stdout);
 
-	// clear problem flags
+	// initialize problem arrays
+	std::vector<std::vector<bool> > mp_problems(mpoly.rings.size());
 	for(size_t r1_idx=0; r1_idx < mpoly.rings.size(); r1_idx++) {
-		ReducedRing &r1 = reduced_rings[r1_idx];
-		for(size_t seg1_idx=0; seg1_idx < r1.segs.size(); seg1_idx++) {
-			r1.segs[seg1_idx].is_problem = 0;
-		}
+		const ReducedRing &rring = reduced_rings[r1_idx];
+		mp_problems[r1_idx].resize(rring.segs.size(), 0);
 	}
 
 	std::vector<Bbox> bboxes = mpoly.getRingBboxes();
@@ -349,7 +348,8 @@ void fix_topology(const Mpoly &mpoly, std::vector<ReducedRing> &reduced_rings) {
 	for(size_t r1_idx=0; r1_idx < mpoly.rings.size(); r1_idx++) {
 		GDALTermProgress(pow((double)r1_idx / (double)mpoly.rings.size(), 2), NULL, NULL);
 		const Ring &c1 = mpoly.rings[r1_idx];
-		ReducedRing &r1 = reduced_rings[r1_idx];
+		const ReducedRing &r1 = reduced_rings[r1_idx];
+		std::vector<bool> &p1 = mp_problems[r1_idx];
 		const Bbox bbox1 = bboxes[r1_idx];
 		if(bbox1.empty) continue;
 		for(size_t r2_idx=0; r2_idx < mpoly.rings.size(); r2_idx++) {
@@ -366,7 +366,8 @@ void fix_topology(const Mpoly &mpoly, std::vector<ReducedRing> &reduced_rings) {
 			) continue;
 
 			const Ring &c2 = mpoly.rings[r2_idx];
-			ReducedRing &r2 = reduced_rings[r2_idx];
+			const ReducedRing &r2 = reduced_rings[r2_idx];
+			std::vector<bool> &p2 = mp_problems[r2_idx];
 
 			for(size_t seg1_idx=0; seg1_idx < r1.segs.size(); seg1_idx++) {
 				for(size_t seg2_idx=0; seg2_idx < r2.segs.size(); seg2_idx++) {
@@ -377,8 +378,8 @@ void fix_topology(const Mpoly &mpoly, std::vector<ReducedRing> &reduced_rings) {
 					if(crosses) {
 						//printf("found a crossing: %d,%d,%d,%d\n",
 						//	r1_idx, seg1_idx, r2_idx, seg2_idx);
-						r1.segs[seg1_idx].is_problem = 1;
-						r2.segs[seg2_idx].is_problem = 1;
+						p1[seg1_idx] = 1;
+						p2[seg2_idx] = 1;
 						have_problems += 2;
 					}
 				} // seg loop
@@ -398,9 +399,10 @@ void fix_topology(const Mpoly &mpoly, std::vector<ReducedRing> &reduced_rings) {
 		// subdivide problem segments
 		for(size_t r1_idx=0; r1_idx < mpoly.rings.size(); r1_idx++) {
 			ReducedRing &r1 = reduced_rings[r1_idx];
+			std::vector<bool> &p1 = mp_problems[r1_idx];
 			size_t orig_num_segs = r1.segs.size(); // this number will change as we go, so copy it
 			for(size_t seg1_idx=0; seg1_idx < orig_num_segs; seg1_idx++) {
-				if(!r1.segs[seg1_idx].is_problem) continue;
+				if(!p1[seg1_idx]) continue;
 				int begin = r1.segs[seg1_idx].begin;
 				int end = r1.segs[seg1_idx].end;
 				if(end < begin) continue; // this is a closure segment (and so doesn't have a midpoint)
@@ -409,7 +411,8 @@ void fix_topology(const Mpoly &mpoly, std::vector<ReducedRing> &reduced_rings) {
 				// subdivide this segment
 				int mid = (begin + end) / 2;
 				r1.segs[seg1_idx].end = mid;
-				r1.segs.push_back(segment_t(mid, end, 1));
+				r1.segs.push_back(segment_t(mid, end));
+				p1.push_back(1);
 				did_something = 1;
 			} // seg loop
 		} // ring loop
@@ -418,13 +421,15 @@ void fix_topology(const Mpoly &mpoly, std::vector<ReducedRing> &reduced_rings) {
 		// now test for resolved problems and new problems
 		for(size_t r1_idx=0; r1_idx < mpoly.rings.size(); r1_idx++) {
 			const Ring &c1 = mpoly.rings[r1_idx];
-			ReducedRing &r1 = reduced_rings[r1_idx];
+			const ReducedRing &r1 = reduced_rings[r1_idx];
+			std::vector<bool> &p1 = mp_problems[r1_idx];
 			for(size_t seg1_idx=0; seg1_idx < r1.segs.size(); seg1_idx++) {
-				if(!r1.segs[seg1_idx].is_problem) continue;
-				r1.segs[seg1_idx].is_problem = 0;
+				if(!p1[seg1_idx]) continue;
+				p1[seg1_idx] = 0;
 				for(size_t r2_idx=0; r2_idx < mpoly.rings.size(); r2_idx++) {
 					const Ring &c2 = mpoly.rings[r2_idx];
-					ReducedRing &r2 = reduced_rings[r2_idx];
+					const ReducedRing &r2 = reduced_rings[r2_idx];
+					std::vector<bool> &p2 = mp_problems[r2_idx];
 					for(size_t seg2_idx=0; seg2_idx < r2.segs.size(); seg2_idx++) {
 						int crosses = segs_cross(r1_idx==r2_idx,
 							c1, r1.segs[seg1_idx], c2, r2.segs[seg2_idx]);
@@ -441,8 +446,8 @@ void fix_topology(const Mpoly &mpoly, std::vector<ReducedRing> &reduced_rings) {
 									c2.pts[r2.segs[seg2_idx].end].x,
 									c2.pts[r2.segs[seg2_idx].end].y);
 							}
-							r1.segs[seg1_idx].is_problem = 1;
-							r2.segs[seg2_idx].is_problem = 1;
+							p1[seg1_idx] = 1;
+							p2[seg2_idx] = 1;
 							have_problems++;
 						}
 					} // seg loop

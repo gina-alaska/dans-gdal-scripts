@@ -26,30 +26,15 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 
-#ifndef DP_H
-#define DP_H
+#ifndef BEVELER_H
+#define BEVELER_H
 
 #include "polygon.h"
 
 namespace dangdal {
 
-struct segment_t {
-	segment_t() : begin(0), end(0) { }
-	segment_t(size_t _begin, size_t _end) : begin(_begin), end(_end) { }
-
-	size_t begin;
-	size_t end;
-};
-
-struct ReducedRing {
-	std::vector<segment_t> segs;
-};
-
-Mpoly compute_reduced_pointset(const Mpoly &in_mpoly, double tolerance);
-ReducedRing compute_reduced_ring(const Ring &orig_string, double res);
-void fix_topology(const Mpoly &mpoly, std::vector<ReducedRing> &reduced_rings);
-Mpoly reduction_to_mpoly(const Mpoly &in_mpoly, const std::vector<ReducedRing> &reduced_rings);
+void bevel_self_intersections(Mpoly &mp, double amount);
 
 } // namespace dangdal
 
-#endif // ifndef DP_H
+#endif // ifndef BEVELER_H
