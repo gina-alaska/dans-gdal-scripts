@@ -30,6 +30,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include "ndv.h"
 #include "mask.h"
 
+using namespace dangdal;
+
 void usage(const char *cmdname) {
 	printf("Usage:\n  %s [options] [image_name] [mask_name.pbm]\n", cmdname);
 	printf("\n");

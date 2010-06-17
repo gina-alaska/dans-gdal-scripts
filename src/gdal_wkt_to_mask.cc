@@ -37,6 +37,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include <cpl_conv.h>
 #include <cpl_port.h>
 
+using namespace dangdal;
+
 void usage(const char *cmdname) {
 	printf("Usage:\n  %s [options] \n", cmdname);
 	printf("\n");
@@ -96,11 +98,11 @@ int main(int argc, char **argv) {
 	georef_t georef = init_georef(&geo_opts, ds);
 	if(!georef.inv_affine) fatal_error("missing affine transform");
 
-	mpoly_t mp_en = mpoly_from_wktfile(wkt_fn);
+	Mpoly mp = mpoly_from_wktfile(wkt_fn);
 
-	mpoly_t *mp_xy = mpoly_en2xy(&georef, &mp_en);
+	mp.en2xy(&georef);
 
-	mask_from_mpoly(mp_xy, georef.w, georef.h, mask_fn);
+	mask_from_mpoly(mp, georef.w, georef.h, mask_fn);
 
 	return 0;
 }
