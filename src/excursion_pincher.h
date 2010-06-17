@@ -32,8 +32,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 namespace dangdal {
 
-Mpoly pinch_excursions(const Mpoly &mp_in, report_image_t *dbuf);
-Mpoly pinch_excursions2(const Mpoly &mp_in, report_image_t *dbuf);
+Mpoly pinch_excursions(const Mpoly &mp_in, DebugPlot *dbuf);
+Mpoly pinch_excursions2(const Mpoly &mp_in, DebugPlot *dbuf);
 
 } // namespace dangdal
 

@@ -101,7 +101,7 @@ mpoly_t pinch_excursions(mpoly_t *in_mpoly, report_image_t *dbuf) {
 	mpoly_t reduced_mpoly = reduction_to_mpoly(in_mpoly, reduced_rings);
 
 	for(int i=0; i<reduced_mpoly.num_rings; i++) {
-		debug_plot_ring(dbuf, reduced_mpoly.rings+i, 255, 0, 0);
+		dbuf->debugPlotRing(reduced_mpoly.rings+i, 255, 0, 0);
 	}
 
 	return reduced_mpoly;

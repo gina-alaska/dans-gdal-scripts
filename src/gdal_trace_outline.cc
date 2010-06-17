@@ -333,9 +333,9 @@ int main(int argc, char **argv) {
 			fatal_error("missing coordinate transform");
 	}
 
-	report_image_t *dbuf = NULL;
+	DebugPlot *dbuf = NULL;
 	if(debug_report) {
-		dbuf = create_plot(georef.w, georef.h);
+		dbuf = new DebugPlot(georef.w, georef.h);
 		dbuf->mode = do_pinch_excursions ? PLOT_PINCH : PLOT_CONTOURS;
 	}
 
@@ -472,7 +472,7 @@ int main(int argc, char **argv) {
 				num_outer, num_inner, total_pts);
 
 			if(dbuf && dbuf->mode == PLOT_CONTOURS) {
-				debug_plot_mpoly(dbuf, feature_poly);
+				dbuf->debugPlotMpoly(feature_poly);
 			}
 
 			if(do_geom_output && feature_poly.rings.size()) {
@@ -554,7 +554,7 @@ int main(int argc, char **argv) {
 		if(go->ogr_ds) OGR_DS_Destroy(go->ogr_ds);
 	}
 
-	if(dbuf) write_plot(dbuf, debug_report);
+	if(dbuf) dbuf->writePlot(debug_report);
 
 	if(do_geom_output) {
 		if(num_shapes_written) printf("Wrote %d shapes.\n", num_shapes_written);

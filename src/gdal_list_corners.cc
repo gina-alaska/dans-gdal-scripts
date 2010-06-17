@@ -157,7 +157,7 @@ int main(int argc, char **argv) {
 
 	georef_t georef = init_georef(&geo_opts, ds);
 
-	report_image_t *dbuf = NULL;
+	DebugPlot *dbuf = NULL;
 	BitGrid mask(0, 0);
 	if(do_inspect) {
 		if(!ndv_def.nranges) {
@@ -165,7 +165,7 @@ int main(int argc, char **argv) {
 		}
 
 		if(debug_report) {
-			dbuf = create_plot(georef.w, georef.h);
+			dbuf = new DebugPlot(georef.w, georef.h);
 			dbuf->mode = PLOT_RECT4;
 		}
 
@@ -335,7 +335,7 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	if(dbuf) write_plot(dbuf, debug_report);
+	if(dbuf) dbuf->writePlot(debug_report);
 
 	CPLPopErrorHandler();
 

@@ -34,7 +34,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 namespace dangdal {
 
-uint8_t *read_dataset_8bit(GDALDatasetH ds, int band_idx, uint8_t *usage_array, report_image_t *dbuf) {
+uint8_t *read_dataset_8bit(GDALDatasetH ds, int band_idx, uint8_t *usage_array, DebugPlot *dbuf) {
 	for(int i=0; i<256; i++) usage_array[i] = 0;
 
 	size_t w = GDALGetRasterXSize(ds);
@@ -97,7 +97,7 @@ uint8_t *read_dataset_8bit(GDALDatasetH ds, int band_idx, uint8_t *usage_array, 
 						if(db_v < 50) db_v = 50;
 						if(db_v > 254) db_v = 254;
 						uint8_t r = (uint8_t)(db_v*.75);
-						plot_point(dbuf, x, y, r, db_v, db_v);
+						dbuf->plotPoint(x, y, r, db_v, db_v);
 					}
 				}
 			}
@@ -112,7 +112,7 @@ uint8_t *read_dataset_8bit(GDALDatasetH ds, int band_idx, uint8_t *usage_array, 
 }
 
 BitGrid get_bitgrid_for_dataset(GDALDatasetH ds, int bandlist_size, int *bandlist, 
-ndv_def_t *ndv_def, report_image_t *dbuf) {
+ndv_def_t *ndv_def, DebugPlot *dbuf) {
 	size_t w = GDALGetRasterXSize(ds);
 	size_t h = GDALGetRasterYSize(ds);
 	int band_count = GDALGetRasterCount(ds);
@@ -192,7 +192,7 @@ ndv_def_t *ndv_def, report_image_t *dbuf) {
 							if(db_v < 50) db_v = 50;
 							if(db_v > 254) db_v = 254;
 							uint8_t r = (uint8_t)(db_v*.75);
-							plot_point(dbuf, x, y, r, (uint8_t)db_v, (uint8_t)db_v);
+							dbuf->plotPoint(x, y, r, (uint8_t)db_v, (uint8_t)db_v);
 						}
 
 						if(use_8bit) p_8bit++;
@@ -224,7 +224,7 @@ ndv_def_t *ndv_def, report_image_t *dbuf) {
 		for(size_t y=0; y<h; y+=dbuf->stride_y) {
 		for(size_t x=0; x<w; x+=dbuf->stride_x) {
 			if(!mask(x, y)) {
-				plot_point(dbuf, x, y, 0, 0, 0);
+				dbuf->plotPoint(x, y, 0, 0, 0);
 			}
 		}
 		}

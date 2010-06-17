@@ -29,6 +29,6 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 namespace dangdal {
 
-Ring calc_rect4_from_mask(BitGrid mask, int w, int h, report_image_t *dbuf, bool use_ai);
+Ring calc_rect4_from_mask(BitGrid mask, int w, int h, DebugPlot *dbuf, bool use_ai);
 
 } // namespace dangdal

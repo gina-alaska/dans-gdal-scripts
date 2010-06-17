@@ -30,91 +30,87 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 namespace dangdal {
 
-report_image_t *create_plot(double w, double h) {
+DebugPlot::DebugPlot(double w, double h) {
 	if(w<0 || h<0) fatal_error("negative size for debug plot (%g,%g)", w, h);
 
-	report_image_t *dbuf = MYALLOC(report_image_t, 1);
-	dbuf->canvas_w = w+2;
-	dbuf->canvas_h = h+2;
+	canvas_w = w+2;
+	canvas_h = h+2;
 
-	dbuf->img_w = size_t(w+1);
-	dbuf->img_h = size_t(h+1);
-	if(dbuf->img_w > 800) {
-		dbuf->img_w = 800;
-		dbuf->img_h = size_t(800.0 * (h+1) / (w+1));
+	img_w = size_t(w+1);
+	img_h = size_t(h+1);
+	if(img_w > 800) {
+		img_w = 800;
+		img_h = size_t(800.0 * (h+1) / (w+1));
 	}
-	if(dbuf->img_h > 800) {
-		dbuf->img_w = size_t(800.0 * (w+1) / (h+1));
-		dbuf->img_h = 800;
+	if(img_h > 800) {
+		img_w = size_t(800.0 * (w+1) / (h+1));
+		img_h = 800;
 	}
-	if(dbuf->img_w < 1) dbuf->img_w = 1;
-	if(dbuf->img_h < 1) dbuf->img_h = 1;
+	if(img_w < 1) img_w = 1;
+	if(img_h < 1) img_h = 1;
 
-	dbuf->stride_x = (int)floor(w / (double)dbuf->img_w);
-	dbuf->stride_y = (int)floor(h / (double)dbuf->img_h);
-	if(dbuf->stride_x < 1) dbuf->stride_x = 1;
-	if(dbuf->stride_y < 1) dbuf->stride_y = 1;
+	stride_x = (int)floor(w / (double)img_w);
+	stride_y = (int)floor(h / (double)img_h);
+	if(stride_x < 1) stride_x = 1;
+	if(stride_y < 1) stride_y = 1;
 
-	dbuf->img = MYALLOC(uint8_t, dbuf->img_w*dbuf->img_h*3);
-	memset(dbuf->img, 0, dbuf->img_w*dbuf->img_h*3);
-	
-	return dbuf;
+	img.assign(img_w*img_h*3, 0);
 }
 
-void write_plot(report_image_t *dbuf, const char *fn) {
-	FILE *fout = fopen(fn, "wb");
-	fprintf(fout, "P6\n%zd %zd\n255\n", dbuf->img_w, dbuf->img_h);
-	fwrite(dbuf->img, dbuf->img_w*dbuf->img_h, 3, fout);
+void DebugPlot::writePlot(const std::string fn) {
+	FILE *fout = fopen(fn.c_str(), "wb");
+	fprintf(fout, "P6\n%zd %zd\n255\n", img_w, img_h);
+	fwrite(&img[0], img.size(), 1, fout);
 	fclose(fout);
 }
 
-void plot_point_big(report_image_t *dbuf, double x, double y, uint8_t r, uint8_t g, uint8_t b) {
-	int center_x = (int)(x / dbuf->canvas_w * (double)(dbuf->img_w-1) + .5);
-	int center_y = (int)(y / dbuf->canvas_h * (double)(dbuf->img_h-1) + .5);
+void DebugPlot::plotPointBig(double x, double y, uint8_t r, uint8_t g, uint8_t b) {
+	int center_x = (int)(x / canvas_w * (double)(img_w-1) + .5);
+	int center_y = (int)(y / canvas_h * (double)(img_h-1) + .5);
 	for(int dx=-1; dx<=1; dx++) for(int dy=-1; dy<=1; dy++) {
 		int plot_x = center_x + dx;
 		int plot_y = center_y + dy;
-		if(plot_x>=0 && plot_y>=0 && size_t(plot_x)<dbuf->img_w && size_t(plot_y)<dbuf->img_h) {
-			uint8_t *p = dbuf->img + (plot_x + dbuf->img_w*plot_y)*3;
+		if(plot_x>=0 && plot_y>=0 && size_t(plot_x)<img_w && size_t(plot_y)<img_h) {
+			uint8_t *p = &img[(plot_x + img_w*plot_y)*3];
 			*(p++) = r; *(p++) = g; *(p++) = b;
 		}
 	}
 }
 
-void plot_point(report_image_t *dbuf, double x, double y, uint8_t r, uint8_t g, uint8_t b) {
-	int plot_x = (int)round(x / dbuf->canvas_w * (double)(dbuf->img_w-1));
-	int plot_y = (int)round(y / dbuf->canvas_h * (double)(dbuf->img_h-1));
-	if(plot_x>=0 && plot_y>=0 && size_t(plot_x)<dbuf->img_w && size_t(plot_y)<dbuf->img_h) {
-		uint8_t *p = dbuf->img + (plot_x + dbuf->img_w*plot_y)*3;
+void DebugPlot::plotPoint(double x, double y, uint8_t r, uint8_t g, uint8_t b) {
+	int plot_x = (int)round(x / canvas_w * (double)(img_w-1));
+	int plot_y = (int)round(y / canvas_h * (double)(img_h-1));
+	if(plot_x>=0 && plot_y>=0 && size_t(plot_x)<img_w && size_t(plot_y)<img_h) {
+		uint8_t *p = &img[(plot_x + img_w*plot_y)*3];
 		*(p++) = r; *(p++) = g; *(p++) = b;
 	}
 }
 
-void plot_line(report_image_t *dbuf, Vertex p0, Vertex p1, 
+void DebugPlot::plotLine(Vertex p0, Vertex p1, 
 uint8_t r, uint8_t g, uint8_t b) {
-	double dx = (p1.x-p0.x) / dbuf->canvas_w * (double)dbuf->img_w;
-	double dy = (p1.y-p0.y) / dbuf->canvas_h * (double)dbuf->img_h;
+	double dx = (p1.x-p0.x) / canvas_w * (double)img_w;
+	double dy = (p1.y-p0.y) / canvas_h * (double)img_h;
 	double len = sqrt(dx*dx + dy*dy) + 2.0;
 	for(double alpha=0; alpha<=1; alpha+=1.0/len) {
 		double x = p0.x+(p1.x-p0.x)*alpha;
 		double y = p0.y+(p1.y-p0.y)*alpha;
-		plot_point(dbuf, x, y, r, g, b);
+		plotPoint(x, y, r, g, b);
 	}
 }
 
-void debug_plot_ring(
-	report_image_t *dbuf, const Ring &ring,
+void DebugPlot::debugPlotRing(
+	const Ring &ring,
 	uint8_t r, uint8_t g, uint8_t b
 ) {
 	for(size_t i=0; i<ring.pts.size(); i++) {
 		Vertex p0 = ring.pts[i];
 		Vertex p1 = ring.pts[(i+1)%ring.pts.size()];
-		plot_line(dbuf, p0, p1, r, g, b);
+		plotLine(p0, p1, r, g, b);
 	}
 }
 
 
-void debug_plot_mpoly(report_image_t *dbuf, const Mpoly &mpoly) {
+void DebugPlot::debugPlotMpoly(const Mpoly &mpoly) {
 	if(VERBOSE) printf("plotting...\n");
 
 	for(size_t i=0; i<mpoly.rings.size(); i++) {
@@ -129,10 +125,10 @@ void debug_plot_mpoly(report_image_t *dbuf, const Mpoly &mpoly) {
 			printf("ring %zd: %zd pts color=%02x%02x%02x\n",
 				i, ring.pts.size(), r, g, b);
 		}
-		debug_plot_ring(dbuf, ring, r, g, b);
+		debugPlotRing(ring, r, g, b);
 		for(size_t j=0; j<ring.pts.size(); j++) {
 			Vertex p = ring.pts[j];
-			plot_point(dbuf, p.x, p.y, 255, 255, 255);
+			plotPoint(p.x, p.y, 255, 255, 255);
 		}
 	}
 }

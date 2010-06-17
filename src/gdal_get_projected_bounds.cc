@@ -313,12 +313,12 @@ void plot_points(const Ring &pl, const char *fn) {
 	bbox.max_y += (bbox.max_y - bbox.min_y) * .05;
 	double W = bbox.max_x - bbox.min_x;
 	double H = bbox.max_y - bbox.min_y;
-	report_image_t *dbuf = create_plot(W, H);
+	DebugPlot dbuf(W, H);
 	for(size_t i=0; i<pl.pts.size(); i++) {
 		Vertex v = pl.pts[i];
 		double x = v.x - bbox.min_x;
 		double y = bbox.max_y - v.y;
-		plot_point(dbuf, x, y, 255, 255, 255);
+		dbuf.plotPoint(x, y, 255, 255, 255);
 	}
-	write_plot(dbuf, fn);
+	dbuf.writePlot(fn);
 }

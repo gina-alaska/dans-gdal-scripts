@@ -521,11 +521,11 @@ static Ring pinch_ring_excursions(const Ring &ring_in) {
 	assert(outring.pts.size() == nkeep);
 
 //	if(dbuf && dbuf->mode == PLOT_PINCH) {
-//		debug_plot_ring(dbuf, &outring, 255, 0, 0);
+//		dbuf->debugPlotRing(&outring, 255, 0, 0);
 //		for(size_t i=0; i<npts; i++) {
 //			if(touchpts[i]) {
 //				Vertex p = pts[i];
-//				plot_point_big(dbuf, p.x, p.y, 255, 255, 255);
+//				dbuf->plotPointBig(p.x, p.y, 255, 255, 255);
 //			}
 //		}
 //	}
@@ -557,7 +557,7 @@ static Ring ring_ring_union(const Ring &r1, const Ring &r2) {
 	}
 }
 
-Mpoly pinch_excursions2(const Mpoly &mp_in, report_image_t *dbuf) {
+Mpoly pinch_excursions2(const Mpoly &mp_in, DebugPlot *dbuf) {
 	Mpoly mp_out;
 	mp_out.rings.resize(mp_in.rings.size());
 	for(size_t r_idx=0; r_idx<mp_in.rings.size(); r_idx++) {
@@ -578,14 +578,14 @@ Mpoly pinch_excursions2(const Mpoly &mp_in, report_image_t *dbuf) {
 			if(rel == RINGREL_CONTAINS) {
 //printf("deleting %zd\n", r2_idx);
 				//if(dbuf && dbuf->mode == PLOT_PINCH) {
-				//	debug_plot_ring(dbuf, mp_out.rings[r2_idx], 0, 0, 128);
+				//	dbuf->debugPlotRing(mp_out.rings[r2_idx], 0, 0, 128);
 				//}
 				mp_out.deleteRing(r2_idx);
 				goto REDO_R2; // indexes shifted - reset loop
 			} else if(rel == RINGREL_CONTAINED_BY) {
 //printf("deleting %zd\n", r1_idx);
 				//if(dbuf && dbuf->mode == PLOT_PINCH) {
-				//	debug_plot_ring(dbuf, mp_out.rings[r1_idx], 0, 0, 128);
+				//	dbuf->debugPlotRing(mp_out.rings[r1_idx], 0, 0, 128);
 				//}
 				mp_out.deleteRing(r1_idx);
 				goto REDO_R1; // indexes shifted - reset loop
@@ -593,13 +593,13 @@ Mpoly pinch_excursions2(const Mpoly &mp_in, report_image_t *dbuf) {
 //printf("merging %zd and %zd\n", r1_idx, r2_idx);
 				Ring r3 = ring_ring_union(mp_out.rings[r1_idx], mp_out.rings[r2_idx]);
 				//if(dbuf && dbuf->mode == PLOT_PINCH) {
-				//	debug_plot_ring(dbuf, mp_out.rings[r1_idx], 0, 0, 128);
-				//	debug_plot_ring(dbuf, mp_out.rings[r2_idx], 0, 0, 128);
+				//	dbuf->debugPlotRing(mp_out.rings[r1_idx], 0, 0, 128);
+				//	dbuf->debugPlotRing(mp_out.rings[r2_idx], 0, 0, 128);
 				//}
 				mp_out.deleteRing(r2_idx);
 				mp_out.rings[r1_idx] = r3;
 				//if(dbuf && dbuf->mode == PLOT_PINCH) {
-				//	debug_plot_ring(dbuf, mp_out.rings[r1_idx], 255, 128, 0);
+				//	dbuf->debugPlotRing(mp_out.rings[r1_idx], 255, 128, 0);
 				//}
 				goto REDO_R1; // indexes shifted - reset loop
 			}
@@ -608,7 +608,7 @@ Mpoly pinch_excursions2(const Mpoly &mp_in, report_image_t *dbuf) {
 
 	if(dbuf && dbuf->mode == PLOT_PINCH) {
 		for(size_t i=0; i<mp_out.rings.size(); i++) {
-			debug_plot_ring(dbuf, mp_out.rings[i], 255, 0, 0);
+			dbuf->debugPlotRing(mp_out.rings[i], 255, 0, 0);
 		}
 	}
 

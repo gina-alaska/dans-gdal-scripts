@@ -37,22 +37,26 @@ namespace dangdal {
 #define PLOT_RECT4 1
 #define PLOT_CONTOURS 2
 #define PLOT_PINCH 3
-typedef struct {
-	unsigned char *img;
+
+class DebugPlot {
+public:
+	DebugPlot(double w, double h);
+
+	void writePlot(const std::string fn);
+	void plotPointBig(double x, double y, uint8_t r, uint8_t g, uint8_t b);
+	void plotPoint(double x, double y, uint8_t r, uint8_t g, uint8_t b);
+	void plotLine(Vertex p0, Vertex p1, uint8_t r, uint8_t g, uint8_t b);
+	void debugPlotRing(const Ring &ring, uint8_t r, uint8_t g, uint8_t b);
+	void debugPlotMpoly(const Mpoly &mpoly);
+
+private:
+	std::vector<uint8_t> img;
 	double canvas_w, canvas_h;
 	size_t img_w, img_h;
+public:
 	int stride_x, stride_y;
 	int mode;
-} report_image_t;
-
-report_image_t *create_plot(double w, double h);
-void write_plot(report_image_t *dbuf, const char *fn);
-void plot_point_big(report_image_t *dbuf, double x, double y, unsigned char r, unsigned char g, unsigned char b);
-void plot_point(report_image_t *dbuf, double x, double y, unsigned char r, unsigned char g, unsigned char b);
-void plot_line(report_image_t *dbuf, Vertex p0, Vertex p1, 
-	unsigned char r, unsigned char g, unsigned char b);
-void debug_plot_ring(report_image_t *dbuf, const Ring &ring, uint8_t r, uint8_t g, uint8_t b);
-void debug_plot_mpoly(report_image_t *dbuf, const Mpoly &mpoly);
+};
 
 } // namespace dangdal
 

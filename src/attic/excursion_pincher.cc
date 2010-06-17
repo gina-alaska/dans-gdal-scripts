@@ -259,7 +259,7 @@ static ring_t pinch_ring_excursions(ring_t *ring, report_image_t *dbuf) {
 	} while(last.npts != next.npts);
 
 	if(dbuf && dbuf->mode == PLOT_PINCH) {
-		debug_plot_ring(dbuf, &next, 128, 0, 0);
+		dbuf->debugPlotRing(&next, 128, 0, 0);
 	}
 
 	return next;

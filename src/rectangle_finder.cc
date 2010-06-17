@@ -55,7 +55,7 @@ double ang_diff(double a1, double a2) {
 	return d<=180.0 ? d : 360.0-d;
 }
 
-Ring calc_rect4_from_convex_hull(BitGrid mask, int w, int h, report_image_t *dbuf) {
+Ring calc_rect4_from_convex_hull(BitGrid mask, int w, int h, DebugPlot *dbuf) {
 	int *chrows_left = MYALLOC(int, h);
 	int *chrows_right = MYALLOC(int, h);
 	for(int j=0; j<h; j++) {
@@ -91,7 +91,7 @@ Ring calc_rect4_from_convex_hull(BitGrid mask, int w, int h, report_image_t *dbu
 
 	int chop_dx = 1, chop_dy = 0;
 	for(;;) {
-		if(dbuf && dbuf->mode == PLOT_RECT4) plot_point_big(dbuf, fulcrum_x, fulcrum_y, 0, 255, 0);
+		if(dbuf && dbuf->mode == PLOT_RECT4) dbuf->plotPointBig(fulcrum_x, fulcrum_y, 0, 255, 0);
 
 		int best_dx = -chop_dx, best_dy = -chop_dy;
 		int best_x=-1, best_y=-1;
@@ -291,9 +291,9 @@ Ring calc_rect4_from_convex_hull(BitGrid mask, int w, int h, report_image_t *dbu
 	if(dbuf && dbuf->mode == PLOT_RECT4) {
 		for(int i=0; i<num_groups; i++) {
 			int j = i<num_groups-1 ? i+1 : 0;
-			plot_line(dbuf, verts[i], verts[j], 255, 0, 0);
-			plot_point_big(dbuf, verts[i].x, verts[i].y, 255, 255, 0);
-			plot_point_big(dbuf, verts[j].x, verts[j].y, 255, 255, 0);
+			dbuf->plotLine(verts[i], verts[j], 255, 0, 0);
+			dbuf->plotPointBig(verts[i].x, verts[i].y, 255, 255, 0);
+			dbuf->plotPointBig(verts[j].x, verts[j].y, 255, 255, 0);
 		}
 	}
 
@@ -482,7 +482,7 @@ static Ring anneal(const Ring &input, BitGrid mask) {
 	return best;
 }
 
-Ring calc_rect4_from_mask(BitGrid mask, int w, int h, report_image_t *dbuf, bool use_ai) {
+Ring calc_rect4_from_mask(BitGrid mask, int w, int h, DebugPlot *dbuf, bool use_ai) {
 	Ring best = calc_rect4_from_convex_hull(mask, w, h, dbuf);
 	if(best.pts.size() == 0) return best;
 
@@ -492,9 +492,9 @@ Ring calc_rect4_from_mask(BitGrid mask, int w, int h, report_image_t *dbuf, bool
 		if(dbuf && dbuf->mode == PLOT_RECT4) {
 			for(size_t i=0; i<best.pts.size(); i++) {
 				size_t i2 = (i+1) % best.pts.size();
-				plot_line(dbuf, best.pts[i], best.pts[i2], 0, 255, 0);
-				plot_point_big(dbuf, best.pts[i].x, best.pts[i].y, 255, 255, 0);
-				plot_point_big(dbuf, best.pts[i2].x, best.pts[i2].y, 255, 255, 0);
+				dbuf->plotLine(best.pts[i], best.pts[i2], 0, 255, 0);
+				dbuf->plotPointBig(best.pts[i].x, best.pts[i].y, 255, 255, 0);
+				dbuf->plotPointBig(best.pts[i2].x, best.pts[i2].y, 255, 255, 0);
 			}
 		}
 	}
