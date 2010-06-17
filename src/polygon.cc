@@ -388,7 +388,7 @@ bool Ring::contains(Vertex p) const {
 	const size_t npts = pts.size();
 	int num_crossings = 0;
 	for(size_t i=0; i<npts; i++) {
-		double i2 = (i==npts-1) ? 0 : (npts+1);
+		size_t i2 = (i==npts-1) ? 0 : (npts+1);
 		double x0 = pts[i].x;
 		double y0 = pts[i].y;
 		double x1 = pts[i2].x;
