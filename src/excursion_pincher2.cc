@@ -26,11 +26,10 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 
+#include <cassert>
 #include "common.h"
 #include "polygon.h"
 #include "debugplot.h"
-
-#include <cassert>
 
 #define DEBUG 0
 
@@ -48,11 +47,10 @@ static inline double seg_len(Vertex v0, Vertex v1) {
 	return sqrt(dx*dx + dy*dy);
 }
 
-static size_t find_bottom_pt(const Ring &ring) {
-	assert(ring.pts.size());
+static int find_bottom_pt(const Ring &ring) {
 	double min = 0;
-	size_t min_idx = 0;
-	for(size_t i=0; i<ring.pts.size(); i++) {
+	int min_idx = -1;
+	for(int i=0; i<ring.pts.size(); i++) {
 		double y = ring.pts[i].y;
 		if(i==0 || y<min) {
 			min = y;
@@ -62,20 +60,17 @@ static size_t find_bottom_pt(const Ring &ring) {
 	return min_idx;
 }
 
-static size_t find_next_convex(
-	const Ring &ring, size_t start_idx, size_t limit_idx,
-	double start_ang, double *ang_out, bool *err_out
-) {
-	const size_t npts = ring.pts.size();
-	Vertex v0 = ring.pts[start_idx];
+static int find_next_convex(const Ring &ring, int start_idx, int limit_idx, double start_ang, double *ang_out) {
+	int npts = ring.pts.size();
+	const std::vector<Vertex> &pts = ring.pts;
+	Vertex v0 = pts[start_idx];
 	double min_angdiff = M_PI;
 	double last_ad = -999;
-	bool got_best = false;
-	size_t best_vert = 0;
+	int best_vert = -1;
 	double best_segang = 0;
-	for(size_t i=(start_idx+1)%npts; ; i=(i+1)%npts) {
+	for(int i=(start_idx+1)%npts; ; i=(i+1)%npts) {
 		if(i == start_idx) break;
-		Vertex v1 = ring.pts[i];
+		Vertex v1 = pts[i];
 		double segang = seg_ang(v0, v1);
 //printf("start_ang=%g*PI, seg_ang=%g*PI\n", start_ang/M_PI, segang/M_PI);
 		double angdiff = segang - start_ang;
@@ -86,44 +81,39 @@ static size_t find_next_convex(
 			if(DEBUG) printf("test for seg crosses initial ray (%g*PI and %g*PI)\n", last_ad, angdiff);
 			if(fabs(last_ad-angdiff) > M_PI) {
 				if(DEBUG) printf("seg crosses initial ray (%g*PI and %g*PI)\n", last_ad, angdiff);
-				*err_out = true;
-				return 0;
+				return -1;
 			}
 		}
 		last_ad = angdiff;
 		if(angdiff < min_angdiff) {
 			min_angdiff = angdiff;
-			got_best = true;
 			best_vert = i;
 			best_segang = segang;
 		}
 		if(i == limit_idx) break;
 	}
-	if(!got_best) {
-		*err_out = false;
+	if(best_vert < 0) {
 		return limit_idx;
 	} else if(min_angdiff >= M_PI) {
-		if(DEBUG) printf("point on wrong side of half-plane (ang=%g*PI) idx=%zd\n", min_angdiff/M_PI, best_vert);
-		*err_out = true;
-		return 0;
+		if(DEBUG) printf("point on wrong side of half-plane (ang=%g*PI) idx=%d\n", min_angdiff/M_PI, best_vert);
+		return -1;
 	} else {
 		if(ang_out) *ang_out = best_segang;
-		*err_out = false;
 		return best_vert;
 	}
 }
 
 static bool *find_chull(const Ring &ring) {
 	bool *keep = MYALLOC(bool, ring.pts.size());
-	for(size_t i=0; i<ring.pts.size(); i++) keep[i] = false;
+	for(int i=0; i<ring.pts.size(); i++) keep[i] = false;
 
-	size_t start_idx = find_bottom_pt(ring);
+	int start_idx = find_bottom_pt(ring);
 	keep[start_idx] = true;
 	double ang = 0;
-	for(size_t idx=start_idx;;) {
-		bool err;
-		idx = find_next_convex(ring, idx, start_idx, ang, &ang, &err);
-		if(err) fatal_error("could not get convex hull");
+	int idx = start_idx;
+	for(;;) {
+		idx = find_next_convex(ring, idx, start_idx, ang, &ang);
+		if(idx < 0) fatal_error("could not get convex hull");
 		if(idx == start_idx) break;
 		keep[idx] = true;
 	}
@@ -131,16 +121,18 @@ static bool *find_chull(const Ring &ring) {
 	return keep;
 }
 
-static double subring_area(const Ring &ring, size_t from, size_t to) {
-	const size_t npts = ring.pts.size();
+static double subring_area(const Ring &ring, int from, int to) {
+	int npts = ring.pts.size();
+	const std::vector<Vertex> &pts = ring.pts;
 
 	double accum = 0;
-	for(size_t i=from; ; i=(i+1)%npts) {
-		size_t i2 = i==to ? from : (i+1)%npts;
-		double x0 = ring.pts[i].x;
-		double y0 = ring.pts[i].y;
-		double x1 = ring.pts[i2].x;
-		double y1 = ring.pts[i2].y;
+	int i;
+	for(i=from; ; i=(i+1)%npts) {
+		int i2 = i==to ? from : (i+1)%npts;
+		double x0 = pts[i].x;
+		double y0 = pts[i].y;
+		double x1 = pts[i2].x;
+		double y1 = pts[i2].y;
 		accum += x1*y0 - x0*y1;
 		if(i == to) break;
 	}
@@ -153,51 +145,50 @@ static double subring_area(const Ring &ring, size_t from, size_t to) {
 	return accum / 2.0;
 }
 
-static size_t next_keep(size_t npts, bool *keep, size_t i) {
-	for(size_t j=(i+1)%npts; j!=i; j=(j+1)%npts) {
+static int next_keep(int npts, bool *keep, int i) {
+	for(int j=(i+1)%npts; j!=i; j=(j+1)%npts) {
 		if(keep[j]) return j;
 	}
 	return i;
 }
 
-static size_t prev_keep(size_t npts, bool *keep, size_t i) {
-	for(size_t j=(i+npts-1)%npts; j!=i; j=(j+npts-1)%npts) {
+static int prev_keep(int npts, bool *keep, int i) {
+	for(int j=(i+npts-1)%npts; j!=i; j=(j+npts-1)%npts) {
 		if(keep[j]) return j;
 	}
 	return i;
 }
 
-static bool reach_point(
-	const Ring &ring, bool *keep, size_t from, size_t to, double ang
-) {
-	const size_t npts = ring.pts.size();
+static int reach_point(const Ring &ring, bool *keep, int from, int to, double ang) {
+	int npts = ring.pts.size();
+	const std::vector<Vertex> &pts = ring.pts;
 
-	if(DEBUG) printf("  reach %zd and %zd\n", from, to);
+	if(DEBUG) printf("  reach %d and %d\n", from, to);
 	if(DEBUG) printf("  %g,%g : %g,%g ang=%g*PI\n",
-		ring.pts[from].x, ring.pts[from].y, ring.pts[to].x, ring.pts[to].y, ang/M_PI);
+		pts[from].x, pts[from].y, pts[to].x, pts[to].y, ang/M_PI);
 
-	for(size_t idx=from; ; ) {
-		bool err;
-		idx = find_next_convex(ring, idx, to, ang, &ang, &err);
-		if(err) return true;
+	int idx = from;
+	for(;;) {
+		idx = find_next_convex(ring, idx, to, ang, &ang);
+		if(idx < 0) return -1;
 		keep[idx] = true;
 		if(idx == to) break;
 	}
-	for(size_t pk=from; pk!=to;) {
-		size_t nk = next_keep(npts, keep, pk);
-		if(DEBUG) printf("test seg %g,%g : %g,%g\n", ring.pts[pk].x, ring.pts[pk].y, ring.pts[nk].x, ring.pts[nk].y);
+	for(int pk=from; pk!=to;) {
+		int nk = next_keep(npts, keep, pk);
+		if(DEBUG) printf("test seg %g,%g : %g,%g\n", pts[pk].x, pts[pk].y, pts[nk].x, pts[nk].y);
 
-		double min_x = MIN(ring.pts[pk].x, ring.pts[nk].x);
-		double max_x = MAX(ring.pts[pk].x, ring.pts[nk].x);
-		double min_y = MIN(ring.pts[pk].y, ring.pts[nk].y);
-		double max_y = MAX(ring.pts[pk].y, ring.pts[nk].y);
+		double min_x = MIN(pts[pk].x, pts[nk].x);
+		double max_x = MAX(pts[pk].x, pts[nk].x);
+		double min_y = MIN(pts[pk].y, pts[nk].y);
+		double max_y = MAX(pts[pk].y, pts[nk].y);
 
 		// FIXME - this is the slowest part
 		// FIXME - doesn't handle crossing across a vertex here or in dp.c
-		for(size_t i=0; i<npts; i++) {
-			size_t i2 = i+1<npts ? i+1 : 0;
-			Vertex p1 = ring.pts[i];
-			Vertex p2 = ring.pts[i2];
+		for(int i=0; i<npts; i++) {
+			int i2 = i+1<npts ? i+1 : 0;
+			Vertex p1 = pts[i];
+			Vertex p2 = pts[i2];
 			// the bbox test is copied here from line_intersects_line to save
 			// the time penalty of a function call for the common case of
 			// the bbox not matching
@@ -208,16 +199,16 @@ static bool reach_point(
 				min_y > MAX(p1.y, p2.y) ||
 				i==pk || i==nk || i2==pk || i2==nk
 			)) {
-				if(line_intersects_line(ring.pts[pk], ring.pts[nk], p1, p2, 0)) {
+				if(line_intersects_line(pts[pk], pts[nk], p1, p2, 0)) {
 					if(DEBUG) printf("line intersects line\n");
-					return true;
+					return -1;
 				}
 			}
 		}
-		for(size_t i=nk; ; ) {
-			size_t i2 = next_keep(npts, keep, i);
-			Vertex p1 = ring.pts[i];
-			Vertex p2 = ring.pts[i2];
+		for(int i=nk; ; ) {
+			int i2 = next_keep(npts, keep, i);
+			Vertex p1 = pts[i];
+			Vertex p2 = pts[i2];
 			// the bbox test is copied here from line_intersects_line to save
 			// the time penalty of a function call for the common case of
 			// the bbox not matching
@@ -228,9 +219,9 @@ static bool reach_point(
 				min_y > MAX(p1.y, p2.y) ||
 				i==pk || i==nk || i2==pk || i2==nk
 			)) {
-				if(line_intersects_line(ring.pts[pk], ring.pts[nk], p1, p2, 0)) {
+				if(line_intersects_line(pts[pk], pts[nk], p1, p2, 0)) {
 					if(DEBUG) printf("line intersects line\n");
-					return true;
+					return -1;
 				}
 			}
 			i = i2;
@@ -240,40 +231,42 @@ static bool reach_point(
 		pk = nk;
 	}
 	if(DEBUG) printf("pass\n");
-	return false;
+	return 0;
 }
 
-static bool add_tiepoint(const Ring &ring, bool *keep, size_t mid) {
-	const size_t npts = ring.pts.size();
+static int add_tiepoint(const Ring &ring, bool *keep, int mid) {
+	int npts = ring.pts.size();
+	const std::vector<Vertex> &pts = ring.pts;
 
 	keep[mid] = true;
-	size_t left = prev_keep(npts, keep, mid);
-	size_t right = next_keep(npts, keep, mid);
-	if(DEBUG) printf("adding %zd between %zd and %zd\n", mid, left, right);
+	int left = prev_keep(npts, keep, mid);
+	int right = next_keep(npts, keep, mid);
+	if(DEBUG) printf("adding %d between %d and %d\n", mid, left, right);
 	if(DEBUG) printf("%g,%g : %g,%g : %g,%g\n",
-		ring.pts[mid].x, ring.pts[mid].y, ring.pts[left].x, ring.pts[left].y, ring.pts[right].x, ring.pts[right].y);
+		pts[mid].x, pts[mid].y, pts[left].x, pts[left].y, pts[right].x, pts[right].y);
 
-	double ang = seg_ang(ring.pts[left], ring.pts[right]);
-	bool error = reach_point(ring, keep, left, mid, ang);
-	if(error) return true;
+	double ang = seg_ang(pts[left], pts[right]);
+	int error = reach_point(ring, keep, left, mid, ang);
+	if(error) return -1;
 
-	size_t pk = prev_keep(npts, keep, mid);
+	int pk = prev_keep(npts, keep, mid);
 	if(pk == mid) fatal_error("pk == mid");
-	ang = seg_ang(ring.pts[mid], ring.pts[pk]);
+	ang = seg_ang(pts[mid], pts[pk]);
 	error = reach_point(ring, keep, mid, right, ang);
-	if(error) return true;
+	if(error) return -1;
 
-	return false;
+	return 0;
 }
 
 /*
-static bool chord_crosses_arc(const Ring &ring, size_t c0, size_t c1, size_t from, size_t to) {
-	const size_t npts = ring.pts.size();
+static int chord_crosses_arc(const Ring &ring, int c0, int c1, int from, int to) {
+	int npts = ring.pts.size();
+	const std::vector<Vertex> &pts = ring.pts;
 
-	for(size_t i=from; i!=to; i=(i+1)%npts) {
-		size_t i2 = (i+1)%npts;
+	for(int i=from; i!=to; i=(i+1)%npts) {
+		int i2 = (i+1)%npts;
 		if(i==c0 || i==c1 || i2==c0 || i2==c1) continue;
-		if(line_intersects_line(ring.pts[c0], ring.pts[c1], ring.pts[i], ring.pts[i2], 0)) return 1;
+		if(line_intersects_line(pts[c0], pts[c1], pts[i], pts[i2], 0)) return 1;
 	}
 	return 0;
 }
@@ -288,21 +281,23 @@ static double dist_to_seg(Vertex p1, Vertex p2, Vertex p3) {
 	return dist_from_line;
 }
 
-static bool is_mostly_linear(const Ring &ring, size_t from, size_t to) {
-	const size_t npts = ring.pts.size();
+static int is_mostly_linear(const Ring &ring, int from, int to) {
+	int npts = ring.pts.size();
+	const std::vector<Vertex> &pts = ring.pts;
 
-	Vertex p1 = ring.pts[from];
-	Vertex p2 = ring.pts[to];
-	for(size_t i=(from+1)%npts; i!=to; i=(i+1)%npts) {
-		double dist = dist_to_seg(p1, p2, ring.pts[i]);
+	Vertex p1 = pts[from];
+	Vertex p2 = pts[to];
+	for(int i=(from+1)%npts; i!=to; i=(i+1)%npts) {
+		double dist = dist_to_seg(p1, p2, pts[i]);
 		if(dist > 1.0) return 0;
 	}
 
 	return 1;
 }
 
-static bool keep_linears(const Ring &ring, bool *keep_orig, size_t from, size_t to, bool *touchpts) {
-	const size_t npts = ring.pts.size();
+static int keep_linears(const Ring &ring, bool *keep_orig, int from, int to, bool *touchpts) {
+	int npts = ring.pts.size();
+	const std::vector<Vertex> &pts = ring.pts;
 
 	if(to == (from+1)%npts) return 0;
 
@@ -310,11 +305,11 @@ static bool keep_linears(const Ring &ring, bool *keep_orig, size_t from, size_t 
 
 	double min_length = 20; // FIXME
 
-	for(size_t l_idx=from; l_idx!=to; l_idx=(l_idx+1)%npts) {
-		size_t longest = l_idx;
+	for(int l_idx=from; l_idx!=to; l_idx=(l_idx+1)%npts) {
+		int longest = l_idx;
 		double perim = 0;
-		for(size_t r_idx=(l_idx+1)%npts; ; r_idx=(r_idx+1)%npts) {
-			perim += seg_len(ring.pts[(r_idx+npts-1)%npts], ring.pts[r_idx]);
+		for(int r_idx=(l_idx+1)%npts; ; r_idx=(r_idx+1)%npts) {
+			perim += seg_len(pts[(r_idx+npts-1)%npts], pts[r_idx]);
 			if(perim > min_length && is_mostly_linear(ring, l_idx, r_idx)) {
 				longest = r_idx;
 			} else {
@@ -324,19 +319,19 @@ static bool keep_linears(const Ring &ring, bool *keep_orig, size_t from, size_t 
 		}
 		if(longest != l_idx) {
 			memcpy(keep_new, keep_orig, sizeof(bool) * npts);
-			bool error = 0;
+			int error = 0;
 			if(l_idx != from) {
-				if(add_tiepoint(ring, keep_new, l_idx) < 0) error = 1;
+				if(add_tiepoint(ring, keep_new, l_idx) < 0) error++;
 			}
 //if(error) fatal_error("oops"); // FIXME
 			if(longest != to) {
-				if(add_tiepoint(ring, keep_new, longest) < 0) error = 1;
+				if(add_tiepoint(ring, keep_new, longest) < 0) error++;
 			}
 //if(error) fatal_error("oops"); // FIXME
 			if(!error) {
 				touchpts[l_idx] = true;
 				touchpts[longest] = true;
-				for(size_t i=l_idx; ; i=(i+1)%npts) {
+				for(int i=l_idx; ; i=(i+1)%npts) {
 					keep_new[i] = true;
 					if(i == longest) break;
 				}
@@ -350,39 +345,39 @@ static bool keep_linears(const Ring &ring, bool *keep_orig, size_t from, size_t 
 	return 0;
 }
 
-static size_t refine_seg(const Ring &ring, bool *keep_orig, size_t from, size_t to, bool *got_val) {
-	const size_t npts = ring.pts.size();
+static int refine_seg(const Ring &ring, bool *keep_orig, int from, int to) {
+	int npts = ring.pts.size();
+	const std::vector<Vertex> &pts = ring.pts;
 
 	double start_area = subring_area(ring, from, to);
-	double start_perim = seg_len(ring.pts[from], ring.pts[to]);
+	double start_perim = seg_len(pts[from], pts[to]);
 
 	bool *keep_new = MYALLOC(bool, npts);
 	bool *keep_best = MYALLOC(bool, npts);
 
 	double best_improvement = 0;
-	*got_val = false;
-	size_t best_touchpt = 0;
+	int best_touchpt = -1;
 
-	for(size_t testpt=(from+1)%npts; testpt!=to; testpt=(testpt+1)%npts) {
+	for(int testpt=(from+1)%npts; testpt!=to; testpt=(testpt+1)%npts) {
 		memcpy(keep_new, keep_orig, sizeof(bool) * npts);
 
 		if(add_tiepoint(ring, keep_new, testpt) < 0) continue;
 
 		double left_area = 0;
 		double left_perim = 0;
-		for(size_t pk=from;;) {
-			size_t nk = next_keep(npts, keep_new, pk);
+		for(int pk=from;;) {
+			int nk = next_keep(npts, keep_new, pk);
 			left_area += subring_area(ring, pk, nk);
-			left_perim += seg_len(ring.pts[pk], ring.pts[nk]);
+			left_perim += seg_len(pts[pk], pts[nk]);
 			if(nk == testpt) break;
 			pk = nk;
 		}
 		double right_area = 0;
 		double right_perim = 0;
-		for(size_t pk=testpt;;) {
-			size_t nk = next_keep(npts, keep_new, pk);
+		for(int pk=testpt;;) {
+			int nk = next_keep(npts, keep_new, pk);
 			right_area += subring_area(ring, pk, nk);
-			right_perim += seg_len(ring.pts[pk], ring.pts[nk]);
+			right_perim += seg_len(pts[pk], pts[nk]);
 			if(nk == to) break;
 			pk = nk;
 		}
@@ -412,24 +407,23 @@ static size_t refine_seg(const Ring &ring, bool *keep_orig, size_t from, size_t 
 		if(improvement > best_improvement) {
 			best_improvement = improvement;
 			memcpy(keep_best, keep_new, sizeof(bool) * npts);
-			*got_val = true;
 			best_touchpt = testpt;
 		}
 	}
 	if(best_improvement) {
 		if(VERBOSE) {
 			printf("best_improvement = %g\n", best_improvement);
-			printf("tagged %zd (%g,%g) as keep between %zd and %zd\n", best_touchpt,
-				ring.pts[best_touchpt].x, ring.pts[best_touchpt].y, from, to);
-			for(size_t i=0; i<npts; i++) {
+			printf("tagged %d (%g,%g) as keep between %d and %d\n", best_touchpt,
+				pts[best_touchpt].x, pts[best_touchpt].y, from, to);
+			for(int i=0; i<npts; i++) {
 				if(keep_best[i] && !keep_orig[i]) printf(
-					"  rubberband touches %zd (%g, %g)\n", i, ring.pts[i].x, ring.pts[i].y);
+					"  rubberband touches %d (%g, %g)\n", i, pts[i].x, pts[i].y);
 			}
 		}
 
 		memcpy(keep_orig, keep_best, sizeof(bool) * npts);
 	} else {
-		*got_val = false;
+		best_touchpt = -1;
 	}
 	free(keep_new);
 	free(keep_best);
@@ -437,22 +431,21 @@ static size_t refine_seg(const Ring &ring, bool *keep_orig, size_t from, size_t 
 }
 
 static void refine_ring(const Ring &ring, bool *keep, bool *touchpts) {
-	const size_t npts = ring.pts.size();
-	for(size_t i=0; i<npts; i++) {
+	int npts = ring.pts.size();
+	for(int i=0; i<npts; i++) {
 		if(!keep[i]) continue;
 		for(;;) {
 		// FIXME quick loop if j==i+1
-			size_t j = next_keep(npts, keep, i);
+			int j = next_keep(npts, keep, i);
 			double area = subring_area(ring, i, j);
-			if(VERBOSE) printf("area = %g, refining segment %zd,%zd\n", area, i, j);
+			if(VERBOSE) printf("area = %g, refining segment %d,%d\n", area, i, j);
 			if(area > 0) {
 if(VERBOSE) printf("do linear\n");
-				bool did_linear = keep_linears(ring, keep, i, j, touchpts);
+				int did_linear = keep_linears(ring, keep, i, j, touchpts);
 				if(did_linear) continue;
 if(VERBOSE) printf("do refine\n");
-				bool got_touchpt;
-				size_t touchpt = refine_seg(ring, keep, i, j, &got_touchpt);
-				if(got_touchpt) {
+				int touchpt = refine_seg(ring, keep, i, j);
+				if(touchpt >= 0) {
 					touchpts[touchpt] = true;
 					continue;
 				}
@@ -464,35 +457,43 @@ if(VERBOSE) printf("do refine\n");
 
 static Ring pinch_ring_excursions(const Ring &ring_in) {
 	Ring ring(ring_in);
-	const size_t npts = ring.pts.size();
+	int npts = ring.pts.size();
 
 	if(!ring.isCCW()) {
 		// reverse ring to make it CCW
-		ring.reverse();
+		// FIXME! use polygon reverse method
+		for(int i=0; i<npts/2; i++) {
+			Vertex tmp = ring.pts[i];
+			ring.pts[i] = ring.pts[npts-1-i];
+			ring.pts[npts-1-i] = tmp;
+		}
 	}
+
+	const std::vector<Vertex> &pts = ring.pts;
 
 	bool *keep = find_chull(ring);
 	bool *touchpts = MYALLOC(bool, ring.pts.size());
-	for(size_t i=0; i<ring.pts.size(); i++) touchpts[i] = false;
+	for(int i=0; i<ring.pts.size(); i++) touchpts[i] = false;
 
 	refine_ring(ring, keep, touchpts);
 
-	size_t nkeep = 0;
-	for(size_t i=0; i<npts; i++) {
+	int nkeep = 0;
+	for(int i=0; i<npts; i++) {
 		if(keep[i]) nkeep++;
 	}
 
 	Ring outring = ring.copyMetadata();
 	outring.pts.reserve(nkeep);
-	for(size_t i=0; i<npts; i++) {
-		if(keep[i]) outring.pts.push_back(ring.pts[i]);
+	for(int i=0; i<npts; i++) {
+		if(keep[i]) outring.pts.push_back(pts[i]);
 	}
+	assert(outring.pts.size() == nkeep);
 
 //	if(dbuf && dbuf->mode == PLOT_PINCH) {
 //		debug_plot_ring(dbuf, &outring, 255, 0, 0);
-//		for(size_t i=0; i<npts; i++) {
+//		for(int i=0; i<npts; i++) {
 //			if(touchpts[i]) {
-//				Vertex p = ring.pts[i];
+//				Vertex p = pts[i];
 //				plot_point_big(dbuf, p.x, p.y, 255, 255, 255);
 //			}
 //		}
@@ -530,17 +531,17 @@ static Ring ring_ring_union(const Ring &r1, const Ring &r2) {
 
 Mpoly pinch_excursions2(const Mpoly &mp_in, report_image_t *dbuf) {
 	Mpoly mp_out;
-	mp_out.rings.reserve(mp_in.rings.size());
-	for(size_t r_idx=0; r_idx<mp_in.rings.size(); r_idx++) {
+	mp_out.rings.resize(mp_in.rings.size());
+	for(int r_idx=0; r_idx<mp_in.rings.size(); r_idx++) {
 		// FIXME - put a test for this into usage()
 		if(mp_in.rings[r_idx].is_hole) fatal_error("pincher cannot be used on holes");
-		mp_out.rings.push_back(pinch_ring_excursions(mp_in.rings[r_idx]));
+		mp_out.rings[r_idx] = pinch_ring_excursions(mp_in.rings[r_idx]);
 	}
-	for(size_t r1_idx=0; r1_idx<mp_out.rings.size(); r1_idx++) {
+	for(int r1_idx=0; r1_idx<mp_out.rings.size(); r1_idx++) {
 		REDO_R1:
 		if(r1_idx >= mp_out.rings.size()) break;
 
-		for(size_t r2_idx=r1_idx+1; r2_idx<mp_out.rings.size(); r2_idx++) {
+		for(int r2_idx=r1_idx+1; r2_idx<mp_out.rings.size(); r2_idx++) {
 			REDO_R2:
 			if(r2_idx >= mp_out.rings.size()) break;
 
@@ -551,14 +552,14 @@ Mpoly pinch_excursions2(const Mpoly &mp_in, report_image_t *dbuf) {
 				//if(dbuf && dbuf->mode == PLOT_PINCH) {
 				//	debug_plot_ring(dbuf, mp_out.rings[r2_idx], 0, 0, 128);
 				//}
-				mp_out.rings.erase(mp_out.rings.begin() + r2_idx);
+				mp_out.deleteRing(r2_idx);
 				goto REDO_R2; // indexes shifted - reset loop
 			} else if(rel == CONTAINED_BY) {
 //printf("deleting %d\n", r1_idx);
 				//if(dbuf && dbuf->mode == PLOT_PINCH) {
 				//	debug_plot_ring(dbuf, mp_out.rings[r1_idx], 0, 0, 128);
 				//}
-				mp_out.rings.erase(mp_out.rings.begin() + r1_idx);
+				mp_out.deleteRing(r1_idx);
 				goto REDO_R1; // indexes shifted - reset loop
 			} else if(rel == CROSSES) {
 //printf("merging %d and %d\n", r1_idx, r2_idx);
@@ -567,7 +568,7 @@ Mpoly pinch_excursions2(const Mpoly &mp_in, report_image_t *dbuf) {
 				//	debug_plot_ring(dbuf, mp_out.rings[r1_idx], 0, 0, 128);
 				//	debug_plot_ring(dbuf, mp_out.rings[r2_idx], 0, 0, 128);
 				//}
-				mp_out.rings.erase(mp_out.rings.begin() + r2_idx);
+				mp_out.deleteRing(r2_idx);
 				mp_out.rings[r1_idx] = r3;
 				//if(dbuf && dbuf->mode == PLOT_PINCH) {
 				//	debug_plot_ring(dbuf, mp_out.rings[r1_idx], 255, 128, 0);
@@ -578,7 +579,7 @@ Mpoly pinch_excursions2(const Mpoly &mp_in, report_image_t *dbuf) {
 	}
 
 	if(dbuf && dbuf->mode == PLOT_PINCH) {
-		for(size_t i=0; i<mp_out.rings.size(); i++) {
+		for(int i=0; i<mp_out.rings.size(); i++) {
 			debug_plot_ring(dbuf, mp_out.rings[i], 255, 0, 0);
 		}
 	}

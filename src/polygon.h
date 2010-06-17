@@ -111,6 +111,7 @@ public:
 	Bbox getBbox() const;
 	std::vector<Bbox> getRingBboxes() const;
 	bool contains(Vertex p) const;
+	void deleteRing(size_t idx);
 
 	void xy2en(georef_t *georef);
 	void en2xy(georef_t *georef);

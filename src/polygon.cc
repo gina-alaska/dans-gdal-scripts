@@ -423,6 +423,10 @@ bool Mpoly::contains(Vertex p) const {
 	return num_crossings & 1;
 }
 
+void Mpoly::deleteRing(size_t idx) {
+	rings.erase(rings.begin() + idx);
+}
+
 RingRelation ring_ring_relation(const Ring &r1, const Ring &r2) {
 	Bbox bb1 = r1.getBbox();
 	Bbox bb2 = r2.getBbox();
