@@ -36,6 +36,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include "mask-tracer.h"
 #include "dp.h"
 #include "excursion_pincher.h"
+#include "beveler.h"
 
 #include <ogrsf_frmts.h>
 #include <cpl_string.h>
@@ -52,6 +53,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #define CS_XY 1
 #define CS_EN 2
 #define CS_LL 3
+
+using namespace dangdal;
 
 // FIXME - describe setting out-cs and ogr-fmt only before output is specified
 void usage(const char *cmdname) {
@@ -123,7 +126,7 @@ gdal_trace_outline raster.tif -classify -out-cs en -ogr-out outline.shp\n\
 	exit(1);
 }
 
-mpoly_t calc_ring_from_mask(BitGrid mask, size_t w, size_t h,
+Mpoly calc_ring_from_mask(BitGrid mask, size_t w, size_t h,
 	bool major_ring_only, bool no_donuts,
 	long min_ring_area, double bevel_size);
 
@@ -439,73 +442,62 @@ int main(int argc, char **argv) {
 			mask.erode();
 		}
 
-		mpoly_t feature_poly = calc_ring_from_mask(mask, georef.w, georef.h,
+		Mpoly feature_poly = calc_ring_from_mask(mask, georef.w, georef.h,
 			major_ring_only, no_donuts, min_ring_area, bevel_size);
 		mask = BitGrid(0, 0); // free some memory
 
-		if(feature_poly.num_rings && do_pinch_excursions) {
+		if(feature_poly.rings.size() && do_pinch_excursions) {
 			printf("Pinching excursions...\n");
-			feature_poly = pinch_excursions2(&feature_poly, dbuf);
+			feature_poly = pinch_excursions2(feature_poly, dbuf);
 			printf("Done pinching excursions.\n");
 		}
 
 		if(mask_out_fn) {
-			mask_from_mpoly(&feature_poly, georef.w, georef.h, mask_out_fn);
+			mask_from_mpoly(feature_poly, georef.w, georef.h, mask_out_fn);
 		}
 
-		if(feature_poly.num_rings && reduction_tolerance > 0) {
-			mpoly_t reduced_poly = compute_reduced_pointset(&feature_poly, reduction_tolerance);
-			free_mpoly(&feature_poly);
+		if(feature_poly.rings.size() && reduction_tolerance > 0) {
+			Mpoly reduced_poly = compute_reduced_pointset(feature_poly, reduction_tolerance);
 			feature_poly = reduced_poly;
 		}
 
-		if(feature_poly.num_rings) {
-			int num_outer=0, num_inner=0, total_pts=0;
-			for(int r_idx=0; r_idx<feature_poly.num_rings; r_idx++) {
+		if(feature_poly.rings.size()) {
+			size_t num_outer=0, num_inner=0, total_pts=0;
+			for(size_t r_idx=0; r_idx<feature_poly.rings.size(); r_idx++) {
 				if(feature_poly.rings[r_idx].is_hole) num_inner++;
 				else num_outer++;
-				total_pts += feature_poly.rings[r_idx].npts;
+				total_pts += feature_poly.rings[r_idx].pts.size();
 			}
-			printf("Found %d outer rings and %d holes with a total of %d vertices.\n",
+			printf("Found %zd outer rings and %zd holes with a total of %zd vertices.\n",
 				num_outer, num_inner, total_pts);
 
 			if(dbuf && dbuf->mode == PLOT_CONTOURS) {
-				debug_plot_mpoly(dbuf, &feature_poly);
+				debug_plot_mpoly(dbuf, feature_poly);
 			}
 
-			if(do_geom_output && feature_poly.num_rings) {
+			if(do_geom_output && feature_poly.rings.size()) {
 				printf("Writing output\n");
 
-				int num_shapes;
-				mpoly_t *shapes;
-				bool shape_is_copy;
+				std::vector<Mpoly> shapes;
 				if(split_polys) {
-					split_mpoly_to_polys(&feature_poly, &num_shapes, &shapes);
-					shape_is_copy = 0;
+					shapes = split_mpoly_to_polys(feature_poly);
 				} else {
-					num_shapes = 1;
-					shapes = MYALLOC(mpoly_t, 1);
-					shapes[0] = feature_poly;
-					shape_is_copy = 1;
+					shapes.push_back(feature_poly);
 				}
 
-				for(int shape_idx=0; shape_idx<num_shapes; shape_idx++) {
-					mpoly_t *poly_in = shapes+shape_idx;
+				for(size_t shape_idx=0; shape_idx<shapes.size(); shape_idx++) {
+					const Mpoly &poly_in = shapes[shape_idx];
 
 					for(int go_idx=0; go_idx<geom_outputs.num; go_idx++) {
 						geom_output_t *go = geom_outputs.output + go_idx;
 
-						bool proj_is_copy;
-						mpoly_t *proj_poly;
+						Mpoly proj_poly = poly_in;
 						if(go->out_cs == CS_XY) {
-							proj_poly = poly_in;
-							proj_is_copy = 1;
+							// no-op
 						} else if(go->out_cs == CS_EN) {
-							proj_poly = mpoly_xy2en(&georef, poly_in);
-							proj_is_copy = 0;
+							proj_poly.xy2en(&georef);
 						} else if(go->out_cs == CS_LL) {
-							proj_poly = mpoly_xy2ll_with_interp(&georef, poly_in, llproj_toler);
-							proj_is_copy = 0;
+							proj_poly.xy2ll_with_interp(&georef, llproj_toler);
 						} else {
 							fatal_error("bad val for out_cs");
 						}
@@ -545,17 +537,12 @@ int main(int argc, char **argv) {
 						} else {
 							OGR_G_DestroyGeometry(ogr_geom);
 						}
-						if(!proj_is_copy) free_mpoly(proj_poly);
 					}
-
-					if(!shape_is_copy) free_mpoly(poly_in);
 
 					num_shapes_written++;
 				}
 			}
 		}
-
-		free_mpoly(&feature_poly);
 	}
 
 	printf("\n");
@@ -579,20 +566,20 @@ int main(int argc, char **argv) {
 	return 0;
 }
 
-mpoly_t calc_ring_from_mask(BitGrid mask, size_t w, size_t h,
+Mpoly calc_ring_from_mask(BitGrid mask, size_t w, size_t h,
 bool major_ring_only, bool no_donuts, 
 long min_ring_area, double bevel_size) {
 	if(major_ring_only) no_donuts = 1;
 
-	mpoly_t mp = trace_mask(mask, w, h, min_ring_area, no_donuts);
+	Mpoly mp = trace_mask(mask, w, h, min_ring_area, no_donuts);
 
 	if(VERBOSE) {
-		int total_pts = 0;
-		for(int r_idx=0; r_idx<mp.num_rings; r_idx++) {
-			total_pts += mp.rings[r_idx].npts;
+		size_t total_pts = 0;
+		for(size_t r_idx=0; r_idx<mp.rings.size(); r_idx++) {
+			total_pts += mp.rings[r_idx].pts.size();
 		}
-		printf("tracer produced %d rings with a total of %d points\n",
-			mp.num_rings, total_pts);
+		printf("tracer produced %zd rings with a total of %zd points\n",
+			mp.rings.size(), total_pts);
 	}
 
 	// this is now done directly by tracer
@@ -600,15 +587,15 @@ long min_ring_area, double bevel_size) {
 	if(min_ring_area > 0) {
 		if(VERBOSE) printf("removing small rings...\n");
 
-		ring_t *filtered_rings = MYALLOC(ring_t, mp.num_rings);
-		int *parent_map = MYALLOC(int, mp.num_rings);
-		for(int i=0; i<mp.num_rings; i++) {
+		ring_t *filtered_rings = MYALLOC(ring_t, mp.rings.size());
+		int *parent_map = MYALLOC(int, mp.rings.size());
+		for(int i=0; i<mp.rings.size(); i++) {
 			parent_map[i] = -1;
 		}
 		int num_filtered_rings = 0;
-		for(int i=0; i<mp.num_rings; i++) {
+		for(int i=0; i<mp.rings.size(); i++) {
 			double area = ring_area(mp.rings+i);
-			if(VERBOSE) if(area > 10) printf("ring %d has area %.15f\n", i, area);
+			if(VERBOSE) if(area > 10) printf("ring %zd has area %.15f\n", i, area);
 			if(area >= min_ring_area) {
 				parent_map[i] = num_filtered_rings;
 				filtered_rings[num_filtered_rings++] = mp.rings[i];
@@ -624,39 +611,31 @@ long min_ring_area, double bevel_size) {
 				filtered_rings[i].parent_id = new_parent;
 			}
 		}
-		printf("filtered by area %d => %d rings\n",
-			mp.num_rings, num_filtered_rings);
+		printf("filtered by area %zd => %zd rings\n",
+			mp.rings.size(), num_filtered_rings);
 
 		free(mp.rings);
 		mp.rings = filtered_rings;
-		mp.num_rings = num_filtered_rings;
+		mp.rings.size() = num_filtered_rings;
 	}
 	*/
 
-	if(major_ring_only && mp.num_rings > 1) {
+	if(major_ring_only && mp.rings.size() > 1) {
 		double biggest_area = 0;
-		int best_idx = 0;
-		for(int i=0; i<mp.num_rings; i++) {
-			double area = ring_area(mp.rings+i);
+		size_t best_idx = 0;
+		for(size_t i=0; i<mp.rings.size(); i++) {
+			double area = mp.rings[i].area();
 			if(area > biggest_area) {
 				biggest_area = area;
 				best_idx = i;
 			}
 		}
-		if(VERBOSE) printf("major ring was %d with %d pts, %.1f area\n",
-			best_idx, mp.rings[best_idx].npts, biggest_area);
+		if(VERBOSE) printf("major ring was %zd with %zd pts, %.1f area\n",
+			best_idx, mp.rings[best_idx].pts.size(), biggest_area);
 		if(mp.rings[best_idx].parent_id >= 0) fatal_error("largest ring should not have a parent");
 
-		mpoly_t new_mp;
-		new_mp.num_rings = 1;
-		new_mp.rings = MYALLOC(ring_t, 1);
-		new_mp.rings[0] = mp.rings[best_idx];
-
-		for(int i=0; i<mp.num_rings; i++) {
-			if(i != best_idx) free_ring(mp.rings+i);
-		}
-		free(mp.rings);
-
+		Mpoly new_mp;
+		new_mp.rings.push_back(mp.rings[best_idx]);
 		mp = new_mp;
 	}
 
@@ -666,20 +645,20 @@ long min_ring_area, double bevel_size) {
 		// we don't have to worry about remapping parent_id in this
 		// case because we only take rings with no parent
 		int out_idx = 0;
-		for(int i=0; i<mp.num_rings; i++) {
+		for(int i=0; i<mp.rings.size(); i++) {
 			if(mp.rings[i].parent_id < 0) {
 				mp.rings[out_idx++] = mp.rings[i];
 			}
 		}
 		mp.num_rings = out_idx;
-		if(VERBOSE) printf("number of non-donut rings is %d", mp.num_rings);
+		if(VERBOSE) printf("number of non-donut rings is %zd", mp.rings.size());
 	}
 	*/
 
-	if(mp.num_rings && bevel_size > 0) {
+	if(mp.rings.size() && bevel_size > 0) {
 		// the topology cannot be resolved by us or by geos/jump/postgis if
 		// there are self-intersections
-		bevel_self_intersections(&mp, bevel_size);
+		bevel_self_intersections(mp, bevel_size);
 	}
 
 	return mp;

@@ -34,6 +34,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #endif
 #define SGN(a) ((a)<0?-1:(a)>0?1:0)
 
+namespace dangdal {
+
 typedef struct {
 	ring_t *ring;
 	int vert_idx;
@@ -65,7 +67,7 @@ static int compare_rings(const void *ap, const void *bp) {
 
 // This function is only meant to be called on polygons
 // that have orthogonal sides on an integer lattice.
-void bevel_self_intersections(mpoly_t *mp, double amount) {
+void bevel_self_intersections(Mpoly &mp, double amount) {
 	if(VERBOSE) {
 		printf("Beveling\n");
 	} else {
@@ -205,3 +207,5 @@ void bevel_self_intersections(mpoly_t *mp, double amount) {
 	GDALTermProgress(1, NULL, NULL);
 	if(VERBOSE) printf("beveler finish\n");
 }
+
+} // namespace dangdal

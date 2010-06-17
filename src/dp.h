@@ -27,6 +27,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 #ifndef DP_H
+#define DP_H
 
 #include "polygon.h"
 

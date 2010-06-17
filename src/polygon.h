@@ -128,9 +128,6 @@ Vertex line_line_intersection(
 RingRelation ring_ring_relation(const Ring &r1, const Ring &r2);
 Mpoly mpoly_from_wktfile(const char *fn);
 
-//mpoly_t compute_reduced_pointset(mpoly_t *in_mpoly, double tolerance);
-//void bevel_self_intersections(mpoly_t *mp, double amount);
-
 } // namespace dangdal
 
 #endif // ifndef POLYGON_H
