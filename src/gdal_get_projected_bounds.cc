@@ -29,8 +29,11 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include "common.h"
 #include "polygon.h"
 #include "debugplot.h"
+#include "polygon.h"
 
-void plot_points(ring_t *pl, const char *fn);
+using namespace dangdal;
+
+void plot_points(const Ring &pl, const char *fn);
 
 struct PointStats {
 	PointStats() : 
@@ -41,14 +44,14 @@ struct PointStats {
 
 	void printYaml(const char *label) {
 		printf("%s:\n", label);
-		printf("  total: %d\n", total);
-		printf("  proj_ok: %d\n", proj_ok);
-		printf("  contained: %d\n", contained);
+		printf("  total: %zd\n", total);
+		printf("  proj_ok: %zd\n", proj_ok);
+		printf("  contained: %zd\n", contained);
 	}
 
-	int total;
-	int proj_ok;
-	int contained;
+	size_t total;
+	size_t proj_ok;
+	size_t contained;
 };
 
 void usage(const char *cmdname) {
@@ -73,17 +76,17 @@ void usage(const char *cmdname) {
 bool picky_transform(
 	OGRCoordinateTransformationH fwd_xform,
 	OGRCoordinateTransformationH inv_xform,
-	vertex_t *v_in
+	Vertex *v_in
 ) {
 	// tolerance in meters, could probably be much smaller
 	const double toler = 1.0;
 
-	vertex_t v_out = *v_in;
+	Vertex v_out = *v_in;
 	if(!OCTTransform(fwd_xform, 1, &v_out.x, &v_out.y, NULL)) {
 		return 0;
 	}
 
-	vertex_t v_back = v_out;
+	Vertex v_back = v_out;
 	if(!OCTTransform(inv_xform, 1, &v_back.x, &v_back.y, NULL)) {
 		return 0;
 	}
@@ -156,24 +159,21 @@ int main(int argc, char **argv) {
 	OGRCoordinateTransformationH inv_xform = 
 		OCTNewCoordinateTransformation(t_sref, s_sref);
 
-	mpoly_t src_mp = mpoly_from_wktfile(src_wkt_fn);
-	bbox_t src_bbox = get_polygon_bbox(&src_mp);
+	Mpoly src_mp = mpoly_from_wktfile(src_wkt_fn);
+	Bbox src_bbox = src_mp.getBbox();
 
-	mpoly_t t_bounds_mp;
+	Mpoly t_bounds_mp;
 	bool use_t_bounds;
-	bbox_t t_bounds_bbox;
+	Bbox t_bounds_bbox;
 	if(t_bounds_wkt_fn) {
 		use_t_bounds = 1;
 		t_bounds_mp = mpoly_from_wktfile(t_bounds_wkt_fn);
-		t_bounds_bbox = get_polygon_bbox(&t_bounds_mp);
+		t_bounds_bbox = t_bounds_mp.getBbox();
 	} else {
 		use_t_bounds = 0;
-		t_bounds_bbox = (bbox_t){ 0, 0, 0, 0, 0 }; // prevents compiler warning
 	}
 
-	ring_t pl;
-	pl.pts = NULL; 
-	pl.npts = 0;
+	Ring pl;
 
 	PointStats ps_border;
 	PointStats ps_interior;
@@ -186,26 +186,26 @@ int main(int argc, char **argv) {
 	// encircles the pole with a target lonlat projection).
 	int num_grid_steps = 100;
 	for(int grid_xi=0; grid_xi<=num_grid_steps; grid_xi++) {
-		vertex_t src_pt;
+		Vertex src_pt;
 		double alpha_x = (double)grid_xi / (double)num_grid_steps;
 		src_pt.x = src_bbox.min_x + (src_bbox.max_x - src_bbox.min_x) * alpha_x;
 		for(int grid_yi=0; grid_yi<=num_grid_steps; grid_yi++) {
 			double alpha_y = (double)grid_yi / (double)num_grid_steps;
 			src_pt.y = src_bbox.min_y + (src_bbox.max_y - src_bbox.min_y) * alpha_y;
-			if(!polygon_contains_point(&src_mp, src_pt.x, src_pt.y)) continue;
+			if(!src_mp.contains(src_pt)) continue;
 
 			ps_interior.total++;
 
-			vertex_t tgt_pt = src_pt;
+			Vertex tgt_pt = src_pt;
 			if(!picky_transform(fwd_xform, inv_xform, &tgt_pt)) {
 				continue;
 			}
 
 			ps_interior.proj_ok++;
 
-			if(!use_t_bounds || polygon_contains_point(&t_bounds_mp, tgt_pt.x, tgt_pt.y)) {
+			if(!use_t_bounds || t_bounds_mp.contains(tgt_pt)) {
 				ps_interior.contained++;
-				add_point_to_ring(&pl, tgt_pt);
+				pl.pts.push_back(tgt_pt);
 			}
 		}
 	}
@@ -214,33 +214,33 @@ int main(int argc, char **argv) {
 	double max_step_len = MAX(
 		src_bbox.max_x - src_bbox.min_x,
 		src_bbox.max_y - src_bbox.min_y) / 1000.0;
-	for(int r_idx=0; r_idx<src_mp.num_rings; r_idx++) {
-		ring_t *ring = src_mp.rings + r_idx;
-		for(int v_idx=0; v_idx<ring->npts; v_idx++) {
-			vertex_t v1 = ring->pts[v_idx];
-			vertex_t v2 = ring->pts[(v_idx+1) % ring->npts];
+	for(size_t r_idx=0; r_idx<src_mp.rings.size(); r_idx++) {
+		const Ring &ring = src_mp.rings[r_idx];
+		for(size_t v_idx=0; v_idx<ring.pts.size(); v_idx++) {
+			Vertex v1 = ring.pts[v_idx];
+			Vertex v2 = ring.pts[(v_idx+1) % ring.pts.size()];
 			double dx = v2.x - v1.x;
 			double dy = v2.y - v1.y;
 			double len = sqrt(dx*dx + dy*dy);
 			int num_steps = 1 + (int)(len / max_step_len);
 			for(int step=0; step<=num_steps; step++) {
 				double alpha = (double)step / (double)num_steps;
-				vertex_t src_pt;
+				Vertex src_pt;
 				src_pt.x = v1.x + dx * alpha;
 				src_pt.y = v1.y + dy * alpha;
 
 				ps_border.total++;
 
-				vertex_t tgt_pt = src_pt;
+				Vertex tgt_pt = src_pt;
 				if(!picky_transform(fwd_xform, inv_xform, &tgt_pt)) {
 					continue;
 				}
 
 				ps_border.proj_ok++;
 
-				if(!use_t_bounds || polygon_contains_point(&t_bounds_mp, tgt_pt.x, tgt_pt.y)) {
+				if(!use_t_bounds || t_bounds_mp.contains(tgt_pt)) {
 					ps_border.contained++;
-					add_point_to_ring(&pl, tgt_pt);
+					pl.pts.push_back(tgt_pt);
 				}
 			}
 		}
@@ -252,61 +252,61 @@ int main(int argc, char **argv) {
 		double max_step_len = MAX(
 			t_bounds_bbox.max_x - t_bounds_bbox.min_x,
 			t_bounds_bbox.max_y - t_bounds_bbox.min_y) / 1000.0;
-		for(int r_idx=0; r_idx<t_bounds_mp.num_rings; r_idx++) {
-			ring_t *ring = t_bounds_mp.rings + r_idx;
-			for(int v_idx=0; v_idx<ring->npts; v_idx++) {
-				vertex_t v1 = ring->pts[v_idx];
-				vertex_t v2 = ring->pts[(v_idx+1) % ring->npts];
+		for(size_t r_idx=0; r_idx<t_bounds_mp.rings.size(); r_idx++) {
+			const Ring &ring = t_bounds_mp.rings[r_idx];
+			for(size_t v_idx=0; v_idx<ring.pts.size(); v_idx++) {
+				Vertex v1 = ring.pts[v_idx];
+				Vertex v2 = ring.pts[(v_idx+1) % ring.pts.size()];
 				double dx = v2.x - v1.x;
 				double dy = v2.y - v1.y;
 				double len = sqrt(dx*dx + dy*dy);
 				int num_steps = 1 + (int)(len / max_step_len);
 				for(int step=0; step<=num_steps; step++) {
 					double alpha = (double)step / (double)num_steps;
-					vertex_t tgt_pt;
+					Vertex tgt_pt;
 					tgt_pt.x = v1.x + dx * alpha;
 					tgt_pt.y = v1.y + dy * alpha;
 
 					ps_bounds.total++;
 
-					vertex_t src_pt = tgt_pt;
+					Vertex src_pt = tgt_pt;
 					if(!picky_transform(inv_xform, fwd_xform, &src_pt)) {
 						continue;
 					}
 
 					ps_bounds.proj_ok++;
 
-					if(polygon_contains_point(&src_mp, src_pt.x, src_pt.y)) {
+					if(src_mp.contains(src_pt)) {
 						ps_bounds.contained++;
-						add_point_to_ring(&pl, tgt_pt);
+						pl.pts.push_back(tgt_pt);
 					}
 				}
 			}
 		}
 	}
 
-	//int debug = 1;
+	//bool debug = 1;
 	//if(debug) {
 	//	ps_border.printYaml("stats_border");
 	//	ps_interior.printYaml("stats_interior");
 	//	ps_bounds.printYaml("stats_bounds");
 	//}
 
-	//fprintf(stderr, "got %d points\n", pl.npts);
-	bbox_t bbox = get_ring_bbox(&pl);
+	//fprintf(stderr, "got %zd points\n", pl.npts);
+	Bbox bbox = pl.getBbox();
 	printf("bounds:\n");
 	printf("  min_e: %.15f\n", bbox.min_x);
 	printf("  min_n: %.15f\n", bbox.min_y);
 	printf("  max_e: %.15f\n", bbox.max_x);
 	printf("  max_n: %.15f\n", bbox.max_y);
 
-	if(report_fn) plot_points(&pl, report_fn);
+	if(report_fn) plot_points(pl, report_fn);
 
 	return 0;
 }
 
-void plot_points(ring_t *pl, const char *fn) {
-	bbox_t bbox = get_ring_bbox(pl);
+void plot_points(const Ring &pl, const char *fn) {
+	Bbox bbox = pl.getBbox();
 	bbox.min_x -= (bbox.max_x - bbox.min_x) * .05;
 	bbox.max_x += (bbox.max_x - bbox.min_x) * .05;
 	bbox.min_y -= (bbox.max_y - bbox.min_y) * .05;
@@ -314,8 +314,8 @@ void plot_points(ring_t *pl, const char *fn) {
 	double W = bbox.max_x - bbox.min_x;
 	double H = bbox.max_y - bbox.min_y;
 	report_image_t *dbuf = create_plot(W, H);
-	for(int i=0; i<pl->npts; i++) {
-		vertex_t v = pl->pts[i];
+	for(size_t i=0; i<pl.pts.size(); i++) {
+		Vertex v = pl.pts[i];
 		double x = v.x - bbox.min_x;
 		double y = bbox.max_y - v.y;
 		plot_point(dbuf, x, y, 255, 255, 255);
