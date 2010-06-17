@@ -482,8 +482,7 @@ static Ring pinch_ring_excursions(const Ring &ring_in) {
 		if(keep[i]) nkeep++;
 	}
 
-	Ring outring = ring;
-	outring.pts.clear();
+	Ring outring = ring.copyMetadata();
 	outring.pts.reserve(nkeep);
 	for(size_t i=0; i<npts; i++) {
 		if(keep[i]) outring.pts.push_back(ring.pts[i]);

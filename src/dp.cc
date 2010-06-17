@@ -212,7 +212,7 @@ static Ring make_ring_from_segs(const Ring &c_in, const ReducedRing &r_in) {
 
 //printf("keeping %d of %d\n", num_to_keep, num_in);
 
-	Ring new_string = c_in; // copy parent_id, is_hole, etc.
+	Ring new_string = c_in.copyMetadata();
 	new_string.pts.reserve(num_to_keep);
 	for(size_t i=0; i<in_npts; i++) {
 		if(keep_pts[i]) {

@@ -93,6 +93,14 @@ public:
 	bool contains(Vertex p) const;
 	void reverse() { std::reverse(pts.begin(), pts.end()); }
 
+	// copy everything except for pts
+	Ring copyMetadata() const {
+		Ring ret;
+		ret.is_hole = is_hole;
+		ret.parent_id = parent_id;
+		return ret;
+	}
+
 	std::vector<Vertex> pts;
 	bool is_hole;
 	int parent_id;
