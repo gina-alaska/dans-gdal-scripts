@@ -65,7 +65,7 @@ void usage(const char *cmdname) {
 	
 	print_georef_usage();
 	printf("\n");
-	print_ndv_usage();
+	NdvDef::printUsage();
 	printf("\n");
 	printf("Input/Output:\n");
 	printf("  -b input_band_id\n");

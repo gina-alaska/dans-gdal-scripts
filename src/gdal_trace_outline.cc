@@ -63,7 +63,7 @@ void usage(const char *cmdname) {
 	
 	print_georef_usage();
 	printf("\n");
-	print_ndv_usage();
+	NdvDef::printUsage();
 
 	printf("\
 \n\
@@ -176,8 +176,7 @@ int main(int argc, char **argv) {
 	const char *input_raster_fn = NULL;
 	bool classify = 0;
 	const char *debug_report = NULL;
-	int inspect_numbands = 0;
-	int *inspect_bandids = NULL;
+	std::vector<size_t> inspect_bandids;
 	bool split_polys = 0;
 	int cur_out_cs = CS_UNKNOWN;
 	const char *cur_ogr_fmt = "ESRI Shapefile";
@@ -196,7 +195,7 @@ int main(int argc, char **argv) {
 	if(argc == 1) usage(argv[0]);
 
 	geo_opts_t geo_opts = init_geo_options(&argc, &argv);
-	ndv_def_t ndv_def = init_ndv_options(&argc, &argv);
+	NdvDef ndv_def = NdvDef(&argc, &argv);
 
 	int argp = 1;
 	while(argp < argc) {
@@ -215,8 +214,7 @@ int main(int argc, char **argv) {
 				char *endptr;
 				int bandid = strtol(argv[argp++], &endptr, 10);
 				if(*endptr) usage(argv[0]);
-				inspect_bandids = REMYALLOC(int, inspect_bandids, (inspect_numbands+1));
-				inspect_bandids[inspect_numbands++] = bandid;
+				inspect_bandids.push_back(bandid);
 			} else if(!strcmp(arg, "-erosion")) {
 				do_erosion = 1;
 			} else if(!strcmp(arg, "-invert")) {
@@ -298,7 +296,7 @@ int main(int argc, char **argv) {
 		"-major-ring and -no-donuts options cannot both be used at the same time");
 
 	if(classify) {
-		if(ndv_def.nranges) fatal_error("-classify option is not compatible with NDV options");
+		if(!ndv_def.empty()) fatal_error("-classify option is not compatible with NDV options");
 		if(do_invert) fatal_error("-classify option is not compatible with -invert option");
 		if(mask_out_fn) fatal_error("-classify option is not compatible with -mask-out option");
 	}
@@ -308,16 +306,15 @@ int main(int argc, char **argv) {
 	GDALDatasetH ds = GDALOpen(input_raster_fn, GA_ReadOnly);
 	if(!ds) fatal_error("open failed");
 
-	if(!inspect_numbands) {
-		inspect_numbands = classify ? 1 : GDALGetRasterCount(ds);
-		inspect_bandids = MYALLOC(int, inspect_numbands);
-		for(int i=0; i<inspect_numbands; i++) inspect_bandids[i] = i+1;
+	if(inspect_bandids.empty()) {
+		size_t nbands = classify ? 1 : GDALGetRasterCount(ds);
+		for(size_t i=0; i<nbands; i++) inspect_bandids.push_back(i+1);
 	}
 
 	// FIXME - optional NDV for classify
 	if(!classify) {
-		if(!ndv_def.nranges) {
-			add_ndv_from_raster(&ndv_def, ds, inspect_numbands, inspect_bandids);
+		if(ndv_def.empty()) {
+			ndv_def = NdvDef(ds, inspect_bandids);
 		}
 	}
 
@@ -344,7 +341,7 @@ int main(int argc, char **argv) {
 	uint8_t usage_array[256];
 	GDALColorTableH color_table = NULL;
 	if(classify) {
-		if(inspect_numbands != 1) {
+		if(inspect_bandids.size() != 1) {
 			fatal_error("only one band may be used in classify mode");
 		}
 
@@ -356,8 +353,7 @@ int main(int argc, char **argv) {
 		}
 	} else {
 		mask = get_bitgrid_for_dataset(
-			ds, inspect_numbands, inspect_bandids,
-			&ndv_def, dbuf);
+			ds, inspect_bandids, ndv_def, dbuf);
 	}
 
 	for(int go_idx=0; go_idx<geom_outputs.num; go_idx++) {

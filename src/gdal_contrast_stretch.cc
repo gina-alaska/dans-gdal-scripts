@@ -43,7 +43,7 @@ void copyGeoCode(GDALDatasetH dst_ds, GDALDatasetH src_ds);
 void usage(const char *cmdname) {
 	// FIXME - layout/grammar
 	printf("Usage: %s <options> src.tif dst.tif\n\n", cmdname);
-	print_ndv_usage();
+	NdvDef::printUsage();
 	printf("\
   -outndv <output_nodata_val>             Output no-data value\n\
 \n\

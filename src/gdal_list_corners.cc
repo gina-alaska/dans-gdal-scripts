@@ -43,7 +43,7 @@ void usage(const char *cmdname) {
 	
 	print_georef_usage();
 	printf("\n");
-	print_ndv_usage();
+	NdvDef::printUsage();
 
 	printf("\
 \n\

@@ -60,11 +60,13 @@ public:
 	NdvDef(int *argc_ptr, char ***argv_ptr);
 	NdvDef(const GDALDatasetH ds, const std::vector<size_t> &bandlist);
 	void debugPrint() const;
+	bool empty() const { return slabs.empty(); }
+	bool isInvert() const { return invert; }
 
 	template<class T>
 	void arrayCheckNdv(
-		size_t band, const std::vector<T> &in_data,
-		std::vector<uint8_t> &mask_out
+		size_t band, const T *in_data,
+		uint8_t *mask_out, size_t nsamps
 	) const;
 
 	void aggregateMask(

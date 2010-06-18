@@ -36,7 +36,7 @@ void usage(const char *cmdname) {
 	printf("Usage:\n  %s [options] [image_name] [mask_name.pbm]\n", cmdname);
 	printf("\n");
 	
-	print_ndv_usage();
+	NdvDef::printUsage();
 
 	printf("\
 \n\

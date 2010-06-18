@@ -111,20 +111,22 @@ uint8_t *read_dataset_8bit(GDALDatasetH ds, int band_idx, uint8_t *usage_array, 
 	return outbuf;
 }
 
-BitGrid get_bitgrid_for_dataset(GDALDatasetH ds, int bandlist_size, int *bandlist, 
-ndv_def_t *ndv_def, DebugPlot *dbuf) {
+BitGrid get_bitgrid_for_dataset(
+	GDALDatasetH ds, const std::vector<size_t> &bandlist,
+	const NdvDef &ndv_def, DebugPlot *dbuf
+) {
 	size_t w = GDALGetRasterXSize(ds);
 	size_t h = GDALGetRasterYSize(ds);
-	int band_count = GDALGetRasterCount(ds);
-	if(VERBOSE) printf("input is %zd x %zd x %d\n", w, h, band_count);
+	size_t band_count = GDALGetRasterCount(ds);
+	if(VERBOSE) printf("input is %zd x %zd x %zd\n", w, h, band_count);
 
 	BitGrid mask(w, h);
 	mask.zero();
 
-	printf("Reading %d bands of size %zd x %zd\n", bandlist_size, w, h);
+	printf("Reading %zd bands of size %zd x %zd\n", bandlist.size(), w, h);
 
-	for(int bandlist_idx=0; bandlist_idx<bandlist_size; bandlist_idx++) {
-		int band_idx = bandlist[bandlist_idx];
+	for(size_t bandlist_idx=0; bandlist_idx<bandlist.size(); bandlist_idx++) {
+		size_t band_idx = bandlist[bandlist_idx];
 		if(band_idx < 1 || band_idx > band_count) fatal_error("bandid out of range");
 
 		GDALRasterBandH band = GDALGetRasterBand(ds, band_idx);
@@ -138,7 +140,7 @@ ndv_def_t *ndv_def, DebugPlot *dbuf) {
 		GDALDataType gdt = GDALGetRasterDataType(band);
 		bool use_8bit = (gdt == GDT_Byte);
 
-		if(VERBOSE) printf("band %d: block size = %zd,%zd, use_8bit=%d\n",
+		if(VERBOSE) printf("band %zd: block size = %zd,%zd, use_8bit=%d\n",
 			band_idx, blocksize_x, blocksize_y, use_8bit?1:0);
 
 		void *block_buf;
@@ -148,7 +150,7 @@ ndv_def_t *ndv_def, DebugPlot *dbuf) {
 			block_buf = MYALLOC(double, blocksize_x*blocksize_y);
 		}
 
-		uint8_t *row_ndv = MYALLOC(uint8_t, blocksize_x);
+		std::vector<uint8_t> row_ndv(blocksize_x);
 
 		for(size_t boff_y=0; boff_y<h; boff_y+=blocksize_y) {
 			size_t bsize_y = blocksize_y;
@@ -162,7 +164,7 @@ ndv_def_t *ndv_def, DebugPlot *dbuf) {
 						bandlist_idx * w * h +
 						boff_y * w +
 						boff_x * bsize_y
-					) / (bandlist_size * w * h);
+					) / (bandlist.size() * w * h);
 				GDALTermProgress(progress, NULL, NULL);
 
 				GDALRasterIO(band, GF_Read, boff_x, boff_y, bsize_x, bsize_y, 
@@ -181,7 +183,11 @@ ndv_def_t *ndv_def, DebugPlot *dbuf) {
 					size_t y = j + boff_y;
 					bool is_dbuf_stride_y = dbuf && (bandlist_idx==0) && ((y % dbuf->stride_y) == 0);
 
-					array_check_ndv(ndv_def, bandlist_idx, p_dbl, p_8bit, row_ndv, bsize_x);
+					if(p_dbl) {
+						ndv_def.arrayCheckNdv(bandlist_idx, p_dbl, &row_ndv[0], bsize_x);
+					} else {
+						ndv_def.arrayCheckNdv(bandlist_idx, p_8bit, &row_ndv[0], bsize_x);
+					}
 
 					for(size_t i=0; i<bsize_x; i++) {
 						bool is_dbuf_stride = is_dbuf_stride_y && ((i % dbuf->stride_x) == 0);
@@ -203,7 +209,7 @@ ndv_def_t *ndv_def, DebugPlot *dbuf) {
 						for(size_t i=0; i<bsize_x; i++) {
 							mask.set(boff_x+i, y, !row_ndv[i]);
 						}
-					} else if(ndv_def->invert) {
+					} else if(ndv_def.isInvert()) {
 						for(size_t i=0; i<bsize_x; i++) {
 							if(row_ndv[i]) mask.set(boff_x+i, y, false);
 						}
@@ -217,7 +223,6 @@ ndv_def_t *ndv_def, DebugPlot *dbuf) {
 		}
 
 		free(block_buf);
-		free(row_ndv);
 	}
 
 	if(dbuf) {

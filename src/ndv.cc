@@ -78,8 +78,10 @@ NdvInterval::NdvInterval(const std::string &s) {
 NdvSlab::NdvSlab(const std::string &s) {
 	//printf("range [%s]\n", s.c_str());
 
-	boost::tokenizer<> tok(s);
-	for(boost::tokenizer<>::iterator p=tok.begin(); p!=tok.end(); ++p) {
+	boost::char_separator<char> sep(" ");
+	typedef boost::tokenizer<boost::char_separator<char> > toker;
+	toker tok(s, sep);
+	for(toker::iterator p=tok.begin(); p!=tok.end(); ++p) {
 		range_by_band.push_back(NdvInterval(*p));
 	}
 }
@@ -165,10 +167,11 @@ NdvDef::NdvDef(const GDALDatasetH ds, const std::vector<size_t> &bandlist) {
 template<class T>
 void flagMatches(
 	const NdvInterval range,
-	const std::vector<T> &in_data,
-	std::vector<uint8_t> &mask_out
+	const T *in_data,
+	uint8_t *mask_out,
+	size_t nsamps
 ) {
-	for(size_t i=0; i<in_data.size(); i++) {
+	for(size_t i=0; i<nsamps; i++) {
 		T val = in_data[i];
 		if(range.contains(val)) mask_out[i] = 1;
 	}
@@ -177,12 +180,13 @@ void flagMatches(
 template<>
 void flagMatches<uint8_t>(
 	const NdvInterval range,
-	const std::vector<uint8_t> &in_data,
-	std::vector<uint8_t> &mask_out
+	const uint8_t *in_data,
+	uint8_t *mask_out,
+	size_t nsamps
 ) {
 	uint8_t min_byte = (uint8_t)std::max(ceil (range.first ), 0.0);
 	uint8_t max_byte = (uint8_t)std::min(floor(range.second), 255.0);
-	for(size_t i=0; i<in_data.size(); i++) {
+	for(size_t i=0; i<nsamps; i++) {
 		uint8_t v = in_data[i];
 		uint8_t match = (v >= min_byte) && (v <= max_byte);
 		if(match) mask_out[i] = 1;
@@ -191,27 +195,28 @@ void flagMatches<uint8_t>(
 
 template<class T>
 void flagNaN(
-	const std::vector<T> &in_data,
-	std::vector<uint8_t> &mask_out
+	const T *in_data,
+	uint8_t *mask_out,
+	size_t nsamps
 ) {
-	for(size_t i=0; i<in_data.size(); i++) {
+	for(size_t i=0; i<nsamps; i++) {
 		if(isnan(in_data[i])) mask_out[i] = 1;
 	}
 }
 
 template<>
 void flagNaN<uint8_t>(
-	const std::vector<uint8_t> &in_data __attribute__((unused)),
-	std::vector<uint8_t> &mask_out __attribute__((unused))
+	const uint8_t *in_data __attribute__((unused)),
+	uint8_t *mask_out __attribute__((unused)),
+	size_t nsamps __attribute__((unused))
 ) { } // no-op
 
 template<class T>
 void NdvDef::arrayCheckNdv(
-	size_t band, const std::vector<T> &in_data,
-	std::vector<uint8_t> &mask_out
+	size_t band, const T *in_data,
+	uint8_t *mask_out, size_t nsamps
 ) const {
-	size_t nsamps = in_data.size();
-	mask_out.assign(nsamps, 0);
+	for(size_t i=0; i<nsamps; i++) mask_out[i] = 0;
 	for(size_t slab_idx=0; slab_idx<slabs.size(); slab_idx++) {
 		const NdvSlab &slab = slabs[slab_idx];
 		NdvInterval range;
@@ -223,14 +228,14 @@ void NdvDef::arrayCheckNdv(
 		} else {
 			fatal_error("wrong number of bands in NDV def");
 		}
-		flagMatches(range, in_data, mask_out);
+		flagMatches(range, in_data, mask_out, nsamps);
 	}
 	if(invert) {
 		for(size_t i=0; i<nsamps; i++) {
 			mask_out[i] = mask_out[i] ? 0 : 1;
 		}
 	}
-	flagNaN(in_data, mask_out);
+	flagNaN(in_data, mask_out, nsamps);
 }
 
 void NdvDef::aggregateMask(
@@ -253,13 +258,13 @@ void NdvDef::aggregateMask(
 }
 
 template void NdvDef::arrayCheckNdv<uint8_t>(
-	size_t band, const std::vector<uint8_t> &in_data,
-	std::vector<uint8_t> &mask_out
+	size_t band, const uint8_t *in_data,
+	uint8_t *mask_out, size_t nsamps
 ) const;
 
 template void NdvDef::arrayCheckNdv<double>(
-	size_t band, const std::vector<double> &in_data,
-	std::vector<uint8_t> &mask_out
+	size_t band, const double *in_data,
+	uint8_t *mask_out, size_t nsamps
 ) const;
 
 } // namespace dangdal

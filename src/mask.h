@@ -96,8 +96,8 @@ private:
 };
 
 uint8_t *read_dataset_8bit(GDALDatasetH ds, int band_idx, uint8_t *usage_array, DebugPlot *dbuf);
-BitGrid get_bitgrid_for_dataset(GDALDatasetH ds, int bandlist_size, int *bandlist, 
-	ndv_def_t *ndv_def, DebugPlot *dbuf);
+BitGrid get_bitgrid_for_dataset(GDALDatasetH ds, const std::vector<size_t> &bandlist, 
+	const NdvDef &ndv_def, DebugPlot *dbuf);
 BitGrid get_bitgrid_for_8bit_raster(size_t w, size_t h, const uint8_t *raster, uint8_t wanted);
 
 } // namespace dangdal
