@@ -30,25 +30,53 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #ifndef NDV_H
 #define NDV_H
 
-typedef struct {
-	double *min, *max;
-	int nbands;
-} ndv_range_t;
+#include <string>
+#include <vector>
 
-typedef struct {
+namespace dangdal {
+
+struct NdvInterval : std::pair<double, double> {
+	NdvInterval() { }
+	NdvInterval(double _min, double _max) : 
+		std::pair<double, double>(_min, _max) { }
+	NdvInterval(const std::string &s);
+
+	bool contains(double v) const {
+		return v >= first && v <= second;
+	}
+};
+
+struct NdvSlab {
+	NdvSlab() { }
+	NdvSlab(const std::string &s);
+
+	// an interval for each band, or a single interval for all bands
+	std::vector<NdvInterval> range_by_band;
+};
+
+class NdvDef {
+public:
+	static void printUsage();
+	NdvDef(int *argc_ptr, char ***argv_ptr);
+	NdvDef(const GDALDatasetH ds, const std::vector<size_t> &bandlist);
+	void debugPrint() const;
+
+	template<class T>
+	void arrayCheckNdv(
+		size_t band, const std::vector<T> &in_data,
+		std::vector<uint8_t> &mask_out
+	) const;
+
+	void aggregateMask(
+		std::vector<uint8_t> &total_mask,
+		const std::vector<uint8_t> &band_mask
+	);
+
+private:
 	bool invert;
-	ndv_range_t *ranges;
-	int nranges;
-} ndv_def_t;
+	std::vector<NdvSlab> slabs;
+};
 
-// FIXME! make sure the callers of these are 64-bit safe
-void print_ndv_usage();
-ndv_def_t init_ndv_options(int *argc_ptr, char ***argv_ptr);
-void add_ndv_from_raster(ndv_def_t *nd, GDALDatasetH ds, int bandlist_size, int *bandlist);
-void array_check_ndv(
-	ndv_def_t *nd, int band, double *in_dbl, uint8_t *in_byte,
-	uint8_t *mask_out, size_t num_samples
-);
-void aggregate_ndv_mask(ndv_def_t *nd, uint8_t *total, uint8_t *band, size_t num_samples);
+} // namespace dangdal
 
 #endif // NDV_H
