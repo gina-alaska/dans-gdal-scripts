@@ -331,7 +331,8 @@ static inline int segs_cross(
 }
 
 void fix_topology(const Mpoly &mpoly, std::vector<ReducedRing> &reduced_rings) {
-	printf("Analyzing topology: ");
+	const double firsthalf_progress = 0.5;
+	printf("Fixing topology: ");
 	fflush(stdout);
 
 	// initialize problem arrays
@@ -346,7 +347,8 @@ void fix_topology(const Mpoly &mpoly, std::vector<ReducedRing> &reduced_rings) {
 	// flag segments that cross
 	int have_problems = 0;
 	for(size_t r1_idx=0; r1_idx < mpoly.rings.size(); r1_idx++) {
-		GDALTermProgress(pow((double)r1_idx / (double)mpoly.rings.size(), 2), NULL, NULL);
+		GDALTermProgress(firsthalf_progress*
+			pow((double)r1_idx / (double)mpoly.rings.size(), 2), NULL, NULL);
 		const Ring &c1 = mpoly.rings[r1_idx];
 		const ReducedRing &r1 = reduced_rings[r1_idx];
 		std::vector<bool> &p1 = mp_problems[r1_idx];
@@ -356,14 +358,7 @@ void fix_topology(const Mpoly &mpoly, std::vector<ReducedRing> &reduced_rings) {
 			if(r2_idx > r1_idx) continue; // symmetry optimization
 
 			const Bbox bbox2 = bboxes[r2_idx];
-			if(bbox2.empty) continue;
-
-			if(
-				bbox1.min_x > bbox2.max_x ||
-				bbox1.min_y > bbox2.max_y ||
-				bbox2.min_x > bbox1.max_x ||
-				bbox2.min_y > bbox1.max_y
-			) continue;
+			if(is_disjoint(bbox1, bbox2)) continue;
 
 			const Ring &c2 = mpoly.rings[r2_idx];
 			const ReducedRing &r2 = reduced_rings[r2_idx];
@@ -386,7 +381,9 @@ void fix_topology(const Mpoly &mpoly, std::vector<ReducedRing> &reduced_rings) {
 			} // seg loop
 		} // ring loop
 	} // ring loop
-	GDALTermProgress(1, NULL, NULL);
+
+	double progress = firsthalf_progress;
+	GDALTermProgress(progress, NULL, NULL);
 
 	if(have_problems) {
 		if(VERBOSE) printf("fixing %d crossed segments from reduction\n", have_problems/2);
@@ -420,8 +417,15 @@ void fix_topology(const Mpoly &mpoly, std::vector<ReducedRing> &reduced_rings) {
 		have_problems = 0;
 		// now test for resolved problems and new problems
 		for(size_t r1_idx=0; r1_idx < mpoly.rings.size(); r1_idx++) {
+			{
+				double alpha = double(r1_idx) / mpoly.rings.size();
+				double p = progress + (1.0-progress)/2*alpha;
+				GDALTermProgress(p, NULL, NULL);
+			}
+
 			const Ring &c1 = mpoly.rings[r1_idx];
 			const ReducedRing &r1 = reduced_rings[r1_idx];
+			const Bbox bbox1 = bboxes[r1_idx];
 			std::vector<bool> &p1 = mp_problems[r1_idx];
 			for(size_t seg1_idx=0; seg1_idx < r1.segs.size(); seg1_idx++) {
 				if(!p1[seg1_idx]) continue;
@@ -429,7 +433,8 @@ void fix_topology(const Mpoly &mpoly, std::vector<ReducedRing> &reduced_rings) {
 				for(size_t r2_idx=0; r2_idx < mpoly.rings.size(); r2_idx++) {
 					const Ring &c2 = mpoly.rings[r2_idx];
 					const ReducedRing &r2 = reduced_rings[r2_idx];
-					std::vector<bool> &p2 = mp_problems[r2_idx];
+					const Bbox bbox2 = bboxes[r2_idx];
+					if(is_disjoint(bbox1, bbox2)) continue;
 					for(size_t seg2_idx=0; seg2_idx < r2.segs.size(); seg2_idx++) {
 						int crosses = segs_cross(r1_idx==r2_idx,
 							c1, r1.segs[seg1_idx], c2, r2.segs[seg2_idx]);
@@ -447,6 +452,7 @@ void fix_topology(const Mpoly &mpoly, std::vector<ReducedRing> &reduced_rings) {
 									c2.pts[r2.segs[seg2_idx].end].y);
 							}
 							p1[seg1_idx] = 1;
+							std::vector<bool> &p2 = mp_problems[r2_idx];
 							p2[seg2_idx] = 1;
 							have_problems++;
 						}
@@ -454,7 +460,11 @@ void fix_topology(const Mpoly &mpoly, std::vector<ReducedRing> &reduced_rings) {
 				} // ring loop
 			} // seg loop
 		} // ring loop
+
+		progress += (1.0-progress)/2;
 	} // while problems
+
+	GDALTermProgress(1, NULL, NULL);
 
 	if(have_problems) {
 		printf("WARNING: Could not fix all topology problems.\n  Please inspect output shapefile manually.\n");

@@ -186,8 +186,7 @@ void bevel_self_intersections(Mpoly &mp, double amount) {
 
 	// FIXME! this goes very slow but could probably be made better
 	for(size_t entry_idx=0; entry_idx<total_num_touch; ) {
-		// FIXME! use const
-		Ring &ring = mp.rings[entries[entry_idx].ring_idx];
+		const Ring &ring = mp.rings[entries[entry_idx].ring_idx];
 		const size_t ring_idx = entries[entry_idx].ring_idx;
 		size_t ring_num_touch = 0;
 		while(
@@ -256,8 +255,9 @@ void bevel_self_intersections(Mpoly &mp, double amount) {
 			fatal_error("wrong number of points in beveled ring (%zd vs. %zd)", vout_idx, new_numpts);
 		}
 
-		//mp.rings[entries[entry_idx].ring_idx].pts = new_ring.pts;
-		ring.pts = new_ring.pts;
+		// "ring" variable was const
+		Ring &mutable_ring = mp.rings[entries[entry_idx].ring_idx];
+		mutable_ring.pts = new_ring.pts;
 
 		entry_idx += ring_num_touch;
 	}

@@ -76,15 +76,6 @@ Bbox box_union(const Bbox bb1, const Bbox bb2) {
 	return u;
 }
 
-bool is_disjoint(const Bbox bb1, const Bbox bb2) {
-	return
-		bb1.empty || bb2.empty ||
-		bb1.min_x >  bb2.max_x ||
-		bb1.min_y >  bb2.max_y ||
-		bb2.min_x >  bb1.max_x ||
-		bb2.min_y >  bb1.max_y;
-}
-
 OGRGeometryH ring_to_ogr(const Ring &ring) {
 	OGRGeometryH ogr = OGR_G_CreateGeometry(wkbLinearRing);
 	const size_t npts = ring.pts.size();;

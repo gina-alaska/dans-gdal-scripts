@@ -80,7 +80,15 @@ public:
 };
 
 Bbox box_union(const Bbox bb1, const Bbox bb2);
-bool is_disjoint(const Bbox bb1, const Bbox bb2);
+
+static inline bool is_disjoint(const Bbox bb1, const Bbox bb2) {
+	return
+		bb1.empty || bb2.empty ||
+		bb1.min_x >  bb2.max_x ||
+		bb1.min_y >  bb2.max_y ||
+		bb2.min_x >  bb1.max_x ||
+		bb2.min_y >  bb1.max_y;
+}
 
 class Ring {
 public:
