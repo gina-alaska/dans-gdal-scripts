@@ -1,3 +1,7 @@
+=== Version 0.18
+	Converted to C++
+	More test cases
+
 === Version 0.17
 	Tolerate points that are just slightly outside of [-360,540] and [-90,90]
 		lon/lat box
