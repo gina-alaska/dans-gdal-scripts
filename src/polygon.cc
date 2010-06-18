@@ -669,6 +669,7 @@ void Mpoly::xy2ll_with_interp(georef_t *georef, double toler) {
 		Ring xy_ring = rings[r_idx];
 		// this will be the output
 		Ring &ll_ring = ll_poly.rings[r_idx];
+		ll_ring = xy_ring.copyMetadata();
 		ll_ring.pts.resize(xy_ring.pts.size());
 
 		for(size_t v_idx=0; v_idx<ll_ring.pts.size(); v_idx++) {
