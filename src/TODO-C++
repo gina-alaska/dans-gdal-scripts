@@ -1,0 +1,6 @@
+grep for:
+	memcpy
+	ALLOC
+	free
+	typedef
+	define
