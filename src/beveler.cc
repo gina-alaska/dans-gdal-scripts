@@ -105,7 +105,7 @@ void bevel_self_intersections(Mpoly &mp, double amount) {
 	std::vector<VertRef> entries;
 	entries.reserve(total_pts);
 	for(size_t r_idx=0; r_idx<mp.rings.size(); r_idx++) {
-		Ring &ring = mp.rings[r_idx]; // FIXME! const
+		const Ring &ring = mp.rings[r_idx];
 		for(size_t v_idx=0; v_idx<ring.pts.size(); v_idx++) {
 			entries.push_back(VertRef(r_idx, v_idx));
 		}
