@@ -62,6 +62,14 @@ public:
 			va.x < vb.x ? true :
 			va.x > vb.x ? false :
 			va.y < vb.y ? true :
+			va.y > vb.y ? false :
+			// It is not strictly necessary to have this tiebreaker here, but
+			// it ensures predictability with regard to which of two
+			// intersecting corners get shaved.  Consistency is important for
+			// unit tests.
+			a.ring_idx < b.ring_idx ? true :
+			a.ring_idx > b.ring_idx ? false :
+			a.vert_idx < b.vert_idx ? true :
 			false;
 	}
 
@@ -107,6 +115,10 @@ void bevel_self_intersections(Mpoly &mp, double amount) {
 	for(size_t r_idx=0; r_idx<mp.rings.size(); r_idx++) {
 		const Ring &ring = mp.rings[r_idx];
 		for(size_t v_idx=0; v_idx<ring.pts.size(); v_idx++) {
+			if(VERBOSE >= 2) {
+				printf("mp[%zd][%zd] = %g, %g\n", r_idx, v_idx,
+					ring.pts[v_idx].x, ring.pts[v_idx].y);
+			}
 			entries.push_back(VertRef(r_idx, v_idx));
 		}
 	}
@@ -117,6 +129,17 @@ void bevel_self_intersections(Mpoly &mp, double amount) {
 	// sort by x,y
 	std::sort(entries.begin(), entries.end(), CoordsComparator(&mp));
 	GDALTermProgress(0.8, NULL, NULL);
+
+	if(VERBOSE >= 2) {
+		printf("\nbefore grep:\n");
+		for(size_t i=0; i<total_pts; i++) {
+			printf("entry[%zd] = %03zd, %03zd (%g, %g)\n", 
+				i, entries[i].ring_idx, entries[i].vert_idx,
+				entries[i].getVert(mp).x,
+				entries[i].getVert(mp).y
+				);
+		}
+	}
 
 	size_t total_num_touch = 0;
 	bool prev_was_same = 0;
@@ -150,6 +173,14 @@ void bevel_self_intersections(Mpoly &mp, double amount) {
 	entries.resize(total_num_touch);
 	// sort by ring_idx,vert_idx
 	std::sort(entries.begin(), entries.end(), RingsComparator(&mp));
+
+	if(VERBOSE >= 2) {
+		printf("\nafter sort:\n");
+		for(size_t i=0; i<total_num_touch; i++) {
+			printf("entry[%zd] = %zd, %zd\n", 
+				i, entries[i].ring_idx, entries[i].vert_idx);
+		}
+	}
 
 	if(VERBOSE) printf("shaving corners\n");
 
