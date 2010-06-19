@@ -31,6 +31,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include "ndv.h"
 #include "default_palette.h"
 
+using namespace dangdal;
+
 // these are global so that they can be printed by the usage() function
 double default_slope_exageration = 2.0;
 double default_lightvec[] = { 0, 1, 1.5 };
@@ -118,7 +120,7 @@ int main(int argc, char *argv[]) {
 	bool alpha_overlay = 0;
 
 	geo_opts_t geo_opts = init_geo_options(&argc, &argv);
-	ndv_def_t ndv_def = init_ndv_options(&argc, &argv);
+	NdvDef ndv_def = NdvDef(&argc, &argv);
 
 	int argp = 1;
 	while(argp < argc) {
@@ -353,8 +355,10 @@ int main(int argc, char *argv[]) {
 
 	//////// process image ////////
 
-	if(!ndv_def.nranges) {
-		add_ndv_from_raster(&ndv_def, src_ds, 1, &band_id);
+	if(ndv_def.empty()) {
+		std::vector<size_t> ndv_bandids;
+		ndv_bandids.push_back(band_id);
+		ndv_def = NdvDef(src_ds, ndv_bandids);
 	}
 
 	double *inbuf_prev = MYALLOC(double, w);
@@ -384,9 +388,9 @@ int main(int argc, char *argv[]) {
 			GDALRasterIO(src_band, GF_Read, 0, 0, w, 1, inbuf_prev, w, 1, GDT_Float64, 0, 0);
 			GDALRasterIO(src_band, GF_Read, 0, 0, w, 1, inbuf_this, w, 1, GDT_Float64, 0, 0);
 			GDALRasterIO(src_band, GF_Read, 0, 1, w, 1, inbuf_next, w, 1, GDT_Float64, 0, 0);
-			array_check_ndv(&ndv_def, 0, inbuf_prev, NULL, inbuf_ndv_prev, w);
-			array_check_ndv(&ndv_def, 0, inbuf_this, NULL, inbuf_ndv_this, w);
-			array_check_ndv(&ndv_def, 0, inbuf_next, NULL, inbuf_ndv_next, w);
+			ndv_def.arrayCheckNdv(0, inbuf_prev, inbuf_ndv_prev, w);
+			ndv_def.arrayCheckNdv(0, inbuf_this, inbuf_ndv_this, w);
+			ndv_def.arrayCheckNdv(0, inbuf_next, inbuf_ndv_next, w);
 			scale_values(inbuf_prev, w, src_scale, src_offset);
 			scale_values(inbuf_this, w, src_scale, src_offset);
 			scale_values(inbuf_next, w, src_scale, src_offset);
@@ -404,7 +408,7 @@ int main(int argc, char *argv[]) {
 			} else {
 				GDALRasterIO(src_band, GF_Read, 0, row+1, w, 1, inbuf_next, w, 1, GDT_Float64, 0, 0);
 			}
-			array_check_ndv(&ndv_def, 0, inbuf_next, NULL, inbuf_ndv_next, w);
+			ndv_def.arrayCheckNdv(0, inbuf_next, inbuf_ndv_next, w);
 			scale_values(inbuf_next, w, src_scale, src_offset);
 		}
 		if(tex_bands) {

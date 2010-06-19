@@ -122,7 +122,7 @@ NdvDef::NdvDef(int *argc_ptr, char ***argv_ptr) : invert(false) {
 		invert = got_dv;
 	}
 
-	debugPrint();
+	if(VERBOSE >= 2) debugPrint();
 
 	*argc_ptr = argc_out;
 	*argv_ptr = argv_out;

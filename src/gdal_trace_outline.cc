@@ -352,8 +352,7 @@ int main(int argc, char **argv) {
 			color_table = GDALGetRasterColorTable(band);
 		}
 	} else {
-		mask = get_bitgrid_for_dataset(
-			ds, inspect_bandids, ndv_def, dbuf);
+		mask = get_bitgrid_for_dataset(ds, inspect_bandids, ndv_def, dbuf);
 	}
 
 	for(int go_idx=0; go_idx<geom_outputs.num; go_idx++) {

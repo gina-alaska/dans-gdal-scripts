@@ -77,8 +77,7 @@ int main(int argc, char **argv) {
 	bool fuzzy_match = 0;
 	char *debug_report = NULL;
 	char *mask_out_fn = NULL;
-	int inspect_numbands = 0;
-	int *inspect_bandids = NULL;
+	std::vector<size_t> inspect_bandids;
 	bool do_erosion = 0;
 
 	if(argc == 1) usage(argv[0]);
@@ -92,7 +91,7 @@ int main(int argc, char **argv) {
 	dup2(2, 1);
 
 	geo_opts_t geo_opts = init_geo_options(&argc, &argv);
-	ndv_def_t ndv_def = init_ndv_options(&argc, &argv);
+	NdvDef ndv_def = NdvDef(&argc, &argv);
 
 	int argp = 1;
 	while(argp < argc) {
@@ -110,8 +109,7 @@ int main(int argc, char **argv) {
 				char *endptr;
 				int bandid = strtol(argv[argp++], &endptr, 10);
 				if(*endptr) usage(argv[0]);
-				inspect_bandids = REMYALLOC(int, inspect_bandids, (inspect_numbands+1));
-				inspect_bandids[inspect_numbands++] = bandid;
+				inspect_bandids.push_back(bandid);
 			} else if(!strcmp(arg, "-erosion")) {
 				do_erosion = 1;
 			} else if(!strcmp(arg, "-report")) {
@@ -138,18 +136,17 @@ int main(int argc, char **argv) {
 		if(!ds) fatal_error("open failed");
 	}
 
-	if(do_inspect && !inspect_numbands) {
-		inspect_numbands = GDALGetRasterCount(ds);
-		inspect_bandids = MYALLOC(int, inspect_numbands);
-		for(int i=0; i<inspect_numbands; i++) inspect_bandids[i] = i+1;
+	if(do_inspect && inspect_bandids.empty()) {
+		size_t nbands = GDALGetRasterCount(ds);
+		for(size_t i=0; i<nbands; i++) inspect_bandids.push_back(i+1);
 	}
 
 	if(!do_inspect) {
 		if(fuzzy_match)      fatal_error("-fuzzy-match option can only be used with -inspect-rect4 option");
-		if(ndv_def.nranges)  fatal_error("NDV options can only be used with -inspect-rect4 option");
+		if(!ndv_def.empty()) fatal_error("NDV options can only be used with -inspect-rect4 option");
 		if(debug_report)     fatal_error("-report option can only be used with -inspect-rect4 option");
 		if(mask_out_fn)      fatal_error("-mask-out option can only be used with -inspect-rect4 option");
-		if(inspect_numbands) fatal_error("-b option can only be used with -inspect-rect4 option");
+		if(inspect_bandids.size()) fatal_error("-b option can only be used with -inspect-rect4 option");
 		if(do_erosion)       fatal_error("-erosion option can only be used with -inspect-rect4 option");
 	}
 
@@ -160,8 +157,8 @@ int main(int argc, char **argv) {
 	DebugPlot *dbuf = NULL;
 	BitGrid mask(0, 0);
 	if(do_inspect) {
-		if(!ndv_def.nranges) {
-			add_ndv_from_raster(&ndv_def, ds, inspect_numbands, inspect_bandids);
+		if(ndv_def.empty()) {
+			ndv_def = NdvDef(ds, inspect_bandids);
 		}
 
 		if(debug_report) {
@@ -169,8 +166,7 @@ int main(int argc, char **argv) {
 			dbuf->mode = PLOT_RECT4;
 		}
 
-		mask = get_bitgrid_for_dataset(ds, inspect_numbands, inspect_bandids,
-			&ndv_def, dbuf);
+		mask = get_bitgrid_for_dataset(ds, inspect_bandids, ndv_def, dbuf);
 
 		if(do_erosion) {
 			mask.erode();
