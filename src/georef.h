@@ -30,7 +30,12 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #ifndef GEOCODE_H
 #define GEOCODE_H
 
-typedef struct {
+namespace dangdal {
+
+struct GeoOpts {
+	static void printUsage();
+	GeoOpts(int *argc_ptr, char ***argv_ptr);
+
 	char *s_srs;
 	char *geo_srs;
 	size_t w, h;
@@ -38,9 +43,23 @@ typedef struct {
 	bool got_ul_en;
 	double given_left_e, given_lower_n, given_upper_n;
 	double res_x, res_y;
-} geo_opts_t;
+};
 
-typedef struct {
+class GeoRef {
+public:
+	GeoRef(GeoOpts opt, const GDALDatasetH ds);
+
+	void xy2en(double xpos, double ypos, double *e_out, double *n_out) const;
+	void en2xy(double east, double north, double *x_out, double *y_out) const;
+	bool en2ll(double east, double north, double *lon_out, double *lat_out) const;
+	bool ll2en(double lon, double lat, double *e_out, double *n_out) const;
+	bool xy2ll(double x, double y, double *lon_out, double *lat_out) const;
+	bool ll2xy(double lon, double lat, double *x_out, double *y_out) const;
+	void en2ll_or_die(double east, double north, double *lon_out, double *lat_out) const;
+	void ll2en_or_die(double lon, double lat, double *e_out, double *n_out) const;
+	void xy2ll_or_die(double x, double y, double *lon_out, double *lat_out) const;
+	void ll2xy_or_die(double lon, double lat, double *x_out, double *y_out) const;
+
 	char *s_srs;
 	char *geo_srs;
 	double res_x, res_y; // zero if there is rotation
@@ -57,21 +76,8 @@ typedef struct {
 	double *fwd_affine;
 	double *inv_affine;
 	double lon_range1, lon_range2, lon_loopsize;
-} georef_t;
+};
 
-void print_georef_usage();
-geo_opts_t init_geo_options(int *argc_ptr, char ***argv_ptr);
-georef_t init_georef(geo_opts_t *opt, GDALDatasetH ds);
-
-void xy2en(georef_t *georef, double xpos, double ypos, double *e_out, double *n_out);
-void en2xy(georef_t *georef, double east, double north, double *x_out, double *y_out);
-bool en2ll(georef_t *georef, double east, double north, double *lon_out, double *lat_out);
-bool ll2en(georef_t *georef, double lon, double lat, double *e_out, double *n_out);
-bool xy2ll(georef_t *georef, double x, double y, double *lon_out, double *lat_out);
-bool ll2xy(georef_t *georef, double lon, double lat, double *x_out, double *y_out);
-void en2ll_or_die(georef_t *georef, double east, double north, double *lon_out, double *lat_out);
-void ll2en_or_die(georef_t *georef, double lon, double lat, double *e_out, double *n_out);
-void xy2ll_or_die(georef_t *georef, double x, double y, double *lon_out, double *lat_out);
-void ll2xy_or_die(georef_t *georef, double lon, double lat, double *x_out, double *y_out);
+} // namespace dangdal
 
 #endif // ifndef GEOCODE_H
