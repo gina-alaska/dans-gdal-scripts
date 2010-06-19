@@ -30,14 +30,16 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include "polygon.h"
 #include "georef.h"
 
+using namespace dangdal;
+
 void usage(const char *cmdname) {
 	printf("Usage:\n  %s [options] [image_name]\n", cmdname);
 	printf("\n");
-	print_georef_usage();
+	GeoOpts::printUsage();
 }
 
 int main(int argc, char **argv) {
-	geo_opts_t geo_opts = init_geo_options(&argc, &argv);
+	GeoOpts geo_opts = GeoOpts(&argc, &argv);
 
 	GDALAllRegister();
 
@@ -46,18 +48,18 @@ int main(int argc, char **argv) {
 	GDALDatasetH ds = GDALOpen(fn, GA_ReadOnly);
 	if(!ds) fatal_error("open failed");
 
-	georef_t georef = init_georef(&geo_opts, ds);
+	GeoRef georef = GeoRef(geo_opts, ds);
 	
 	double x=1000, y=10;
 	double east, north;
 	double lon, lat;
 	printf("xy = %g, %g\n", x, y);
-	xy2en(&georef, x, y, &east, &north);
+	georef.xy2en(x, y, &east, &north);
 	printf("en = %g, %g\n", east, north);
-	en2ll_or_die(&georef, east, north, &lon, &lat);
+	georef.en2ll_or_die(east, north, &lon, &lat);
 	printf("ll = %g, %g\n", lon, lat);
-	ll2en_or_die(&georef, lon, lat, &east, &north);
+	georef.ll2en_or_die(lon, lat, &east, &north);
 	printf("en = %g, %g\n", east, north);
-	en2xy(&georef, east, north, &x, &y);
+	georef.en2xy(east, north, &x, &y);
 	printf("xy = %g, %g\n", x, y);
 }

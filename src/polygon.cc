@@ -530,28 +530,28 @@ void compute_containments(mpoly_t *mp) {
 }
 */
 
-void Mpoly::xy2en(georef_t *georef) {
+void Mpoly::xy2en(const GeoRef &georef) {
 	for(size_t r_idx=0; r_idx<rings.size(); r_idx++) {
 		Ring &ring = rings[r_idx];
 		for(size_t v_idx=0; v_idx<ring.pts.size(); v_idx++) {
 			double x = ring.pts[v_idx].x;
 			double y = ring.pts[v_idx].y;
 			double east, north;
-			::xy2en(georef, x, y, &east, &north);
+			georef.xy2en(x, y, &east, &north);
 			ring.pts[v_idx].x = east;
 			ring.pts[v_idx].y = north;
 		}
 	}
 }
 
-void Mpoly::en2xy(georef_t *georef) {
+void Mpoly::en2xy(const GeoRef &georef) {
 	for(size_t r_idx=0; r_idx<rings.size(); r_idx++) {
 		Ring &ring = rings[r_idx];
 		for(size_t v_idx=0; v_idx<ring.pts.size(); v_idx++) {
 			double east  = ring.pts[v_idx].x;
 			double north = ring.pts[v_idx].y;
 			double x, y;
-			::en2xy(georef, east, north, &x, &y);
+			georef.en2xy(east, north, &x, &y);
 			ring.pts[v_idx].x = x;
 			ring.pts[v_idx].y = y;
 		}
@@ -561,17 +561,17 @@ void Mpoly::en2xy(georef_t *georef) {
 // This way is very simple and robust, but doesn't know anything
 // about the actual distortion of the projection.
 /*
-mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double toler_pixels) {
+mpoly_t *mpoly_xy2ll_with_interp(const GeoRef &georef, mpoly_t *xy_poly, double toler_pixels) {
 	mpoly_t *ll_poly = MYALLOC(mpoly_t, 1);
 	ll_poly->num_rings = xy_poly->num_rings;
 	ll_poly->rings = MYALLOC(ring_t, ll_poly->num_rings);
 
 	OGRErr err = OGRERR_NONE;
-	double earth_radius = OSRGetSemiMajor(georef->spatial_ref, &err);
+	double earth_radius = OSRGetSemiMajor(georef.spatial_ref, &err);
 	if(err != OGRERR_NONE) fatal_error("could not determine globe radius");
 
 	double toler_radians = toler_pixels * 
-		std::min(georef->res_meters_x, georef->res_meters_y) / earth_radius;
+		std::min(georef.res_meters_x, georef.res_meters_y) / earth_radius;
 	// error is (approximately) proportional to segment length squared
 	// FIXME - need to multiply this by some constant
 	double max_seg_len = sqrt(toler_radians);
@@ -593,8 +593,8 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 			vertex_t xy2 = xy_ring->pts[(v_idx+1) % npts_in];
 
 			// compute segment length in radians
-			double dx = (xy1.x - xy2.x) * georef->res_meters_x / earth_radius;
-			double dy = (xy1.y - xy2.y) * georef->res_meters_y / earth_radius;
+			double dx = (xy1.x - xy2.x) * georef.res_meters_x / earth_radius;
+			double dy = (xy1.y - xy2.y) * georef.res_meters_y / earth_radius;
 			double seg_len = sqrt(dx*dx + dy*dy);
 
 			int nmid = (int)floor(seg_len / max_seg_len);
@@ -621,34 +621,34 @@ mpoly_t *mpoly_xy2ll_with_interp(georef_t *georef, mpoly_t *xy_poly, double tole
 */
 
 // returns length of longest raster side in meters, squared
-static double estimate_canvas_size_sq(georef_t *georef, double semi_major) {
+static double estimate_canvas_size_sq(const GeoRef &georef, double semi_major) {
 	double e1, n1, e2, n2;
-	xy2en(georef, 0, 0, &e1, &n1);
-	xy2en(georef, georef->w, 0, &e2, &n2);
+	georef.xy2en(0, 0, &e1, &n1);
+	georef.xy2en(georef.w, 0, &e2, &n2);
 	double dx = (e1 - e2);
 	double dy = (n1 - n2);
 	double size1 = dx*dx + dy*dy;
-	xy2en(georef, 0, georef->h, &e2, &n2);
+	georef.xy2en(0, georef.h, &e2, &n2);
 	dx = (e1 - e2);
 	dy = (n1 - n2);
 	double size2 = dx*dx + dy*dy;
 
 	double size = std::max(size1, size2);
-	size *= georef->units_val * georef->units_val;
-	if(OSRIsGeographic(georef->spatial_ref)) {
+	size *= georef.units_val * georef.units_val;
+	if(OSRIsGeographic(georef.spatial_ref)) {
 		size *= semi_major * semi_major;
 	}
 	return size;
 }
 
-void Mpoly::xy2ll_with_interp(georef_t *georef, double toler) {
+void Mpoly::xy2ll_with_interp(const GeoRef &georef, double toler) {
 	size_t nrings = rings.size();
 	Mpoly ll_poly;
 	ll_poly.rings.resize(nrings);
 	
 	double semi_major;
-	if(georef->have_semi_major) {
-		semi_major = georef->semi_major;
+	if(georef.have_semi_major) {
+		semi_major = georef.semi_major;
 	} else {
 		semi_major = 6370997.0;
 		fprintf(stderr, "Warning: could not get globe size, assuming %lf\n", semi_major);
@@ -661,7 +661,7 @@ void Mpoly::xy2ll_with_interp(georef_t *georef, double toler) {
 	// to avoid problems with images that span an entire 360 degrees of
 	// longitude.  Without this the map xy -> ll -> xy is not single-valued.
 	double epsilon = 5e-7;
-	double shrink = ((double)georef->w - 2.0*epsilon) / (double)georef->w;
+	double shrink = ((double)georef.w - 2.0*epsilon) / (double)georef.w;
 
 	for(size_t r_idx=0; r_idx<nrings; r_idx++) {
 		// note that this is *not* a reference, since it will potentially
@@ -676,7 +676,7 @@ void Mpoly::xy2ll_with_interp(georef_t *georef, double toler) {
 			double x = xy_ring.pts[v_idx].x;
 			double y = xy_ring.pts[v_idx].y;
 			double lon, lat;
-			xy2ll_or_die(georef, x*shrink+epsilon, y, &lon, &lat);
+			georef.xy2ll_or_die(x*shrink+epsilon, y, &lon, &lat);
 			ll_ring.pts[v_idx].x = lon;
 			ll_ring.pts[v_idx].y = lat;
 		}
@@ -696,7 +696,7 @@ void Mpoly::xy2ll_with_interp(georef_t *georef, double toler) {
 				(xy1.y + xy2.y)/2.0);
 
 			Vertex ll_m_proj;
-			xy2ll_or_die(georef, 
+			georef.xy2ll_or_die(
 				xy_m.x*shrink+epsilon, xy_m.y,
 				&ll_m_proj.x, &ll_m_proj.y);
 
@@ -789,7 +789,7 @@ void Mpoly::xy2ll_with_interp(georef_t *georef, double toler) {
 			double y = xy_ring.pts[v_idx].y;
 
 			double lon, lat;
-			xy2ll_or_die(georef, x, y, &lon, &lat);
+			georef.xy2ll_or_die(x, y, &lon, &lat);
 
 			ll_ring.pts[v_idx].x = lon;
 			ll_ring.pts[v_idx].y = lat;

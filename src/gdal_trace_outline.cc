@@ -61,7 +61,7 @@ void usage(const char *cmdname) {
 	printf("Usage:\n  %s [options] [image_name]\n", cmdname);
 	printf("\n");
 	
-	print_georef_usage();
+	GeoOpts::printUsage();
 	printf("\n");
 	NdvDef::printUsage();
 
@@ -194,7 +194,7 @@ int main(int argc, char **argv) {
 
 	if(argc == 1) usage(argv[0]);
 
-	geo_opts_t geo_opts = init_geo_options(&argc, &argv);
+	GeoOpts geo_opts = GeoOpts(&argc, &argv);
 	NdvDef ndv_def = NdvDef(&argc, &argv);
 
 	int argp = 1;
@@ -320,7 +320,7 @@ int main(int argc, char **argv) {
 
 	CPLPushErrorHandler(CPLQuietErrorHandler);
 
-	georef_t georef = init_georef(&geo_opts, ds);
+	GeoRef georef = GeoRef(geo_opts, ds);
 
 	for(int i=0; i<geom_outputs.num; i++) {
 		int out_cs = geom_outputs.output[i].out_cs;
@@ -490,9 +490,9 @@ int main(int argc, char **argv) {
 						if(go->out_cs == CS_XY) {
 							// no-op
 						} else if(go->out_cs == CS_EN) {
-							proj_poly.xy2en(&georef);
+							proj_poly.xy2en(georef);
 						} else if(go->out_cs == CS_LL) {
-							proj_poly.xy2ll_with_interp(&georef, llproj_toler);
+							proj_poly.xy2ll_with_interp(georef, llproj_toler);
 						} else {
 							fatal_error("bad val for out_cs");
 						}

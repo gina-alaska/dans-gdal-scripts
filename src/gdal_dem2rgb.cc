@@ -57,7 +57,7 @@ void get_nan_color(uint8_t *buf, palette_t *pal);
 void get_palette_color(uint8_t *buf, double val, palette_t *pal);
 
 void compute_tierow_invaffine(
-	georef_t *georef,
+	const GeoRef &georef,
 	int num_cols, int row, int grid_spacing,
 	double *invaffine_tierow
 );
@@ -65,7 +65,7 @@ void compute_tierow_invaffine(
 void usage(const char *cmdname) {
 	printf("Usage: %s <options> src_dataset dst_dataset\n\n", cmdname);
 	
-	print_georef_usage();
+	GeoOpts::printUsage();
 	printf("\n");
 	NdvDef::printUsage();
 	printf("\n");
@@ -119,7 +119,7 @@ int main(int argc, char *argv[]) {
 	bool data24bit = 0;
 	bool alpha_overlay = 0;
 
-	geo_opts_t geo_opts = init_geo_options(&argc, &argv);
+	GeoOpts geo_opts = GeoOpts(&argc, &argv);
 	NdvDef ndv_def = NdvDef(&argc, &argv);
 
 	int argp = 1;
@@ -243,7 +243,7 @@ int main(int argc, char *argv[]) {
 	if(!w || !h) fatal_error("missing width/height");
 	printf("Input size is %zd, %zd\n", w, h);
 
-	georef_t georef = init_georef(&geo_opts, src_ds);
+	GeoRef georef = GeoRef(geo_opts, src_ds);
 
 	//////// compute orientation ////////
 
@@ -425,13 +425,13 @@ int main(int argc, char *argv[]) {
 			if(below_tiept > (int)h) below_tiept = (int)h;
 			if(row == (size_t)above_tiept) {
 				if(row == 0) {
-					compute_tierow_invaffine(&georef, w, 0, grid_spacing, invaffine_tierow_above);
+					compute_tierow_invaffine(georef, w, 0, grid_spacing, invaffine_tierow_above);
 				} else {
 					double *tmp = invaffine_tierow_above;
 					invaffine_tierow_above = invaffine_tierow_below;
 					invaffine_tierow_below = tmp;
 				}
-				compute_tierow_invaffine(&georef, w, below_tiept, grid_spacing, invaffine_tierow_below);
+				compute_tierow_invaffine(georef, w, below_tiept, grid_spacing, invaffine_tierow_below);
 			}
 			double segment_height = below_tiept - above_tiept;
 			grid_fraction = ((double)row - (double)above_tiept) / segment_height;
@@ -689,7 +689,7 @@ void get_palette_color(uint8_t *buf, double val, palette_t *pal) {
 // can be used to convert row/column gradients
 // to easting/northing gradients
 void compute_invaffine(
-	georef_t *georef, double col, double row, double *invaffine
+	const GeoRef &georef, double col, double row, double *invaffine
 ) {
 	// in case we return due to error:
 	invaffine[0] = invaffine[1] =
@@ -702,9 +702,9 @@ void compute_invaffine(
 	double lon_dx, lat_dx;
 	double lon_dy, lat_dy;
 	bool error =
-		xy2ll(georef, col, row, &lon_0, &lat_0) ||
-		xy2ll(georef, col+epsilon, row, &lon_dx, &lat_dx) ||
-		xy2ll(georef, col, row+epsilon, &lon_dy, &lat_dy);
+		georef.xy2ll(col, row, &lon_0, &lat_0) ||
+		georef.xy2ll(col+epsilon, row, &lon_dx, &lat_dx) ||
+		georef.xy2ll(col, row+epsilon, &lon_dy, &lat_dy);
 
 	if(error) {
 		invaffine[0] = 0;
@@ -764,7 +764,7 @@ void compute_invaffine(
 
 // interpolate the invaffine for an entire row
 void compute_tierow_invaffine(
-	georef_t *georef,
+	const GeoRef &georef,
 	int num_cols, int row, int grid_spacing,
 	double *invaffine_tierow
 ) {

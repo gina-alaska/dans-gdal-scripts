@@ -43,7 +43,7 @@ void usage(const char *cmdname) {
 	printf("Usage:\n  %s [options] \n", cmdname);
 	printf("\n");
 	
-	print_georef_usage();
+	GeoOpts::printUsage();
 	printf("  -geo-from <fn>                  Get georeference from this raster file\n");
 	printf("\nOptions:\n");
 	printf("  -wkt <fn>                       File containing WKT def in easting/northing units\n");
@@ -59,7 +59,7 @@ int main(int argc, char **argv) {
 
 	if(argc == 1) usage(argv[0]);
 
-	geo_opts_t geo_opts = init_geo_options(&argc, &argv);
+	GeoOpts geo_opts = GeoOpts(&argc, &argv);
 
 	int argp = 1;
 	while(argp < argc) {
@@ -95,12 +95,12 @@ int main(int argc, char **argv) {
 
 	CPLPushErrorHandler(CPLQuietErrorHandler);
 
-	georef_t georef = init_georef(&geo_opts, ds);
+	GeoRef georef = GeoRef(geo_opts, ds);
 	if(!georef.inv_affine) fatal_error("missing affine transform");
 
 	Mpoly mp = mpoly_from_wktfile(wkt_fn);
 
-	mp.en2xy(&georef);
+	mp.en2xy(georef);
 
 	mask_from_mpoly(mp, georef.w, georef.h, mask_fn);
 

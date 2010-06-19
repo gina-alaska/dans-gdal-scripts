@@ -41,7 +41,7 @@ void usage(const char *cmdname) {
 	printf("Usage:\n  %s [options] [image_name]\n", cmdname);
 	printf("\n");
 	
-	print_georef_usage();
+	GeoOpts::printUsage();
 	printf("\n");
 	NdvDef::printUsage();
 
@@ -90,7 +90,7 @@ int main(int argc, char **argv) {
 	close(1);
 	dup2(2, 1);
 
-	geo_opts_t geo_opts = init_geo_options(&argc, &argv);
+	GeoOpts geo_opts = GeoOpts(&argc, &argv);
 	NdvDef ndv_def = NdvDef(&argc, &argv);
 
 	int argp = 1;
@@ -152,7 +152,7 @@ int main(int argc, char **argv) {
 
 	CPLPushErrorHandler(CPLQuietErrorHandler);
 
-	georef_t georef = init_georef(&geo_opts, ds);
+	GeoRef georef = GeoRef(geo_opts, ds);
 
 	DebugPlot *dbuf = NULL;
 	BitGrid mask(0, 0);
@@ -234,12 +234,12 @@ int main(int argc, char **argv) {
 	fprintf(yaml_fh, "center:\n");
 	center = Vertex((double)georef.w/2.0, (double)georef.h/2.0);
 	if(georef.fwd_xform && georef.fwd_affine) {
-		xy2ll_or_die(&georef, center.x, center.y, &lon, &lat);
+		georef.xy2ll_or_die(center.x, center.y, &lon, &lat);
 		fprintf(yaml_fh, "  lon: %.15f\n", lon);
 		fprintf(yaml_fh, "  lat: %.15f\n", lat);
 	}
 	if(georef.fwd_affine) {
-		xy2en(&georef, center.x, center.y, &east, &north);
+		georef.xy2en(center.x, center.y, &east, &north);
 		fprintf(yaml_fh, "  east: %.15f\n", east);
 		fprintf(yaml_fh, "  north: %.15f\n", north);
 	}
@@ -251,12 +251,12 @@ int main(int argc, char **argv) {
 		fprintf(yaml_fh, "centroid:\n");
 		centroid = mask.centroid();
 		if(georef.fwd_xform && georef.fwd_affine) {
-			xy2ll_or_die(&georef, centroid.x, centroid.y, &lon, &lat);
+			georef.xy2ll_or_die(centroid.x, centroid.y, &lon, &lat);
 			fprintf(yaml_fh, "  lon: %.15f\n", lon);
 			fprintf(yaml_fh, "  lat: %.15f\n", lat);
 		}
 		if(georef.fwd_affine) {
-			xy2en(&georef, centroid.x, centroid.y, &east, &north);
+			georef.xy2en(centroid.x, centroid.y, &east, &north);
 			fprintf(yaml_fh, "  east: %.15f\n", east);
 			fprintf(yaml_fh, "  north: %.15f\n", north);
 		}
@@ -282,7 +282,7 @@ int main(int argc, char **argv) {
 		if(georef.fwd_xform && georef.fwd_affine) {
 			fprintf(yaml_fh, "geometry_ll:\n  type: rectangle4\n");
 			for(int i=0; i<4; i++) {
-				xy2ll_or_die(&georef, rect4.pts[i].x, rect4.pts[i].y, &lon, &lat);
+				georef.xy2ll_or_die(rect4.pts[i].x, rect4.pts[i].y, &lon, &lat);
 				fprintf(yaml_fh, "  %s_lon: %.15f\n", labels[i], lon);
 				fprintf(yaml_fh, "  %s_lat: %.15f\n", labels[i], lat);
 			}
@@ -290,7 +290,7 @@ int main(int argc, char **argv) {
 		if(georef.fwd_affine) {
 			fprintf(yaml_fh, "geometry_en:\n  type: rectangle4\n");
 			for(int i=0; i<4; i++) {
-				xy2en(&georef, rect4.pts[i].x, rect4.pts[i].y, &east, &north);
+				georef.xy2en(rect4.pts[i].x, rect4.pts[i].y, &east, &north);
 				fprintf(yaml_fh, "  %s_east: %.15f\n", labels[i], east);
 				fprintf(yaml_fh, "  %s_north: %.15f\n", labels[i], north);
 			}
@@ -309,7 +309,7 @@ int main(int argc, char **argv) {
 			fprintf(yaml_fh, "geometry_ll:\n  type: rectangle8\n");
 			for(int i=0; i<3; i++) for(int j=0; j<3; j++) {
 				if(!strcmp(e_labels[i], "mid") && !strcmp(n_labels[j], "mid")) continue;
-				xy2ll_or_die(&georef, e_pos[i], n_pos[j], &lon, &lat);
+				georef.xy2ll_or_die(e_pos[i], n_pos[j], &lon, &lat);
 				fprintf(yaml_fh, "  %s_%s_lon: %.15f\n", n_labels[j], e_labels[i], lon);
 				fprintf(yaml_fh, "  %s_%s_lat: %.15f\n", n_labels[j], e_labels[i], lat);
 			}
@@ -318,7 +318,7 @@ int main(int argc, char **argv) {
 			fprintf(yaml_fh, "geometry_en:\n  type: rectangle8\n");
 			for(int i=0; i<3; i++) for(int j=0; j<3; j++) {
 				if(!strcmp(e_labels[i], "mid") && !strcmp(n_labels[j], "mid")) continue;
-				xy2en(&georef, e_pos[i], n_pos[j], &east, &north);
+				georef.xy2en(e_pos[i], n_pos[j], &east, &north);
 				fprintf(yaml_fh, "  %s_%s_east: %.15f\n", n_labels[j], e_labels[i], east);
 				fprintf(yaml_fh, "  %s_%s_north: %.15f\n", n_labels[j], e_labels[i], north);
 			}

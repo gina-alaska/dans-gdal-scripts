@@ -121,9 +121,9 @@ public:
 	bool contains(Vertex p) const;
 	void deleteRing(size_t idx);
 
-	void xy2en(georef_t *georef);
-	void en2xy(georef_t *georef);
-	void xy2ll_with_interp(georef_t *georef, double toler);
+	void xy2en(const GeoRef &georef);
+	void en2xy(const GeoRef &georef);
+	void xy2ll_with_interp(const GeoRef &georef, double toler);
 
 	std::vector<Ring> rings;
 };
