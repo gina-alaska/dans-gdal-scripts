@@ -53,7 +53,7 @@ static void add_arg_to_list(int *argc_ptr, char ***argv_ptr, char *new_arg) {
 }
 
 NdvInterval::NdvInterval(const std::string &s) {
-	printf("minmax [%s]\n", s.c_str());
+	if(VERBOSE >= 2) printf("minmax [%s]\n", s.c_str());
 
 	char *endptr;
 	double min, max;
@@ -83,6 +83,10 @@ NdvSlab::NdvSlab(const std::string &s) {
 	toker tok(s, sep);
 	for(toker::iterator p=tok.begin(); p!=tok.end(); ++p) {
 		range_by_band.push_back(NdvInterval(*p));
+	}
+
+	if(range_by_band.empty()) {
+		fatal_error("could not parse given NDV term [%s]", s.c_str());
 	}
 }
 
@@ -239,11 +243,10 @@ void NdvDef::arrayCheckNdv(
 }
 
 void NdvDef::aggregateMask(
-	std::vector<uint8_t> &total_mask,
-	const std::vector<uint8_t> &band_mask
-) {
-	assert(total_mask.size() == band_mask.size());
-	size_t nsamps = total_mask.size();
+	uint8_t *total_mask,
+	const uint8_t *band_mask,
+	size_t nsamps
+) const {
 	if(invert) {
 		// pixel is valid only if all bands are within valid range
 		for(size_t i=0; i<nsamps; i++) {

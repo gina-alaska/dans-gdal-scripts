@@ -70,11 +70,11 @@ public:
 	) const;
 
 	void aggregateMask(
-		std::vector<uint8_t> &total_mask,
-		const std::vector<uint8_t> &band_mask
-	);
+		uint8_t *total_mask,
+		const uint8_t *band_mask,
+		size_t nsamps
+	) const;
 
-private:
 	bool invert;
 	std::vector<NdvSlab> slabs;
 };
