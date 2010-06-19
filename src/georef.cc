@@ -183,8 +183,6 @@ GeoRef::GeoRef(GeoOpts opt, const GDALDatasetH ds) {
 	opt.res_x = fabs(opt.res_x);
 	opt.res_y = fabs(opt.res_y);
 
-	fwd_affine = NULL;
-
 	if((opt.got_ul_en || opt.got_ll_en) && opt.res_x && opt.res_y) {
 		if(opt.got_ll_en) {
 			opt.given_upper_n = opt.given_lower_n + (double)opt.h*opt.res_y;
@@ -192,31 +190,31 @@ GeoRef::GeoRef(GeoOpts opt, const GDALDatasetH ds) {
 		}
 
 		if(!opt.got_ul_en) fatal_error("impossibility");
-		fwd_affine = MYALLOC(double, 6);
+		fwd_affine.resize(6);
 		fwd_affine[0] = opt.given_left_e;  
 		fwd_affine[3] = opt.given_upper_n; 
 		fwd_affine[1] = opt.res_x; fwd_affine[2] =          0;
 		fwd_affine[4] =         0; fwd_affine[5] = -opt.res_y;
 	} else if(ds) {
 		bool has_rotation = 0;
-		fwd_affine = MYALLOC(double, 6);
-		if(GDALGetGeoTransform(ds, fwd_affine) == CE_None) {
+		fwd_affine.resize(6);
+		if(GDALGetGeoTransform(ds, &fwd_affine[0]) == CE_None) {
 			has_rotation = fwd_affine[2] || fwd_affine[4];
 		} else {
-			fwd_affine = NULL;
+			fwd_affine.clear();
 		}
 
 		if(opt.res_x && opt.res_y) {
 			// if corner coordinate were specified, the first branch of the outer if
 			// statement would have been taken
-			if(!fwd_affine) fatal_error("missing ll_en/ul_en parameter");
+			if(!hasAffine()) fatal_error("missing ll_en/ul_en parameter");
 
 			if(has_rotation) fatal_error("cannot override resolution if source image has rotation");
 
 			fwd_affine[1] =  opt.res_x;
 			fwd_affine[5] = -opt.res_y;
 		} else {
-			if(has_rotation || !fwd_affine) {
+			if(has_rotation || !hasAffine()) {
 				opt.res_x = opt.res_y = 0;
 			} else {
 				opt.res_x = fabs(fwd_affine[1]);
@@ -227,7 +225,7 @@ GeoRef::GeoRef(GeoOpts opt, const GDALDatasetH ds) {
 		if(opt.got_ul_en || opt.got_ll_en) {
 			if(has_rotation) fatal_error("cannot override ll_en/ul_en if source image has rotation");
 
-			if(!fwd_affine || !opt.res_x || !opt.res_y) fatal_error("missing -res parameter");
+			if(!hasAffine() || !opt.res_x || !opt.res_y) fatal_error("missing -res parameter");
 
 			if(opt.got_ll_en) {
 				opt.given_upper_n = opt.given_lower_n + (double)opt.h*opt.res_y;
@@ -240,9 +238,9 @@ GeoRef::GeoRef(GeoOpts opt, const GDALDatasetH ds) {
 		}
 	}
 
-	if(fwd_affine) {
-		inv_affine = MYALLOC(double, 6);
-		if(!GDALInvGeoTransform(fwd_affine, inv_affine)) {
+	if(hasAffine()) {
+		inv_affine.resize(6);
+		if(!GDALInvGeoTransform(&fwd_affine[0], &inv_affine[0])) {
 			fatal_error("affine is not invertible");
 		}
 	}
@@ -325,20 +323,18 @@ void GeoRef::xy2en(
 	double xpos, double ypos,
 	double *e_out, double *n_out
 ) const {
-	double *affine = fwd_affine;
-	if(!affine) fatal_error("missing affine");
-	*e_out = affine[0] + affine[1] * xpos + affine[2] * ypos;
-	*n_out = affine[3] + affine[4] * xpos + affine[5] * ypos;
+	if(!hasAffine()) fatal_error("missing affine");
+	*e_out = fwd_affine[0] + fwd_affine[1] * xpos + fwd_affine[2] * ypos;
+	*n_out = fwd_affine[3] + fwd_affine[4] * xpos + fwd_affine[5] * ypos;
 }
 
 void GeoRef::en2xy(
 	double east, double north,
 	double *x_out, double *y_out
 ) const {
-	double *affine = inv_affine;
-	if(!affine) fatal_error("missing affine");
-	*x_out = affine[0] + affine[1] * east + affine[2] * north;
-	*y_out = affine[3] + affine[4] * east + affine[5] * north;
+	if(!hasAffine()) fatal_error("missing affine");
+	*x_out = inv_affine[0] + inv_affine[1] * east + inv_affine[2] * north;
+	*y_out = inv_affine[3] + inv_affine[4] * east + inv_affine[5] * north;
 }
 
 bool GeoRef::en2ll(

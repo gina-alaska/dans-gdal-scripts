@@ -324,7 +324,7 @@ int main(int argc, char **argv) {
 
 	for(int i=0; i<geom_outputs.num; i++) {
 		int out_cs = geom_outputs.output[i].out_cs;
-		if((out_cs == CS_EN || out_cs == CS_LL) && !georef.fwd_affine) 
+		if((out_cs == CS_EN || out_cs == CS_LL) && !georef.hasAffine()) 
 			fatal_error("missing affine transform");
 		if((out_cs == CS_LL) && !georef.fwd_xform) 
 			fatal_error("missing coordinate transform");

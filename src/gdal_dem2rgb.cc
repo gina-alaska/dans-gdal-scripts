@@ -250,7 +250,7 @@ int main(int argc, char *argv[]) {
 	double *constant_invaffine = NULL;
 	if(do_shade) {
 		if(!georef.fwd_xform) {
-			if(!georef.inv_affine) fatal_error("please specify resolution of image");
+			if(!georef.hasAffine()) fatal_error("please specify resolution of image");
 			printf("warning: no SRS available - basing orientation on affine transform\n");
 			constant_invaffine = MYALLOC(double, 4);
 			constant_invaffine[0] = georef.inv_affine[1];
@@ -288,8 +288,8 @@ int main(int argc, char *argv[]) {
 	GDALDatasetH dst_ds = GDALCreate(dst_driver, dst_fn, w, h, out_numbands, GDT_Byte, NULL);
 	if(!dst_ds) fatal_error("couldn't create dst_dataset");
 
-	if(georef.fwd_affine) {
-		GDALSetGeoTransform(dst_ds, georef.fwd_affine);
+	if(georef.hasAffine()) {
+		GDALSetGeoTransform(dst_ds, &georef.fwd_affine[0]);
 	}
 	GDALSetProjection(dst_ds, GDALGetProjectionRef(src_ds));
 

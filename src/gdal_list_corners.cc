@@ -222,7 +222,7 @@ int main(int argc, char **argv) {
 	if(georef.res_meters_x && georef.res_meters_y) {
 		fprintf(yaml_fh, "res_meters: %.15f %.15f\n", georef.res_meters_x, georef.res_meters_y);
 	}
-	if(georef.fwd_affine) {
+	if(georef.hasAffine()) {
 		fprintf(yaml_fh, "affine:\n");
 		for(int i=0; i<6; i++) fprintf(yaml_fh, "  - %.15f\n", georef.fwd_affine[i]);
 	}
@@ -233,12 +233,12 @@ int main(int argc, char **argv) {
 	Vertex center;
 	fprintf(yaml_fh, "center:\n");
 	center = Vertex((double)georef.w/2.0, (double)georef.h/2.0);
-	if(georef.fwd_xform && georef.fwd_affine) {
+	if(georef.fwd_xform && georef.hasAffine()) {
 		georef.xy2ll_or_die(center.x, center.y, &lon, &lat);
 		fprintf(yaml_fh, "  lon: %.15f\n", lon);
 		fprintf(yaml_fh, "  lat: %.15f\n", lat);
 	}
-	if(georef.fwd_affine) {
+	if(georef.hasAffine()) {
 		georef.xy2en(center.x, center.y, &east, &north);
 		fprintf(yaml_fh, "  east: %.15f\n", east);
 		fprintf(yaml_fh, "  north: %.15f\n", north);
@@ -250,12 +250,12 @@ int main(int argc, char **argv) {
 		Vertex centroid;
 		fprintf(yaml_fh, "centroid:\n");
 		centroid = mask.centroid();
-		if(georef.fwd_xform && georef.fwd_affine) {
+		if(georef.fwd_xform && georef.hasAffine()) {
 			georef.xy2ll_or_die(centroid.x, centroid.y, &lon, &lat);
 			fprintf(yaml_fh, "  lon: %.15f\n", lon);
 			fprintf(yaml_fh, "  lat: %.15f\n", lat);
 		}
-		if(georef.fwd_affine) {
+		if(georef.hasAffine()) {
 			georef.xy2en(centroid.x, centroid.y, &east, &north);
 			fprintf(yaml_fh, "  east: %.15f\n", east);
 			fprintf(yaml_fh, "  north: %.15f\n", north);
@@ -279,7 +279,7 @@ int main(int argc, char **argv) {
 		}
 
 		const char *labels[] = { "upper_left", "upper_right", "lower_right", "lower_left" };
-		if(georef.fwd_xform && georef.fwd_affine) {
+		if(georef.fwd_xform && georef.hasAffine()) {
 			fprintf(yaml_fh, "geometry_ll:\n  type: rectangle4\n");
 			for(int i=0; i<4; i++) {
 				georef.xy2ll_or_die(rect4.pts[i].x, rect4.pts[i].y, &lon, &lat);
@@ -287,7 +287,7 @@ int main(int argc, char **argv) {
 				fprintf(yaml_fh, "  %s_lat: %.15f\n", labels[i], lat);
 			}
 		}
-		if(georef.fwd_affine) {
+		if(georef.hasAffine()) {
 			fprintf(yaml_fh, "geometry_en:\n  type: rectangle4\n");
 			for(int i=0; i<4; i++) {
 				georef.xy2en(rect4.pts[i].x, rect4.pts[i].y, &east, &north);
@@ -305,7 +305,7 @@ int main(int argc, char **argv) {
 		double e_pos[] = { 0, (double)georef.w/2.0, georef.w };
 		const char *n_labels[] = { "upper", "mid", "lower" };
 		double n_pos[] = { 0, (double)georef.h/2.0, georef.h };
-		if(georef.fwd_xform && georef.fwd_affine) {
+		if(georef.fwd_xform && georef.hasAffine()) {
 			fprintf(yaml_fh, "geometry_ll:\n  type: rectangle8\n");
 			for(int i=0; i<3; i++) for(int j=0; j<3; j++) {
 				if(!strcmp(e_labels[i], "mid") && !strcmp(n_labels[j], "mid")) continue;
@@ -314,7 +314,7 @@ int main(int argc, char **argv) {
 				fprintf(yaml_fh, "  %s_%s_lat: %.15f\n", n_labels[j], e_labels[i], lat);
 			}
 		}
-		if(georef.fwd_affine) {
+		if(georef.hasAffine()) {
 			fprintf(yaml_fh, "geometry_en:\n  type: rectangle8\n");
 			for(int i=0; i<3; i++) for(int j=0; j<3; j++) {
 				if(!strcmp(e_labels[i], "mid") && !strcmp(n_labels[j], "mid")) continue;

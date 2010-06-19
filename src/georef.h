@@ -30,6 +30,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #ifndef GEOCODE_H
 #define GEOCODE_H
 
+#include <vector>
+
 namespace dangdal {
 
 struct GeoOpts {
@@ -48,6 +50,8 @@ struct GeoOpts {
 class GeoRef {
 public:
 	GeoRef(GeoOpts opt, const GDALDatasetH ds);
+
+	bool hasAffine() const { return !fwd_affine.empty(); }
 
 	void xy2en(double xpos, double ypos, double *e_out, double *n_out) const;
 	void en2xy(double east, double north, double *x_out, double *y_out) const;
@@ -73,8 +77,8 @@ public:
 	OGRSpatialReferenceH geo_sref;
 	OGRCoordinateTransformationH fwd_xform;
 	OGRCoordinateTransformationH inv_xform;
-	double *fwd_affine;
-	double *inv_affine;
+	std::vector<double> fwd_affine;
+	std::vector<double> inv_affine;
 	double lon_range1, lon_range2, lon_loopsize;
 };
 
