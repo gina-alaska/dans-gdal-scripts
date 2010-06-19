@@ -56,12 +56,11 @@ int main(int argc, char **argv) {
 	char *mask_out_fn = NULL;
 	bool do_erosion = 0;
 	bool do_invert = 0;
-	int inspect_numbands = 0;
-	int *inspect_bandids = NULL;
+	std::vector<size_t> inspect_bandids;
 
 	if(argc == 1) usage(argv[0]);
 
-	ndv_def_t ndv_def = init_ndv_options(&argc, &argv);
+	NdvDef ndv_def = NdvDef(&argc, &argv);
 
 	int argp = 1;
 	while(argp < argc) {
@@ -75,8 +74,7 @@ int main(int argc, char **argv) {
 				char *endptr;
 				int bandid = (int)strtol(argv[argp++], &endptr, 10);
 				if(*endptr) usage(argv[0]);
-				inspect_bandids = REMYALLOC(int, inspect_bandids, (inspect_numbands+1));
-				inspect_bandids[inspect_numbands++] = bandid;
+				inspect_bandids.push_back(bandid);
 			} else if(!strcmp(arg, "-erosion")) {
 				do_erosion = 1;
 			} else if(!strcmp(arg, "-invert")) {
@@ -105,24 +103,22 @@ int main(int argc, char **argv) {
 	size_t w = GDALGetRasterXSize(ds);
 	size_t h = GDALGetRasterYSize(ds);
 
-	if(!inspect_numbands) {
-		inspect_numbands = GDALGetRasterCount(ds);
-		inspect_bandids = MYALLOC(int, inspect_numbands);
-		for(int i=0; i<inspect_numbands; i++) inspect_bandids[i] = i+1;
+	if(inspect_bandids.empty()) {
+		size_t nbands = GDALGetRasterCount(ds);
+		for(size_t i=0; i<nbands; i++) inspect_bandids.push_back(i+1);
 	}
 
 	CPLPushErrorHandler(CPLQuietErrorHandler);
 
-	if(!ndv_def.nranges) {
-		add_ndv_from_raster(&ndv_def, ds, inspect_numbands, inspect_bandids);
+	if(ndv_def.empty()) {
+		ndv_def = NdvDef(ds, inspect_bandids);
 	}
 
-	if(!ndv_def.nranges) {
+	if(ndv_def.empty()) {
 		fatal_error("cannot determine no-data-value");
 	}
 
-	BitGrid mask = get_bitgrid_for_dataset(ds, inspect_numbands, inspect_bandids,
-		&ndv_def, NULL);
+	BitGrid mask = get_bitgrid_for_dataset(ds, inspect_bandids, ndv_def, NULL);
 
 	if(do_invert) {
 		mask.invert();
