@@ -102,14 +102,12 @@ std::vector<row_crossings_t> get_row_crossings(
 		row_crossings_t top = crossings_dbl_to_int(rows_top[row]);
 		row_crossings_t bot = crossings_dbl_to_int(rows_bot[row]);
 		if(top.size() && bot.size()) {
-			// FIXME! use swap
-			rows_out[row] = crossings_intersection(top, bot);
+			row_crossings_t c = crossings_intersection(top, bot);
+			std::swap(rows_out[row], c);
 		} else if(top.size()) {
-			// FIXME! use swap
-			rows_out[row] = top;
+			std::swap(rows_out[row], top);
 		} else if(bot.size()) {
-			// FIXME! use swap
-			rows_out[row] = bot;
+			std::swap(rows_out[row], bot);
 		} else {
 			// no-op: leave rows_out[row] empty
 		}

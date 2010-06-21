@@ -28,21 +28,23 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 #include "common.h"
 
+#include <vector>
+
 typedef struct {
 	int oversample;
 	size_t lo_w, lo_h;
 	size_t hi_w, hi_h;
 	int delta_x, delta_y;
-	double **kernel_x;
-	double **kernel_y;
+	std::vector<std::vector<double> > kernel_x;
+	std::vector<std::vector<double> > kernel_y;
 	GDALRasterBandH band;
-	double **lines_buf;
+	std::vector<std::vector<double> > lines_buf;
 	int line_buf_idx;
 } scaled_band_t;
 
 void copyGeoCode(GDALDatasetH dst_ds, GDALDatasetH src_ds);
 scaled_band_t getScaledBand(GDALDatasetH lores_ds, int band_id, GDALDatasetH hires_ds);
-void readLineScaled(scaled_band_t *sb, int row, double *hires_buf);
+void readLineScaled(scaled_band_t &sb, int row, double *hires_buf);
 
 void usage(const char *cmdname) {
 	printf("Usage:\n %s\n", cmdname);
@@ -66,18 +68,13 @@ Examples:\n\
 }
 
 int main(int argc, char *argv[]) {
-	int lum_ds_count = 0;
-	int lum_band_count = 0;
-	GDALDatasetH *lum_ds = NULL;
-	double *lum_weights = NULL;
+	std::vector<GDALDatasetH> rgb_ds;
+	std::vector<GDALDatasetH> lum_ds;
+	std::vector<double> lum_weights;
 
-	int rgb_ds_count = 0;
-	int rgb_band_count = 0;
-	GDALDatasetH *rgb_ds = NULL;
-
-	const char *pan_fn = NULL;
-	const char *dst_fn = NULL;
-	const char *output_format = NULL;
+	std::string pan_fn;
+	std::string dst_fn;
+	std::string output_format;
 	double ndv = 0;
 	char use_ndv = 0;
 
@@ -102,27 +99,23 @@ int main(int argc, char *argv[]) {
 			else if(!strcmp(arg, "-rgb")) {
 				if(argp == argc) usage(argv[0]);
 				char *fn = argv[argp++];
-				rgb_ds = REMYALLOC(GDALDatasetH, rgb_ds, (rgb_ds_count+1));
 				GDALDatasetH ds = GDALOpen(fn, GA_ReadOnly);
 				if(!ds) fatal_error("open failed");
-				rgb_ds[rgb_ds_count++] = ds; 
-				rgb_band_count += GDALGetRasterCount(ds);
+				rgb_ds.push_back(ds); 
 			}
 			else if(!strcmp(arg, "-lum")) {
 				if(argp == argc) usage(argv[0]);
 				char *fn = argv[argp++];
-				lum_ds = REMYALLOC(GDALDatasetH, lum_ds, (lum_ds_count+1));
 				GDALDatasetH ds = GDALOpen(fn, GA_ReadOnly);
 				if(!ds) fatal_error("open failed");
-				lum_ds[lum_ds_count++] = ds; 
+				lum_ds.push_back(ds); 
 				int nb = GDALGetRasterCount(ds);
-				lum_weights = REMYALLOC(double, lum_weights, (lum_band_count+nb));
 				while(nb) {
 					if(argp == argc) usage(argv[0]);
 					char *endptr;
-					lum_weights[lum_band_count] = strtod(argv[argp++], &endptr);
+					double w = strtod(argv[argp++], &endptr);
 					if(*endptr) usage(argv[0]);
-					lum_band_count++;
+					lum_weights.push_back(w);
 					nb--;
 				}
 			}
@@ -132,14 +125,13 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	if(!rgb_band_count) usage(argv[0]);
-	if(!pan_fn || !dst_fn) usage(argv[0]);
+	if(pan_fn.empty() || dst_fn.empty()) usage(argv[0]);
 
-	if(!output_format) output_format = "GTiff";
+	if(output_format.empty()) output_format = "GTiff";
 
 	//////// open source ////////
 
-	GDALDatasetH pan_ds = GDALOpen(pan_fn, GA_ReadOnly);
+	GDALDatasetH pan_ds = GDALOpen(pan_fn.c_str(), GA_ReadOnly);
 	if(!pan_ds) fatal_error("open failed");
 
 	size_t w = GDALGetRasterXSize(pan_ds);
@@ -152,36 +144,36 @@ int main(int argc, char *argv[]) {
 
 	/////
 
-	scaled_band_t *rgb_bands = MYALLOC(scaled_band_t, rgb_band_count);
-	for(int ds_idx=0, band_idx=0; ds_idx<rgb_ds_count; ds_idx++) {
+	std::vector<scaled_band_t> rgb_bands;
+	for(size_t ds_idx=0; ds_idx<rgb_ds.size(); ds_idx++) {
 		int nb = GDALGetRasterCount(rgb_ds[ds_idx]);
 		for(int i=0; i<nb; i++) {
-			rgb_bands[band_idx++] = getScaledBand(rgb_ds[ds_idx], i+1, pan_ds);
+			rgb_bands.push_back(getScaledBand(rgb_ds[ds_idx], i+1, pan_ds));
 		}
 	}
+	size_t rgb_band_count = rgb_bands.size();
+	if(!rgb_band_count) usage(argv[0]);
 
-	scaled_band_t *lum_bands;
-	if(lum_ds_count) {
-		lum_bands = MYALLOC(scaled_band_t, lum_band_count);
-		for(int ds_idx=0, band_idx=0; ds_idx<lum_ds_count; ds_idx++) {
+	std::vector<scaled_band_t> lum_bands;
+	if(lum_ds.size()) {
+		for(size_t ds_idx=0; ds_idx<lum_ds.size(); ds_idx++) {
 			int nb = GDALGetRasterCount(lum_ds[ds_idx]);
 			for(int i=0; i<nb; i++) {
-				lum_bands[band_idx++] = getScaledBand(lum_ds[ds_idx], i+1, pan_ds);
+				lum_bands.push_back(getScaledBand(lum_ds[ds_idx], i+1, pan_ds));
 			}
 		}
 	} else {
-		lum_band_count = rgb_band_count;
 		lum_bands = rgb_bands;
-		lum_weights = MYALLOC(double, lum_band_count);
-		for(int i=0; i<lum_band_count; i++) lum_weights[i] = 1;
+		lum_weights.assign(rgb_band_count, 1);
 	}
+	size_t lum_band_count = lum_bands.size();
 
 	double lum_weight_total = 0;
-	for(int i=0; i<lum_band_count; i++) {
+	for(size_t i=0; i<lum_band_count; i++) {
 		lum_weight_total += lum_weights[i];
 	}
 	//printf("lum weights:");
-	for(int i=0; i<lum_band_count; i++) {
+	for(size_t i=0; i<lum_band_count; i++) {
 		lum_weights[i] /= lum_weight_total;
 		//printf(" %lf", lum_weights[i]);
 	}
@@ -189,36 +181,36 @@ int main(int argc, char *argv[]) {
 
 	//////// open output ////////
 
-	printf("Output size is %zd x %zd x %d\n", w, h, rgb_band_count);
+	printf("Output size is %zd x %zd x %zd\n", w, h, rgb_band_count);
 
-	GDALDriverH dst_driver = GDALGetDriverByName(output_format);
-	if(!dst_driver) fatal_error("unrecognized output format (%s)", output_format);
-	GDALDatasetH dst_ds = GDALCreate(dst_driver, dst_fn, w, h, rgb_band_count, GDT_Byte, NULL);
+	GDALDriverH dst_driver = GDALGetDriverByName(output_format.c_str());
+	if(!dst_driver) fatal_error("unrecognized output format (%s)", output_format.c_str());
+	GDALDatasetH dst_ds = GDALCreate(dst_driver, dst_fn.c_str(), w, h, rgb_band_count, GDT_Byte, NULL);
 	if(!dst_ds) fatal_error("could not create output");
 	copyGeoCode(dst_ds, pan_ds);
 
-	GDALRasterBandH *dst_bands = MYALLOC(GDALRasterBandH, rgb_band_count);
-	for(int i=0; i<rgb_band_count; i++) {
-		dst_bands[i] = GDALGetRasterBand(dst_ds, i+1);
+	std::vector<GDALRasterBandH> dst_bands;
+	for(size_t i=0; i<rgb_band_count; i++) {
+		dst_bands.push_back(GDALGetRasterBand(dst_ds, i+1));
 	}
 
 	//////// process data ////////
 
-	double **lum_buf = MYALLOC(double *, lum_band_count);
-	for(int band_idx=0; band_idx<lum_band_count; band_idx++) {
-		lum_buf[band_idx] = MYALLOC(double, w);
+	std::vector<std::vector<double> > lum_buf(lum_band_count);
+	for(size_t band_idx=0; band_idx<lum_band_count; band_idx++) {
+		lum_buf[band_idx].resize(w);
 	}
-	double *pan_buf = MYALLOC(double, w);
-	double *rgb_buf = MYALLOC(double, w);
-	uint8_t *out_buf = MYALLOC(uint8_t, w);
-	double *scale_buf = MYALLOC(double, w);
+	std::vector<double> pan_buf(w);
+	std::vector<double> rgb_buf(w);
+	std::vector<uint8_t> out_buf(w);
+	std::vector<double> scale_buf(w);
 
 	for(size_t row=0; row<h; row++) {
 		GDALTermProgress((double)row/h, NULL, NULL);
 
-		GDALRasterIO(pan_band, GF_Read, 0, row, w, 1, pan_buf, w, 1, GDT_Float64, 0, 0);
-		for(int band_idx=0; band_idx<lum_band_count; band_idx++) {
-			readLineScaled(lum_bands+band_idx, row, lum_buf[band_idx]);
+		GDALRasterIO(pan_band, GF_Read, 0, row, w, 1, &pan_buf[0], w, 1, GDT_Float64, 0, 0);
+		for(size_t band_idx=0; band_idx<lum_band_count; band_idx++) {
+			readLineScaled(lum_bands[band_idx], row, &lum_buf[band_idx][0]);
 		}
 
 		for(size_t col=0; col<w; col++) {
@@ -226,7 +218,7 @@ int main(int argc, char *argv[]) {
 
 			if(use_ndv) {
 				if(pan_buf[col] == ndv) skip = 1;
-				for(int band_idx=0; band_idx<lum_band_count; band_idx++) {
+				for(size_t band_idx=0; band_idx<lum_band_count; band_idx++) {
 					if(lum_buf[band_idx][col] == ndv) {
 						skip = 1;
 					}
@@ -238,7 +230,7 @@ int main(int argc, char *argv[]) {
 			} else {
 				double lum_out = (double)pan_buf[col];
 				double lum_in = 0;
-				for(int i=0; i<lum_band_count; i++) {
+				for(size_t i=0; i<lum_band_count; i++) {
 					lum_in += lum_buf[i][col] * lum_weights[i];
 				}
 
@@ -246,8 +238,8 @@ int main(int argc, char *argv[]) {
 			} // skip
 		} // col
 
-		for(int band_idx=0; band_idx<rgb_band_count; band_idx++) {
-			readLineScaled(rgb_bands+band_idx, row, rgb_buf);
+		for(size_t band_idx=0; band_idx<rgb_band_count; band_idx++) {
+			readLineScaled(rgb_bands[band_idx], row, &rgb_buf[0]);
 
 			for(size_t col=0; col<w; col++) {
 				if(use_ndv && rgb_buf[col] == ndv) {
@@ -270,15 +262,16 @@ int main(int argc, char *argv[]) {
 				}
 			}
 
-			GDALRasterIO(dst_bands[band_idx], GF_Write, 0, row, w, 1, out_buf, w, 1, GDT_Byte, 0, 0);
+			GDALRasterIO(dst_bands[band_idx], GF_Write, 0, row, w, 1,
+				&out_buf[0], w, 1, GDT_Byte, 0, 0);
 		}
 	} // row
 
-	for(int ds_idx=0; ds_idx<rgb_ds_count; ds_idx++) {
-		GDALClose(rgb_ds[ds_idx]);
+	for(size_t i=0; i<rgb_ds.size(); i++) {
+		GDALClose(rgb_ds[i]);
 	}
-	for(int ds_idx=0; ds_idx<lum_ds_count; ds_idx++) {
-		GDALClose(lum_ds[ds_idx]);
+	for(size_t i=0; i<lum_ds.size(); i++) {
+		GDALClose(lum_ds[i]);
 	}
 	GDALClose(pan_ds);
 	GDALClose(dst_ds);
@@ -348,11 +341,11 @@ scaled_band_t getScaledBand(GDALDatasetH lores_ds, int band_id, GDALDatasetH hir
 
 	// Cubic convolution resampling.  For more info see:
 	// http://www.imgfsr.com/ResamplingCVPR.pdf
-	sb.kernel_x = MYALLOC(double *, sb.oversample);
-	sb.kernel_y = MYALLOC(double *, sb.oversample);
+	sb.kernel_x.resize(sb.oversample);
+	sb.kernel_y.resize(sb.oversample);
 	for(int mod=0; mod<sb.oversample; mod++) {
-		sb.kernel_x[mod] = MYALLOC(double, 4);
-		sb.kernel_y[mod] = MYALLOC(double, 4);
+		sb.kernel_x[mod].resize(4);
+		sb.kernel_y[mod].resize(4);
 		double t = offset_x + (double)mod / (double)sb.oversample;
 		sb.kernel_x[mod][0] = -0.5*t*t*t + 1.0*t*t - 0.5*t;
 		sb.kernel_x[mod][1] =  1.5*t*t*t - 2.5*t*t + 1;
@@ -365,70 +358,69 @@ scaled_band_t getScaledBand(GDALDatasetH lores_ds, int band_id, GDALDatasetH hir
 		sb.kernel_y[mod][3] =  0.5*t*t*t - 0.5*t*t;
 	}
 
-	sb.lines_buf = MYALLOC(double *, 4);
+	sb.lines_buf.resize(4);
 	for(int j=0; j<4; j++) {
-		sb.lines_buf[j] = MYALLOC(double, sb.hi_w);
+		sb.lines_buf[j].resize(sb.hi_w);
 	}
 	sb.line_buf_idx = -1000000;
 
 	return sb;
 }
 
-void readLineScaled1D(scaled_band_t *sb, int row, double *hires_buf) {
-	double *lores_buf = MYALLOC(double, sb->lo_w);
+void readLineScaled1D(scaled_band_t &sb, int row, double *hires_buf) {
+	std::vector<double> lores_buf(sb.lo_w);
 
-	if(row < 0 || size_t(row) >= sb->lo_h) {
-		for(size_t col=0; col<sb->hi_w; col++) {
+	if(row < 0 || size_t(row) >= sb.lo_h) {
+		for(size_t col=0; col<sb.hi_w; col++) {
 			hires_buf[col] = 0;
 		}
 	} else {
-		GDALRasterIO(sb->band, GF_Read, 0, row, sb->lo_w, 1, lores_buf, sb->lo_w, 1, GDT_Float64, 0, 0);
-		for(int mx=0; mx<sb->oversample; mx++) {
-			double *kernel = sb->kernel_x[mx];
+		GDALRasterIO(sb.band, GF_Read, 0, row, sb.lo_w, 1, &lores_buf[0], sb.lo_w, 1, GDT_Float64, 0, 0);
+		for(int mx=0; mx<sb.oversample; mx++) {
+			double *kernel = &sb.kernel_x[mx][0];
 			for(int x0=0; ; x0++) {
-				size_t col = x0 * sb->oversample + mx;
-				if(col >= sb->hi_w) break;
+				size_t col = x0 * sb.oversample + mx;
+				if(col >= sb.hi_w) break;
 				double accum = 0;
 				for(int i=0; i<4; i++) {
-					int x = x0 - 1 + i + sb->delta_x;
-					double v = (x<0 || size_t(x) >= sb->lo_w) ? 0 : lores_buf[x];
+					int x = x0 - 1 + i + sb.delta_x;
+					double v = (x<0 || size_t(x) >= sb.lo_w) ? 0 : lores_buf[x];
 					accum += v * kernel[i];
 				}
 				hires_buf[col] = accum;
 			}
 		}
 	}
-
-	free(lores_buf);
 }
 
-void readLineScaled(scaled_band_t *sb, int row, double *hires_buf) {
-	int y0 = row / sb->oversample;
-	int my = row % sb->oversample;
-	double *kernel = sb->kernel_y[my];
+void readLineScaled(scaled_band_t &sb, int row, double *hires_buf) {
+	int y0 = row / sb.oversample;
+	int my = row % sb.oversample;
+	double *kernel = &sb.kernel_y[my][0];
 
-	int top_y = y0 - 1 + sb->delta_y;
-	if(top_y == sb->line_buf_idx) {
+	int top_y = y0 - 1 + sb.delta_y;
+	if(top_y == sb.line_buf_idx) {
 		// no action
-	} else if(top_y == sb->line_buf_idx+1) {
-		double *tmp = sb->lines_buf[0];
+	} else if(top_y == sb.line_buf_idx+1) {
+		std::vector<double> tmp;
+		std::swap(tmp, sb.lines_buf[0]);
 		for(int j=0; j<3; j++) {
-			sb->lines_buf[j] = sb->lines_buf[j+1];
+			std::swap(sb.lines_buf[j], sb.lines_buf[j+1]);
 		}
-		sb->lines_buf[3] = tmp;
-		readLineScaled1D(sb, top_y+3, sb->lines_buf[3]);
-		sb->line_buf_idx = top_y;
+		std::swap(sb.lines_buf[3], tmp);
+		readLineScaled1D(sb, top_y+3, &sb.lines_buf[3][0]);
+		sb.line_buf_idx = top_y;
 	} else {
 		for(int j=0; j<4; j++) {
-			readLineScaled1D(sb, top_y+j, sb->lines_buf[j]);
+			readLineScaled1D(sb, top_y+j, &sb.lines_buf[j][0]);
 		}
-		sb->line_buf_idx = top_y;
+		sb.line_buf_idx = top_y;
 	}
 
-	for(size_t col=0; col<sb->hi_w; col++) {
+	for(size_t col=0; col<sb.hi_w; col++) {
 		double accum = 0;
 		for(int j=0; j<4; j++) {
-			accum += sb->lines_buf[j][col] * kernel[j];
+			accum += sb.lines_buf[j][col] * kernel[j];
 		}
 		hires_buf[col] = accum;
 	}
