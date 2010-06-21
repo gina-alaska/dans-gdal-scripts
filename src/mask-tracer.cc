@@ -72,12 +72,12 @@ static Ring make_enclosing_ring(size_t w, size_t h) {
 	return ring;
 }
 
-static int64_t compute_area(row_crossings_t *crossings, int num_rows) {
+static int64_t compute_area(const std::vector<row_crossings_t> &crossings) {
 	int64_t area = 0;
-	for(int y=0; y<num_rows; y++) {
-		int nc = crossings[y].num_crossings;
-		int *rc = crossings[y].crossings;
-		for(int cidx=0; cidx<nc/2; cidx++) {
+	for(size_t y=0; y<crossings.size(); y++) {
+		const row_crossings_t &rc = crossings[y];
+		size_t nc = rc.size();
+		for(size_t cidx=0; cidx<nc/2; cidx++) {
 			int from = rc[cidx*2  ];
 			int to   = rc[cidx*2+1];
 			area += to - from;
@@ -184,13 +184,11 @@ int64_t min_area, bool no_donuts) {
 	Mpoly bounds_mp;
 	bounds_mp.rings.push_back(bounds);
 
-	row_crossings_t *crossings = get_row_crossings(bounds_mp, bound_top, bound_bottom-bound_top);
-	int skip_this = min_area && (compute_area(crossings, bound_bottom-bound_top) < min_area);
+	std::vector<row_crossings_t> crossings = 
+		get_row_crossings(bounds_mp, bound_top, bound_bottom-bound_top);
+	assert(crossings.size() == size_t(bound_bottom-bound_top));
+	int skip_this = min_area && (compute_area(crossings) < min_area);
 	int skip_child = skip_this || (depth && no_donuts);
-
-	row_crossings_t cross_both;
-	cross_both.array_size = 0;
-	cross_both.crossings = NULL;
 
 	if(!depth) {
 		printf("Tracing: ");
@@ -204,13 +202,12 @@ int64_t min_area, bool no_donuts) {
 			}
 
 			// make sure the range (y-1,y)*(x-1,x) is in bounds
-			crossings_intersection(&cross_both, 
-				crossings + (y-bound_top-1),
-				crossings + (y-bound_top));
-			for(int cidx=0; cidx<cross_both.num_crossings/2; cidx++) {
+			row_crossings_t cross_both = crossings_intersection(
+				crossings[y-bound_top-1], crossings[y-bound_top]);
+			for(size_t cidx=0; cidx<cross_both.size()/2; cidx++) {
 				// make sure the range (y-1,y)*(x-1,x) is in bounds
-				int from = 1+cross_both.crossings[cidx*2  ];
-				int to   =   cross_both.crossings[cidx*2+1];
+				int from = 1+cross_both[cidx*2  ];
+				int to   =   cross_both[cidx*2+1];
 
 				for(int x=from; x<to; x++) {
 					//pixquad_t quad = get_quad(mask, x, y, select_color);
@@ -251,15 +248,14 @@ int64_t min_area, bool no_donuts) {
 				} 
 			}
 		}
-		if(cross_both.crossings != NULL) free(cross_both.crossings);
 	}
 
 	for(int y=bound_top; y<bound_bottom; y++) {
-		row_crossings_t *r = crossings + (y-bound_top);
+		const row_crossings_t &r = crossings[y-bound_top];
 		if(depth>0) {
-			for(int cidx=0; cidx<r->num_crossings/2; cidx++) {
-				int from = r->crossings[cidx*2  ];
-				int to   = r->crossings[cidx*2+1];
+			for(size_t cidx=0; cidx<r.size()/2; cidx++) {
+				int from = r[cidx*2  ];
+				int to   = r[cidx*2+1];
 				for(int x=from; x<=to; x++) {
 					if(x>=0 && y>=0 && size_t(x)<w && size_t(y)<h) {
 						mask.set(x, y, select_color);
@@ -268,7 +264,6 @@ int64_t min_area, bool no_donuts) {
 			}
 		}
 	}
-	free_row_crossings(crossings, bound_bottom-bound_top);
 
 	if(VERBOSE >= 4) debug_write_mask(mask, w, h);
 

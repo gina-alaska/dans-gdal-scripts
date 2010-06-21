@@ -34,16 +34,15 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 namespace dangdal {
 
-typedef struct {
-	int num_crossings;
-	int array_size;
-	int *crossings;
-} row_crossings_t;
+typedef std::vector<int> row_crossings_t;
 
-row_crossings_t *get_row_crossings(const Mpoly &mpoly, int min_y, int num_rows);
-void free_row_crossings(row_crossings_t *rc, int num_rows);
-void mask_from_mpoly(const Mpoly &mpoly, size_t w, size_t h, const char *fn);
-void crossings_intersection(row_crossings_t *out, row_crossings_t *in1, row_crossings_t *in2);
+std::vector<row_crossings_t> get_row_crossings(const Mpoly &mpoly, int min_y, int num_rows);
+
+void mask_from_mpoly(const Mpoly &mpoly, size_t w, size_t h, const std::string fn);
+
+row_crossings_t crossings_intersection(
+	const row_crossings_t &in1, const row_crossings_t &in2
+);
 
 } // namespace dangdal
 

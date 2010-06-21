@@ -14,6 +14,8 @@ rm -f out_*.wkt
 
 ../gdal_wkt_to_mask -wkt good_1_en.wkt -geo-from testcase_1.tif -mask-out out_1_mask.ppm
 
+echo '####################'
+
 #for i in 1 2 3 4 5 ; do md5sum good-tc$i.wkt test-tc$i.wkt ; done
 for i in 1 1_en 2 3 4 5 maze noise noise_dp3 ; do 
 	if diff --brief good_$i.wkt out_$i.wkt ; then

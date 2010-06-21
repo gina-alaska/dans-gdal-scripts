@@ -327,19 +327,19 @@ static int ringdiff(const Ring &r1, const Ring &r2, BitGrid mask) {
 	int max_x = (int)ceil (bb.max_x);
 	int max_y = (int)ceil (bb.max_y);
 
-	row_crossings_t *rcs1 = get_row_crossings(mp1, min_y, max_y-min_y+1);
-	row_crossings_t *rcs2 = get_row_crossings(mp2, min_y, max_y-min_y+1);
+	std::vector<row_crossings_t> rcs1 = get_row_crossings(mp1, min_y, max_y-min_y+1);
+	std::vector<row_crossings_t> rcs2 = get_row_crossings(mp2, min_y, max_y-min_y+1);
 
 	int tally = 0;
 	for(int y=min_y; y<=max_y; y++) {
-		row_crossings_t *row1 = rcs1 + y - min_y;
-		row_crossings_t *row2 = rcs2 + y - min_y;
+		const row_crossings_t &row1 = rcs1[y - min_y];
+		const row_crossings_t &row2 = rcs2[y - min_y];
 
-		int in1=0, in2=0;
-		int ci1=0, ci2=0;
+		bool in1=0, in2=0;
+		size_t ci1=0, ci2=0;
 		for(;;) {
-			int cx1 = ci1 < row1->num_crossings ? row1->crossings[ci1] : max_x+1;
-			int cx2 = ci2 < row2->num_crossings ? row2->crossings[ci2] : max_x+1;
+			int cx1 = ci1 < row1.size() ? row1[ci1] : max_x+1;
+			int cx2 = ci2 < row2.size() ? row2[ci2] : max_x+1;
 			// FIXME
 			//if(cx1 > max_x+1 || cx2 > max_x+1) fatal_error("cx > max_x+1 (%d,%d,%d)", cx1, cx2, max_x+1);
 			//if(cx1 == max_x+1 && cx2 == max_x+1) break;
@@ -356,8 +356,8 @@ static int ringdiff(const Ring &r1, const Ring &r2, BitGrid mask) {
 
 			if((in1 && in2) || (!in1 && !in2)) continue;
 
-			cx1 = ci1 < row1->num_crossings ? row1->crossings[ci1] : max_x+1;
-			cx2 = ci2 < row2->num_crossings ? row2->crossings[ci2] : max_x+1;
+			cx1 = ci1 < row1.size() ? row1[ci1] : max_x+1;
+			cx2 = ci2 < row2.size() ? row2[ci2] : max_x+1;
 			int x_to = MIN(cx1, cx2);
 			
 			int gain=1, penalty=2; // FIXME - arbitrary
@@ -378,8 +378,6 @@ static int ringdiff(const Ring &r1, const Ring &r2, BitGrid mask) {
 		//	}
 		//}
 	}
-	free_row_crossings(rcs1, max_y-min_y+1);
-	free_row_crossings(rcs2, max_y-min_y+1);
 	return tally;
 }
 
