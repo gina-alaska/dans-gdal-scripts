@@ -56,8 +56,8 @@ double ang_diff(double a1, double a2) {
 }
 
 Ring calc_rect4_from_convex_hull(BitGrid mask, int w, int h, DebugPlot *dbuf) {
-	int *chrows_left = MYALLOC(int, h);
-	int *chrows_right = MYALLOC(int, h);
+	std::vector<int> chrows_left(h);
+	std::vector<int> chrows_right(h);
 	for(int j=0; j<h; j++) {
 		chrows_left[j] = w;
 		chrows_right[j] = -1;
@@ -86,8 +86,7 @@ Ring calc_rect4_from_convex_hull(BitGrid mask, int w, int h, DebugPlot *dbuf) {
 	if(fulcrum_x<0) fatal_error("image was empty");
 	//if(VERBOSE) printf("start point: %d,%d\n", fulcrum_x, fulcrum_y);
 
-	edge_t *all_edges = NULL;
-	int num_edges = 0;
+	std::vector<edge_t> all_edges;
 
 	int chop_dx = 1, chop_dy = 0;
 	for(;;) {
@@ -119,12 +118,12 @@ Ring calc_rect4_from_convex_hull(BitGrid mask, int w, int h, DebugPlot *dbuf) {
 		//if(VERBOSE) printf("  f=[%3d,%3d] ", best_x, best_y);
 		//if(VERBOSE) printf("  a=[% 3.1f]\n", angle);
 
-		all_edges = REMYALLOC(edge_t, all_edges, (num_edges+1));
-		all_edges[num_edges].p0.x = fulcrum_x;
-		all_edges[num_edges].p0.y = fulcrum_y;
-		all_edges[num_edges].p1.x = best_x;
-		all_edges[num_edges].p1.y = best_y;
-		num_edges++;
+		edge_t new_edge;
+		new_edge.p0.x = fulcrum_x;
+		new_edge.p0.y = fulcrum_y;
+		new_edge.p1.x = best_x;
+		new_edge.p1.y = best_y;
+		all_edges.push_back(new_edge);
 
 		if(best_x<0) fatal_error("could not find new fulcrum");
 		fulcrum_x = best_x; fulcrum_y = best_y;
@@ -132,7 +131,9 @@ Ring calc_rect4_from_convex_hull(BitGrid mask, int w, int h, DebugPlot *dbuf) {
 		chop_dx = best_dx; chop_dy = best_dy;
 	}
 
-	for(int i=0; i<num_edges; i++) {
+	const size_t num_edges = all_edges.size();
+
+	for(size_t i=0; i<num_edges; i++) {
 		edge_t e = all_edges[i];
 		double dx = e.p1.x - e.p0.x;
 		double dy = e.p1.y - e.p0.y;
@@ -148,7 +149,7 @@ Ring calc_rect4_from_convex_hull(BitGrid mask, int w, int h, DebugPlot *dbuf) {
 
 	int num_groups = 0;
 	all_edges[0].group = (num_groups++);
-	for(int i=0; i<num_edges; i++) {
+	for(size_t i=0; i<num_edges; i++) {
 		edge_t l = all_edges[i];
 		edge_t r = all_edges[(i+1) % num_edges];
 		double len = l.seg_len + r.seg_len;
@@ -162,7 +163,7 @@ Ring calc_rect4_from_convex_hull(BitGrid mask, int w, int h, DebugPlot *dbuf) {
 			} else {
 				// wrapped around... set the tail group to be
 				// equal to the head group
-				int j;
+				size_t j;
 				for(j=num_edges-1; j; j--) {
 					if(all_edges[j].group != l.group) {
 						j++; break;
@@ -189,13 +190,13 @@ Ring calc_rect4_from_convex_hull(BitGrid mask, int w, int h, DebugPlot *dbuf) {
 		}
 	}
 	if(VERBOSE) printf("num groups: %d\n", num_groups);
-	for(int i=0; i<num_edges; i++) {
+	for(size_t i=0; i<num_edges; i++) {
 		if(all_edges[i].group < 0) fatal_error("edge not assigned to a group");
 		//all_edges[i].group = (num_groups++);
 	}
 	//if(VERBOSE) printf("num groups: %d\n", num_groups);
 
-	if(VERBOSE) for(int i=0; i<num_edges; i++) {
+	if(VERBOSE) for(size_t i=0; i<num_edges; i++) {
 		edge_t l = all_edges[i];
 		edge_t r = all_edges[(i+1) % num_edges];
 		double len = l.seg_len + r.seg_len;
@@ -205,17 +206,17 @@ Ring calc_rect4_from_convex_hull(BitGrid mask, int w, int h, DebugPlot *dbuf) {
 		printf("  group=%d\n", l.group);
 	}
 
-	edge_group_t *groups = MYALLOC(edge_group_t, num_groups);
+	std::vector<edge_group_t> groups(num_groups);
 	for(int i=0; i<num_groups; i++) {
 		groups[i].arc_len = 0;
 		groups[i].wx = 0;
 		groups[i].wy = 0;
 	}
-	for(int i=0; i<num_edges; i++) {
+	for(size_t i=0; i<num_edges; i++) {
 		edge_t e = all_edges[i];
 		int eg = e.group;
 		if(eg < 0 || eg >= num_groups) {
-			fatal_error("group out of range (i=%d, g=%d, num_groups=%d)", i, eg, num_groups);
+			fatal_error("group out of range (i=%zd, g=%d, num_groups=%d)", i, eg, num_groups);
 		}
 		groups[eg].arc_len += e.seg_len;
 		groups[eg].wx += e.seg_len * cos(e.angle / 180.0 * M_PI);
@@ -246,7 +247,7 @@ Ring calc_rect4_from_convex_hull(BitGrid mask, int w, int h, DebugPlot *dbuf) {
 		// be better to create a new edge with the desired angle and with proper
 		// p0.x,p0.y value
 		groups[i].best_edge = all_edges[0];
-		for(int j=0; j<num_edges; j++) {
+		for(size_t j=0; j<num_edges; j++) {
 			double d1 = ang_diff(groups[i].avg_ang, all_edges[j].angle);
 			double d2 = ang_diff(groups[i].avg_ang, groups[i].best_edge.angle);
 			if(d1 < d2) groups[i].best_edge = all_edges[j];

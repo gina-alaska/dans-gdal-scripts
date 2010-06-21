@@ -10,6 +10,9 @@ rm -f out_*.wkt
 ../gdal_trace_outline testcase_noise.png -b 1 -ndv   0 -out-cs xy -wkt-out out_noise.wkt -report out_noise.ppm -split-polys -dp-toler 0
 ../gdal_trace_outline testcase_noise.png -b 1 -ndv   0 -out-cs xy -wkt-out out_noise_dp3.wkt -report out_noise_dp3.ppm -split-polys -dp-toler 3
 
+../gdal_trace_outline testcase_3.tif -out-cs xy -wkt-out out_3_classify.wkt -dp-toler 0 -classify
+../gdal_trace_outline pal.tif -out-cs xy -wkt-out out_3_classify_pal.wkt -dp-toler 0 -classify
+
 ../gdal_list_corners -inspect-rect4 -erosion -ndv 0 testcase_4.png -report out_4-rect.ppm > out_4-rect.wkt
 
 ../gdal_wkt_to_mask -wkt good_1_en.wkt -geo-from testcase_1.tif -mask-out out_1_mask.ppm
@@ -17,22 +20,22 @@ rm -f out_*.wkt
 echo '####################'
 
 #for i in 1 2 3 4 5 ; do md5sum good-tc$i.wkt test-tc$i.wkt ; done
-for i in 1 1_en 2 3 4 5 maze noise noise_dp3 ; do 
+for i in 1 1_en 2 3 3_classify 3_classify_pal 4 5 maze noise noise_dp3 ; do 
 	if diff --brief good_$i.wkt out_$i.wkt ; then
-		echo "outline $i - Good"
+		echo "GOOD outline $i"
 	else
-		echo "outline $i - Bad"
+		echo "BAD outline $i"
 	fi
 done
 
 if diff --brief good_4-rect.wkt out_4-rect.wkt ; then
-	echo "rect - Good"
+	echo "GOOD rect"
 else
-	echo "rect - Bad"
+	echo "BAD rect"
 fi
 
 if diff --brief good_1_mask.ppm out_1_mask.ppm ; then
-	echo "wkt2mask - Good"
+	echo "GOOD wkt2mask"
 else
-	echo "wkt2mask - Bad"
+	echo "BAD wkt2mask"
 fi

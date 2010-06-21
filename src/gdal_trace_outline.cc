@@ -56,7 +56,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 using namespace dangdal;
 
-// FIXME - describe setting out-cs and ogr-fmt only before output is specified
+// FIXME! describe setting out-cs and ogr-fmt only before output is specified
 void usage(const char *cmdname) {
 	printf("Usage:\n  %s [options] [image_name]\n", cmdname);
 	printf("\n");
@@ -336,7 +336,7 @@ int main(int argc, char **argv) {
 		dbuf->mode = do_pinch_excursions ? PLOT_PINCH : PLOT_CONTOURS;
 	}
 
-	const uint8_t *raster = NULL;
+	std::vector<uint8_t> raster;
 	BitGrid mask(0, 0);
 	uint8_t usage_array[256];
 	GDALColorTableH color_table = NULL;
@@ -345,7 +345,8 @@ int main(int argc, char **argv) {
 			fatal_error("only one band may be used in classify mode");
 		}
 
-		raster = read_dataset_8bit(ds, inspect_bandids[0], usage_array, dbuf);
+		std::vector<uint8_t> tmp_raster = read_dataset_8bit(ds, inspect_bandids[0], usage_array, dbuf);
+		std::swap(raster, tmp_raster);
 
 		GDALRasterBandH band = GDALGetRasterBand(ds, inspect_bandids[0]);
 		if(GDALGetRasterColorInterpretation(band) == GCI_PaletteIndex) {
@@ -424,7 +425,7 @@ int main(int argc, char **argv) {
 			}
 
 			mask = get_bitgrid_for_8bit_raster(georef.w, georef.h,
-				raster, (uint8_t)class_id);
+				&raster[0], (uint8_t)class_id);
 		} else {
 			if(class_id != 0) continue;
 		}

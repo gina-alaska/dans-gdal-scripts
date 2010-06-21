@@ -34,7 +34,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 namespace dangdal {
 
-uint8_t *read_dataset_8bit(GDALDatasetH ds, int band_idx, uint8_t *usage_array, DebugPlot *dbuf) {
+std::vector<uint8_t> read_dataset_8bit(GDALDatasetH ds, int band_idx, uint8_t *usage_array, DebugPlot *dbuf) {
 	for(int i=0; i<256; i++) usage_array[i] = 0;
 
 	size_t w = GDALGetRasterXSize(ds);
@@ -61,8 +61,8 @@ uint8_t *read_dataset_8bit(GDALDatasetH ds, int band_idx, uint8_t *usage_array, 
 
 	printf("Reading one band of size %zd x %zd\n", w, h);
 
-	uint8_t *outbuf = MYALLOC(uint8_t, w*h);
-	uint8_t *inbuf = MYALLOC(uint8_t, blocksize_x*blocksize_y);
+	std::vector<uint8_t> outbuf(w*h);
+	std::vector<uint8_t> inbuf(blocksize_x*blocksize_y);
 	for(size_t boff_y=0; boff_y<h; boff_y+=blocksize_y) {
 		size_t bsize_y = blocksize_y;
 		if(bsize_y + boff_y > h) bsize_y = h - boff_y;
@@ -78,13 +78,13 @@ uint8_t *read_dataset_8bit(GDALDatasetH ds, int band_idx, uint8_t *usage_array, 
 			GDALTermProgress(progress, NULL, NULL);
 
 			GDALRasterIO(band, GF_Read, boff_x, boff_y, bsize_x, bsize_y, 
-				inbuf, bsize_x, bsize_y, GDT_Byte, 0, 0);
+				&inbuf[0], bsize_x, bsize_y, GDT_Byte, 0, 0);
 
-			uint8_t *p_in = inbuf;
+			uint8_t *p_in = &inbuf[0];
 			for(size_t j=0; j<bsize_y; j++) {
 				size_t y = j + boff_y;
 				bool is_dbuf_stride_y = dbuf && ((y % dbuf->stride_y) == 0);
-				uint8_t *p_out = outbuf + w*y + boff_x;
+				uint8_t *p_out = &outbuf[w*y + boff_x];
 				for(size_t i=0; i<bsize_x; i++) {
 					uint8_t val = *(p_in++);
 					*(p_out++) = val;
@@ -103,8 +103,6 @@ uint8_t *read_dataset_8bit(GDALDatasetH ds, int band_idx, uint8_t *usage_array, 
 			}
 		}
 	}
-
-	free(inbuf);
 
 	GDALTermProgress(1, NULL, NULL);
 
@@ -143,11 +141,12 @@ BitGrid get_bitgrid_for_dataset(
 		if(VERBOSE) printf("band %zd: block size = %zd,%zd, use_8bit=%d\n",
 			band_idx, blocksize_x, blocksize_y, use_8bit?1:0);
 
-		void *block_buf;
+		std::vector<uint8_t> block_buf_8bit;
+		std::vector<double> block_buf_dbl;
 		if(use_8bit) {
-			block_buf = MYALLOC(uint8_t, blocksize_x*blocksize_y);
+			block_buf_8bit.resize(blocksize_x*blocksize_y);
 		} else {
-			block_buf = MYALLOC(double, blocksize_x*blocksize_y);
+			block_buf_dbl.resize(blocksize_x*blocksize_y);
 		}
 
 		std::vector<uint8_t> row_ndv(blocksize_x);
@@ -167,17 +166,20 @@ BitGrid get_bitgrid_for_dataset(
 					) / (bandlist.size() * w * h);
 				GDALTermProgress(progress, NULL, NULL);
 
-				GDALRasterIO(band, GF_Read, boff_x, boff_y, bsize_x, bsize_y, 
-					block_buf, bsize_x, bsize_y, 
-					use_8bit ? GDT_Byte : GDT_Float64,
-					0, 0);
+				if(use_8bit) {
+					GDALRasterIO(band, GF_Read, boff_x, boff_y, bsize_x, bsize_y, 
+						&block_buf_8bit[0], bsize_x, bsize_y, GDT_Byte, 0, 0);
+				} else {
+					GDALRasterIO(band, GF_Read, boff_x, boff_y, bsize_x, bsize_y, 
+						&block_buf_dbl[0], bsize_x, bsize_y, GDT_Float64, 0, 0);
+				}
 
 				double *p_dbl = NULL;
 				uint8_t *p_8bit = NULL;
 				if(use_8bit) {
-					p_8bit = (uint8_t *)block_buf;
+					p_8bit = &block_buf_8bit[0];
 				} else {
-					p_dbl = (double *)block_buf;
+					p_dbl = &block_buf_dbl[0];
 				}
 				for(size_t j=0; j<bsize_y; j++) {
 					size_t y = j + boff_y;
@@ -221,8 +223,6 @@ BitGrid get_bitgrid_for_dataset(
 				}
 			}
 		}
-
-		free(block_buf);
 	}
 
 	if(dbuf) {
