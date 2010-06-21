@@ -29,7 +29,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include "common.h"
 #include "georef.h"
 #include "ndv.h"
-#include "default_palette.h"
+#include "palette.h"
 
 using namespace dangdal;
 
@@ -43,18 +43,6 @@ double default_shade_params[] = { 0, 1, .5, 10 };
 #define EARTH_RADIUS 6370997.0
 
 void scale_values(double *vals, size_t w, double scale, double offset);
-
-typedef struct {
-	uint8_t nan_red, nan_green, nan_blue;
-	int num_vals;
-	double *vals;
-	uint8_t *reds, *greens, *blues;
-} palette_t;
-
-palette_t *read_palette_file(const char *fn);
-palette_t *read_default_palette();
-void get_nan_color(uint8_t *buf, palette_t *pal);
-void get_palette_color(uint8_t *buf, double val, palette_t *pal);
 
 void compute_tierow_invaffine(
 	const GeoRef &georef,
@@ -207,7 +195,8 @@ int main(int argc, char *argv[]) {
 
 	//////// open palette ////////
 
-	palette_t *palette = NULL;
+	bool use_palette = false;
+	Palette palette;
 	bool do_shade;
 	int out_numbands;
 
@@ -215,12 +204,13 @@ int main(int argc, char *argv[]) {
 		do_shade = 0;
 		out_numbands = 3;
 	} else if(use_default_palette) {
-		palette = read_default_palette();
+		use_palette = true;
+		palette = Palette::createDefault();
 		do_shade = 1;
 		out_numbands = 3;
 	} else if(palette_fn) {
-		palette = read_palette_file(palette_fn);
-		if(!palette) fatal_error("palette was null"); // this can't happen
+		use_palette = true;
+		palette = Palette::fromFile(palette_fn);
 		do_shade = 1;
 		out_numbands = 3;
 	} else if(alpha_overlay) {
@@ -230,6 +220,8 @@ int main(int argc, char *argv[]) {
 		do_shade = 1;
 		out_numbands = 1;
 	}
+
+	if(use_palette) assert(out_numbands == 3);
 
 	//////// open DEM ////////
 
@@ -501,7 +493,7 @@ int main(int argc, char *argv[]) {
 				spec = 0.0;
 			}
 			if(inbuf_ndv_this[col]) {
-				if(palette) {
+				if(use_palette) {
 					get_nan_color(pixel, palette);
 					for(int i=0; i<out_numbands; i++) outbuf[i][col] = pixel[i];
 				} else {
@@ -540,7 +532,7 @@ int main(int argc, char *argv[]) {
 					pixel[0] = pixel[1] = pixel[2] = (uint8_t)(255.0 * white);
 					pixel[3] = (uint8_t)(255.0 * alpha);
 				} else {
-					if(palette) {
+					if(use_palette) {
 						get_palette_color(pixel, val, palette);
 					} else if(tex_ds) {
 						for(int i=0; i<out_numbands; i++) pixel[i] = outbuf[i][col];
@@ -588,101 +580,6 @@ void scale_values(double *vals, size_t w, double scale, double offset) {
 		*p = (*p) * scale + offset;
 		p++;
 	}
-}
-
-palette_t *parse_palette(const char * const *lines) {
-	palette_t *p = MYALLOC(palette_t, 1);
-
-	int num = 0;
-	p->vals = NULL;
-	p->reds = p->greens = p->blues = NULL;
-	p->nan_red = p->nan_green = p->nan_blue = 0;
-
-	for(int line_num=0; lines[line_num]; line_num++) {
-		const char *line = lines[line_num];
-		if(line[0] == 0 || line[0] == '#') continue;
-		uint8_t r, g, b;
-		double val;
-		if(4 != sscanf(line, "%lf %hhd %hhd %hhd\n", &val, &r, &g, &b)) {
-			fatal_error("cannot parse line in palette file: [%s]", line);
-		}
-		if(isnan(val)) {
-			p->nan_red   = r;
-			p->nan_green = g;
-			p->nan_blue  = b;
-		} else {
-			num++;
-			p->vals   = REMYALLOC(double, p->vals, num);
-			p->reds   = REMYALLOC(uint8_t, p->reds, num);
-			p->greens = REMYALLOC(uint8_t, p->greens, num);
-			p->blues  = REMYALLOC(uint8_t, p->blues, num);
-			p->vals  [num-1] = val;
-			p->reds  [num-1] = r;
-			p->greens[num-1] = g;
-			p->blues [num-1] = b;
-		}
-	}
-	
-	if(num < 2) fatal_error("not enough entries in palette");
-	p->num_vals = num;
-
-	return p;
-}
-
-palette_t *read_palette_file(const char *fn) {
-	FILE *fh = fopen(fn, "r");
-	if(!fh) fatal_error("cannot open palette file");
-	char **lines = NULL;
-	int num_lines = 0;
-	char *line;
-	char buf[1000];
-	while((line = fgets(buf, 1000, fh))) {
-		lines = REMYALLOC(char *, lines, (num_lines + 2));
-		lines[num_lines] = strdup(line);
-		lines[num_lines+1] = NULL;
-		num_lines++;
-	}
-	fclose(fh);
-
-	if(!num_lines) fatal_error("palette file was empty");
-
-	palette_t *p = parse_palette(lines);
-
-	for(int i=0; lines[i]; i++) free(lines[i]);
-	free(lines);
-
-	return p;
-}
-
-palette_t *read_default_palette() {
-	return parse_palette(DEFAULT_PALETTE);
-}
-
-void get_nan_color(uint8_t *buf, palette_t *pal) {
-	buf[0] = pal->nan_red;
-	buf[1] = pal->nan_green;
-	buf[2] = pal->nan_blue;
-}
-
-void get_palette_color(uint8_t *buf, double val, palette_t *pal) {
-	double v1, v2, alpha;
-
-	if(val < pal->vals[0]) val = pal->vals[0];
-	if(val > pal->vals[pal->num_vals-1]) val = pal->vals[pal->num_vals-1];
-
-	for(int i=0; i<pal->num_vals-1; i++) {
-		v1 = pal->vals[i];
-		v2 = pal->vals[i+1];
-		if(val >= v1 && val <= v2) {
-			alpha = (val - v1) / (v2 - v1);
-			buf[0] = (uint8_t)((double)pal->reds  [i]*(1.0-alpha) + (double)pal->reds  [i+1]*alpha + .5);
-			buf[1] = (uint8_t)((double)pal->greens[i]*(1.0-alpha) + (double)pal->greens[i+1]*alpha + .5);
-			buf[2] = (uint8_t)((double)pal->blues [i]*(1.0-alpha) + (double)pal->blues [i+1]*alpha + .5);
-			return;
-		}
-	}
-
-	fatal_error("palette file out of sequence, can't find val %g\n", val);
 }
 
 // this function generates a 2x2 matrix that
