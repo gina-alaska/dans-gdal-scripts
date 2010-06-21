@@ -55,7 +55,7 @@ double ang_diff(double a1, double a2) {
 	return d<=180.0 ? d : 360.0-d;
 }
 
-Ring calc_rect4_from_convex_hull(BitGrid mask, int w, int h, DebugPlot *dbuf) {
+Ring calc_rect4_from_convex_hull(const BitGrid &mask, int w, int h, DebugPlot *dbuf) {
 	std::vector<int> chrows_left(h);
 	std::vector<int> chrows_right(h);
 	for(int j=0; j<h; j++) {
@@ -317,7 +317,7 @@ Ring calc_rect4_from_convex_hull(BitGrid mask, int w, int h, DebugPlot *dbuf) {
 //	return v;
 //}
 
-static int ringdiff(const Ring &r1, const Ring &r2, BitGrid mask) {
+static int ringdiff(const Ring &r1, const Ring &r2, const BitGrid &mask) {
 	Mpoly mp1, mp2;
 	mp1.rings.push_back(r1);
 	mp2.rings.push_back(r2);
@@ -422,7 +422,7 @@ static void perturb(const Ring &in, Ring &out, int amt) {
 }
 
 /*
-static ring_t anneal(ring_t *input, int recurse, BitGrid mask, int w, int h) {
+static ring_t anneal(ring_t *input, int recurse, const BitGrid &mask, int w, int h) {
 	ring_t best = duplicate_ring(input);
 	ring_t pert = duplicate_ring(input);
 
@@ -464,7 +464,7 @@ static ring_t anneal(ring_t *input, int recurse, BitGrid mask, int w, int h) {
 }
 */
 
-static Ring anneal(const Ring &input, BitGrid mask) {
+static Ring anneal(const Ring &input, const BitGrid &mask) {
 	Ring best = input;
 	Ring pert = input;
 
@@ -481,7 +481,7 @@ static Ring anneal(const Ring &input, BitGrid mask) {
 	return best;
 }
 
-Ring calc_rect4_from_mask(BitGrid mask, int w, int h, DebugPlot *dbuf, bool use_ai) {
+Ring calc_rect4_from_mask(const BitGrid &mask, int w, int h, DebugPlot *dbuf, bool use_ai) {
 	Ring best = calc_rect4_from_convex_hull(mask, w, h, dbuf);
 	if(best.pts.size() == 0) return best;
 

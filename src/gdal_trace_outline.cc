@@ -126,7 +126,7 @@ gdal_trace_outline raster.tif -classify -out-cs en -ogr-out outline.shp\n\
 	exit(1);
 }
 
-Mpoly calc_ring_from_mask(BitGrid mask, size_t w, size_t h,
+Mpoly calc_ring_from_mask(BitGrid &mask, size_t w, size_t h,
 	bool major_ring_only, bool no_donuts,
 	int64_t min_ring_area, double bevel_size);
 
@@ -562,7 +562,7 @@ int main(int argc, char **argv) {
 	return 0;
 }
 
-Mpoly calc_ring_from_mask(BitGrid mask, size_t w, size_t h,
+Mpoly calc_ring_from_mask(BitGrid &mask, size_t w, size_t h,
 bool major_ring_only, bool no_donuts, 
 int64_t min_ring_area, double bevel_size) {
 	if(major_ring_only) no_donuts = 1;

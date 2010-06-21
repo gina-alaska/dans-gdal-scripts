@@ -42,7 +42,7 @@ namespace dangdal {
 typedef int pixquad_t;
 
 int dbg_idx = 0;
-static void debug_write_mask(const BitGrid mask, size_t w, size_t h) {
+static void debug_write_mask(const BitGrid &mask, size_t w, size_t h) {
 	char fn[1000];
 	sprintf(fn, "zz-debug-%04d.pgm", dbg_idx++);
 
@@ -112,7 +112,7 @@ static inline pixquad_t rotate_quad(pixquad_t q, int dir) {
 	return ((q + (q<<4)) >> dir) & 0xf;
 }
 
-static Ring trace_single_mpoly(const BitGrid mask, size_t w, size_t h,
+static Ring trace_single_mpoly(const BitGrid &mask, size_t w, size_t h,
 int initial_x, int initial_y, bool select_color) {
 	//printf("trace_single_mpoly enter (%d,%d)\n", initial_x, initial_y);
 
@@ -161,7 +161,7 @@ int initial_x, int initial_y, bool select_color) {
 	return ring;
 }
 
-static int recursive_trace(BitGrid mask, size_t w, size_t h,
+static int recursive_trace(BitGrid &mask, size_t w, size_t h,
 const Ring &bounds, int depth, Mpoly &out_poly, int parent_id, 
 int64_t min_area, bool no_donuts) {
 	//printf("recursive_trace enter: depth=%d\n", depth);
@@ -275,7 +275,7 @@ int64_t min_area, bool no_donuts) {
 }
 
 // this function has the side effect of erasing the mask
-Mpoly trace_mask(BitGrid mask, size_t w, size_t h, int64_t min_area, bool no_donuts) {
+Mpoly trace_mask(BitGrid &mask, size_t w, size_t h, int64_t min_area, bool no_donuts) {
 	if(VERBOSE >= 4) debug_write_mask(mask, w, h);
 
 	Mpoly out_poly;

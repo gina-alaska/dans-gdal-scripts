@@ -30,8 +30,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #ifndef MASK_H
 #define MASK_H
 
-#include <boost/noncopyable.hpp>
-#include <boost/smart_ptr.hpp>
+#include <cassert>
+
 #include "common.h"
 #include "polygon.h"
 #include "debugplot.h"
@@ -44,7 +44,7 @@ public:
 	BitGrid(int _w, int _h) :
 		w(_w), h(_h),
 		arrlen((size_t(w)*h+7)/8),
-		grid(new uint8_t[arrlen])
+		grid(arrlen)
 	{ }
 
 // default dtor, copy, assign are OK
@@ -92,7 +92,7 @@ public:
 private:
 	int w, h;
 	size_t arrlen;
-	boost::shared_array<uint8_t> grid;
+	std::vector<uint8_t> grid;
 };
 
 std::vector<uint8_t> read_dataset_8bit(GDALDatasetH ds, int band_idx, uint8_t *usage_array, DebugPlot *dbuf);
