@@ -72,8 +72,8 @@ static Ring make_enclosing_ring(size_t w, size_t h) {
 	return ring;
 }
 
-static long compute_area(row_crossings_t *crossings, int num_rows) {
-	long area = 0;
+static int64_t compute_area(row_crossings_t *crossings, int num_rows) {
+	int64_t area = 0;
 	for(int y=0; y<num_rows; y++) {
 		int nc = crossings[y].num_crossings;
 		int *rc = crossings[y].crossings;
@@ -163,7 +163,7 @@ int initial_x, int initial_y, bool select_color) {
 
 static int recursive_trace(BitGrid mask, size_t w, size_t h,
 const Ring &bounds, int depth, Mpoly &out_poly, int parent_id, 
-long min_area, bool no_donuts) {
+int64_t min_area, bool no_donuts) {
 	//printf("recursive_trace enter: depth=%d\n", depth);
 
 	bool select_color = !(depth & 1);
@@ -280,7 +280,7 @@ long min_area, bool no_donuts) {
 }
 
 // this function has the side effect of erasing the mask
-Mpoly trace_mask(BitGrid mask, size_t w, size_t h, long min_area, bool no_donuts) {
+Mpoly trace_mask(BitGrid mask, size_t w, size_t h, int64_t min_area, bool no_donuts) {
 	if(VERBOSE >= 4) debug_write_mask(mask, w, h);
 
 	Mpoly out_poly;

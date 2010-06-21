@@ -492,12 +492,7 @@ static Ring pinch_ring_excursions(const Ring &ring_in) {
 
 	if(!ring.isCCW()) {
 		// reverse ring to make it CCW
-		// FIXME! use polygon reverse method
-		for(size_t i=0; i<npts/2; i++) {
-			Vertex tmp = ring.pts[i];
-			ring.pts[i] = ring.pts[npts-1-i];
-			ring.pts[npts-1-i] = tmp;
-		}
+		ring.reverse();
 	}
 
 	const std::vector<Vertex> &pts = ring.pts;

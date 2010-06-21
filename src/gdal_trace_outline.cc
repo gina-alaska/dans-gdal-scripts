@@ -128,7 +128,7 @@ gdal_trace_outline raster.tif -classify -out-cs en -ogr-out outline.shp\n\
 
 Mpoly calc_ring_from_mask(BitGrid mask, size_t w, size_t h,
 	bool major_ring_only, bool no_donuts,
-	long min_ring_area, double bevel_size);
+	int64_t min_ring_area, double bevel_size);
 
 typedef struct {
 	int out_cs;
@@ -184,7 +184,7 @@ int main(int argc, char **argv) {
 	const char *mask_out_fn = NULL;
 	bool major_ring_only = 0;
 	bool no_donuts = 0;
-	long min_ring_area = 0;
+	int64_t min_ring_area = 0;
 	double reduction_tolerance = 2;
 	bool do_erosion = 0;
 	bool do_invert = 0;
@@ -563,7 +563,7 @@ int main(int argc, char **argv) {
 
 Mpoly calc_ring_from_mask(BitGrid mask, size_t w, size_t h,
 bool major_ring_only, bool no_donuts, 
-long min_ring_area, double bevel_size) {
+int64_t min_ring_area, double bevel_size) {
 	if(major_ring_only) no_donuts = 1;
 
 	Mpoly mp = trace_mask(mask, w, h, min_ring_area, no_donuts);

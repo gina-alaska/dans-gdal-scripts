@@ -295,7 +295,7 @@ void BitGrid::erode() { // FIXME - untested
 }
 
 Vertex BitGrid::centroid() {
-	long accum_x=0, accum_y=0, cnt=0;
+	int64_t accum_x=0, accum_y=0, cnt=0;
 	for(int y=0; y<h; y++) {
 		for(int x=0; x<w; x++) {
 			if(get(x, y)) {

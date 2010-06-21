@@ -465,7 +465,7 @@ void compute_containments(mpoly_t *mp) {
 	int **ancestors = MYALLOC(int *, nrings);
 	int *num_ancestors = MYALLOC(int, nrings);
 
-	long num_hits = 0;
+	int64_t num_hits = 0;
 
 	printf("Computing containments: ");
 	for(i=0; i<nrings; i++) {
@@ -497,7 +497,7 @@ void compute_containments(mpoly_t *mp) {
 	free(bboxes);
 
 	if(VERBOSE) {
-		printf("containment hits = %ld/%ld\n", num_hits, (long)nrings*(long)nrings);
+		printf("containment hits = %ld/%ld\n", num_hits, (int64_t)nrings*(int64_t)nrings);
 		if(VERBOSE >= 2) {
 			for(i=0; i<nrings; i++) {
 				printf("num_ancestors[%d] = %d\n", i, num_ancestors[i]);
