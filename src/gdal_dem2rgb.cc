@@ -96,9 +96,9 @@ int main(int argc, char *argv[]) {
 
 	double slope_exageration = default_slope_exageration;
 	double lightvec[3];
-	memcpy(lightvec, default_lightvec, 3*sizeof(double));
+	for(int i=0; i<3; i++) lightvec[i] = default_lightvec[i];
 	double shade_params[4];
-	memcpy(shade_params, default_shade_params, 4*sizeof(double));
+	for(int i=0; i<4; i++) shade_params[i] = default_shade_params[i];
 
 	std::string src_fn;
 	std::string tex_fn;

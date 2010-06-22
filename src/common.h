@@ -65,10 +65,6 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #  include <string.h>
 #endif
 
-#if HAVE_STDBOOL_H
-#  include <stdbool.h>
-#endif
-
 /* see http://www.unixwiz.net/techtips/gnu-c-attributes.html */
 #ifndef __GNUC__
 #  define  __attribute__(x)  /*NOTHING*/
@@ -80,31 +76,10 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 #define D2R (M_PI / 180.0)
 
-#ifdef MIN
-#undef MIN
-#endif
-#define MIN(a,b) ((a)<(b)?(a):(b))
-
-#ifdef MAX
-#undef MAX
-#endif
-#define MAX(a,b) ((a)>(b)?(a):(b))
-
-// if there is no stdbool.h...
-#ifndef __bool_true_false_are_defined
-enum bool {false, true};
-#endif
-
 extern int VERBOSE;
-
-#define MYALLOC(type, cnt) ((type *)_myalloc(sizeof(type) * (cnt)))
-#define REMYALLOC(type, buf, cnt) ((type *)_remyalloc(buf, sizeof(type) * (cnt)))
 
 void fatal_error(const std::string &s) __attribute__((noreturn));
 void fatal_error(const char *s, ...) __attribute__((noreturn, format(printf, 1, 2)));
-// use the MYALLOC macro which wraps this function
-void *_myalloc(size_t size) __attribute__((malloc));
-void *_remyalloc(void *p, size_t size) __attribute__((warn_unused_result));
 std::vector<std::string> argv_to_list(int argc, char **argv);
 
 #endif // ifndef COMMON_H

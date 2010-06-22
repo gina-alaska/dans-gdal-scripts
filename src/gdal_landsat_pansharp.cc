@@ -30,7 +30,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 #include <vector>
 
-typedef struct {
+struct ScaledBand {
 	int oversample;
 	size_t lo_w, lo_h;
 	size_t hi_w, hi_h;
@@ -40,11 +40,11 @@ typedef struct {
 	GDALRasterBandH band;
 	std::vector<std::vector<double> > lines_buf;
 	int line_buf_idx;
-} scaled_band_t;
+};
 
 void copyGeoCode(GDALDatasetH dst_ds, GDALDatasetH src_ds);
-scaled_band_t getScaledBand(GDALDatasetH lores_ds, int band_id, GDALDatasetH hires_ds);
-void readLineScaled(scaled_band_t &sb, int row, double *hires_buf);
+ScaledBand getScaledBand(GDALDatasetH lores_ds, int band_id, GDALDatasetH hires_ds);
+void readLineScaled(ScaledBand &sb, int row, double *hires_buf);
 
 void usage(const std::string &cmdname) {
 	printf("Usage:\n %s\n", cmdname.c_str());
@@ -148,7 +148,7 @@ int main(int argc, char *argv[]) {
 
 	/////
 
-	std::vector<scaled_band_t> rgb_bands;
+	std::vector<ScaledBand> rgb_bands;
 	for(size_t ds_idx=0; ds_idx<rgb_ds.size(); ds_idx++) {
 		int nb = GDALGetRasterCount(rgb_ds[ds_idx]);
 		for(int i=0; i<nb; i++) {
@@ -158,7 +158,7 @@ int main(int argc, char *argv[]) {
 	size_t rgb_band_count = rgb_bands.size();
 	if(!rgb_band_count) usage(cmdname);
 
-	std::vector<scaled_band_t> lum_bands;
+	std::vector<ScaledBand> lum_bands;
 	if(lum_ds.size()) {
 		for(size_t ds_idx=0; ds_idx<lum_ds.size(); ds_idx++) {
 			int nb = GDALGetRasterCount(lum_ds[ds_idx]);
@@ -293,7 +293,7 @@ void copyGeoCode(GDALDatasetH dst_ds, GDALDatasetH src_ds) {
 	GDALSetProjection(dst_ds, GDALGetProjectionRef(src_ds));
 }
 
-scaled_band_t getScaledBand(GDALDatasetH lores_ds, int band_id, GDALDatasetH hires_ds) {
+ScaledBand getScaledBand(GDALDatasetH lores_ds, int band_id, GDALDatasetH hires_ds) {
 	double lores_affine[6];
 	double hires_affine[6];
 	if(GDALGetGeoTransform(lores_ds, lores_affine) != CE_None) {
@@ -314,7 +314,7 @@ scaled_band_t getScaledBand(GDALDatasetH lores_ds, int band_id, GDALDatasetH hir
 		hires_affine[1] != -hires_affine[5]
 	) fatal_error("input must have square pixels");
 
-	scaled_band_t sb;
+	ScaledBand sb;
 
 	double band_res = lores_affine[1];
 	double base_res = hires_affine[1];
@@ -371,7 +371,7 @@ scaled_band_t getScaledBand(GDALDatasetH lores_ds, int band_id, GDALDatasetH hir
 	return sb;
 }
 
-void readLineScaled1D(scaled_band_t &sb, int row, double *hires_buf) {
+void readLineScaled1D(ScaledBand &sb, int row, double *hires_buf) {
 	std::vector<double> lores_buf(sb.lo_w);
 
 	if(row < 0 || size_t(row) >= sb.lo_h) {
@@ -397,7 +397,7 @@ void readLineScaled1D(scaled_band_t &sb, int row, double *hires_buf) {
 	}
 }
 
-void readLineScaled(scaled_band_t &sb, int row, double *hires_buf) {
+void readLineScaled(ScaledBand &sb, int row, double *hires_buf) {
 	int y0 = row / sb.oversample;
 	int my = row % sb.oversample;
 	double *kernel = &sb.kernel_y[my][0];

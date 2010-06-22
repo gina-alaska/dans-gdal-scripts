@@ -34,21 +34,21 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 namespace dangdal {
 
-typedef struct {
+struct Edge {
 	Vertex p0, p1;
 	double angle;
 	double seg_len;
 	int group;
-} edge_t;
+};
 
-typedef struct {
+struct EdgeGroup {
 	double arc_len;
 	double wx, wy;
 	double avg_ang;
 	int use;
-	edge_t best_edge;
+	Edge best_edge;
 	double sort_key;
-} edge_group_t;
+};
 
 double ang_diff(double a1, double a2) {
 	double d = fabs(a1 - a2);
@@ -86,7 +86,7 @@ Ring calc_rect4_from_convex_hull(const BitGrid &mask, int w, int h, DebugPlot *d
 	if(fulcrum_x<0) fatal_error("image was empty");
 	//if(VERBOSE) printf("start point: %d,%d\n", fulcrum_x, fulcrum_y);
 
-	std::vector<edge_t> all_edges;
+	std::vector<Edge> all_edges;
 
 	int chop_dx = 1, chop_dy = 0;
 	for(;;) {
@@ -118,7 +118,7 @@ Ring calc_rect4_from_convex_hull(const BitGrid &mask, int w, int h, DebugPlot *d
 		//if(VERBOSE) printf("  f=[%3d,%3d] ", best_x, best_y);
 		//if(VERBOSE) printf("  a=[% 3.1f]\n", angle);
 
-		edge_t new_edge;
+		Edge new_edge;
 		new_edge.p0.x = fulcrum_x;
 		new_edge.p0.y = fulcrum_y;
 		new_edge.p1.x = best_x;
@@ -134,7 +134,7 @@ Ring calc_rect4_from_convex_hull(const BitGrid &mask, int w, int h, DebugPlot *d
 	const size_t num_edges = all_edges.size();
 
 	for(size_t i=0; i<num_edges; i++) {
-		edge_t e = all_edges[i];
+		Edge e = all_edges[i];
 		double dx = e.p1.x - e.p0.x;
 		double dy = e.p1.y - e.p0.y;
 		e.angle = atan2(dy, dx)*180.0/M_PI;
@@ -150,8 +150,8 @@ Ring calc_rect4_from_convex_hull(const BitGrid &mask, int w, int h, DebugPlot *d
 	int num_groups = 0;
 	all_edges[0].group = (num_groups++);
 	for(size_t i=0; i<num_edges; i++) {
-		edge_t l = all_edges[i];
-		edge_t r = all_edges[(i+1) % num_edges];
+		Edge l = all_edges[i];
+		Edge r = all_edges[(i+1) % num_edges];
 		double len = l.seg_len + r.seg_len;
 		double adiff = ang_diff(l.angle, r.angle);
 
@@ -197,8 +197,8 @@ Ring calc_rect4_from_convex_hull(const BitGrid &mask, int w, int h, DebugPlot *d
 	//if(VERBOSE) printf("num groups: %d\n", num_groups);
 
 	if(VERBOSE) for(size_t i=0; i<num_edges; i++) {
-		edge_t l = all_edges[i];
-		edge_t r = all_edges[(i+1) % num_edges];
+		Edge l = all_edges[i];
+		Edge r = all_edges[(i+1) % num_edges];
 		double len = l.seg_len + r.seg_len;
 		double adiff = ang_diff(l.angle, r.angle);
 		printf("a=%.15f  l=%.15f  ", l.angle, l.seg_len);
@@ -206,14 +206,14 @@ Ring calc_rect4_from_convex_hull(const BitGrid &mask, int w, int h, DebugPlot *d
 		printf("  group=%d\n", l.group);
 	}
 
-	std::vector<edge_group_t> groups(num_groups);
+	std::vector<EdgeGroup> groups(num_groups);
 	for(int i=0; i<num_groups; i++) {
 		groups[i].arc_len = 0;
 		groups[i].wx = 0;
 		groups[i].wy = 0;
 	}
 	for(size_t i=0; i<num_edges; i++) {
-		edge_t e = all_edges[i];
+		Edge e = all_edges[i];
 		int eg = e.group;
 		if(eg < 0 || eg >= num_groups) {
 			fatal_error("group out of range (i=%zd, g=%d, num_groups=%d)", i, eg, num_groups);
@@ -264,8 +264,8 @@ Ring calc_rect4_from_convex_hull(const BitGrid &mask, int w, int h, DebugPlot *d
 	// bubble sort - start at top edge and go clockwise
 	for(int i=0; i<num_groups; i++) {
 		for(int j=num_groups-1; j>i; j--) {
-			edge_group_t e1 = groups[j-1];
-			edge_group_t e2 = groups[j];
+			EdgeGroup e1 = groups[j-1];
+			EdgeGroup e2 = groups[j];
 			if(e1.sort_key > e2.sort_key) {
 				groups[j-1] = e2;
 				groups[j] = e1;
@@ -281,8 +281,8 @@ Ring calc_rect4_from_convex_hull(const BitGrid &mask, int w, int h, DebugPlot *d
 	std::vector<Vertex> verts(num_groups);
 	for(int i=0; i<num_groups; i++) {
 		int j = i ? i-1 : num_groups-1;
-		edge_t e1 = groups[i].best_edge;
-		edge_t e2 = groups[j].best_edge;
+		Edge e1 = groups[i].best_edge;
+		Edge e2 = groups[j].best_edge;
 		verts[i] = line_line_intersection(
 			e1.p0, e1.p1,
 			e2.p0, e2.p1);
@@ -346,7 +346,7 @@ static int ringdiff(const Ring &r1, const Ring &r2, const BitGrid &mask) {
 			//if(cx1 == max_x+1 && cx2 == max_x+1) break;
 			if(cx1 >= max_x+1 && cx2 >= max_x+1) break;
 
-			int x_from = MIN(cx1, cx2);
+			int x_from = std::min(cx1, cx2);
 			if(cx1 < cx2) {
 				in1 = !in1;
 				ci1++;
@@ -359,7 +359,7 @@ static int ringdiff(const Ring &r1, const Ring &r2, const BitGrid &mask) {
 
 			cx1 = ci1 < row1.size() ? row1[ci1] : max_x+1;
 			cx2 = ci2 < row2.size() ? row2[ci2] : max_x+1;
-			int x_to = MIN(cx1, cx2);
+			int x_to = std::min(cx1, cx2);
 			
 			int gain=1, penalty=2; // FIXME - arbitrary
 			for(int x=x_from; x<x_to; x++) {

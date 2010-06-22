@@ -126,10 +126,10 @@ void mask_from_mpoly(const Mpoly &mpoly, size_t w, size_t h, const std::string f
 	FILE *fout = fopen(fn.c_str(), "wb");
 	if(!fout) fatal_error("cannot open mask output");
 	fprintf(fout, "P4\n%zd %zd\n", w, h);
-	uint8_t *buf = MYALLOC(uint8_t, (w+7)/8);
+	std::vector<uint8_t> buf((w+7)/8);
 	for(size_t y=0; y<h; y++) {
-		memset(buf, 0, (w+7)/8);
-		uint8_t *p = buf;
+		buf.assign((w+7)/8, 0);
+		uint8_t *p = &buf[0];
 		uint8_t bitp = 128;
 		const row_crossings_t &r = rows[y];
 		for(size_t i=0; i<w; i++) {
@@ -145,7 +145,7 @@ void mask_from_mpoly(const Mpoly &mpoly, size_t w, size_t h, const std::string f
 				bitp = 128;
 			}
 		}
-		fwrite(buf, (w+7)/8, 1, fout);
+		fwrite(&buf[0], (w+7)/8, 1, fout);
 	}
 	fclose(fout);
 	printf("mask draw: done\n");

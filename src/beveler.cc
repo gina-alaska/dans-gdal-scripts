@@ -31,11 +31,6 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include "common.h"
 #include "polygon.h"
 
-#ifdef SGN
-#undef SGN
-#endif
-#define SGN(a) ((a)<0?-1:(a)>0?1:0)
-
 namespace dangdal {
 
 struct VertRef {
@@ -92,6 +87,10 @@ public:
 private:
 	const Mpoly *mp;
 };
+
+static inline double sgn(double v) {
+	return v<0 ? -1 : v>0 ? 1 : 0;
+}
 
 // This function is only meant to be called on polygons
 // that have orthogonal sides on an integer lattice.
@@ -231,10 +230,10 @@ void bevel_self_intersections(Mpoly &mp, double amount) {
 			Vertex this_v = ring.pts[vin_idx];
 			Vertex prev_v = ring.pts[(vin_idx+ring.pts.size()-1) % ring.pts.size()];
 			Vertex next_v = ring.pts[(vin_idx+1) % ring.pts.size()];
-			double sx_prev = SGN(prev_v.x - this_v.x);
-			double sy_prev = SGN(prev_v.y - this_v.y);
-			double sx_next = SGN(next_v.x - this_v.x);
-			double sy_next = SGN(next_v.y - this_v.y);
+			double sx_prev = sgn(prev_v.x - this_v.x);
+			double sy_prev = sgn(prev_v.y - this_v.y);
+			double sx_next = sgn(next_v.x - this_v.x);
+			double sy_next = sgn(next_v.y - this_v.y);
 			new_ring.pts[vout_idx++] = Vertex(this_v.x + sx_prev*amount, this_v.y + sy_prev*amount);
 			new_ring.pts[vout_idx++] = Vertex(this_v.x + sx_next*amount, this_v.y + sy_next*amount);
 			vin_idx++;

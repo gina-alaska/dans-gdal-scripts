@@ -213,7 +213,7 @@ int main(int argc, char **argv) {
 	}
 
 	// Project points along the source region border to the target projection.
-	double max_step_len = MAX(
+	double max_step_len = std::max(
 		src_bbox.max_x - src_bbox.min_x,
 		src_bbox.max_y - src_bbox.min_y) / 1000.0;
 	for(size_t r_idx=0; r_idx<src_mp.rings.size(); r_idx++) {
@@ -251,7 +251,7 @@ int main(int argc, char **argv) {
 	// Take points along the border of the t_bounds clip shape that lie within the
 	// source region.
 	if(use_t_bounds) {
-		double max_step_len = MAX(
+		double max_step_len = std::max(
 			t_bounds_bbox.max_x - t_bounds_bbox.min_x,
 			t_bounds_bbox.max_y - t_bounds_bbox.min_y) / 1000.0;
 		for(size_t r_idx=0; r_idx<t_bounds_mp.rings.size(); r_idx++) {
