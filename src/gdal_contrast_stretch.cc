@@ -47,11 +47,10 @@ std::vector<size_t> invert_histogram_to_gaussian(const std::vector<size_t> &hist
 void copyGeoCode(GDALDatasetH dst_ds, GDALDatasetH src_ds);
 
 void usage(const std::string &cmdname) {
-	// FIXME - layout/grammar
 	printf("Usage: %s <options> src.tif dst.tif\n\n", cmdname.c_str());
 	NdvDef::printUsage();
 	printf("\
-  -outndv <output_nodata_val>             Output no-data value\n\
+  -outndv <output_nodata_val>        Output no-data value\n\
 \n\
 Stretch mode:\n\
   -linear-stretch <target_avg> <target_stddev>      Linear stretch to a target range\n\

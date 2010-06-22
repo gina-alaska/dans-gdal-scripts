@@ -37,7 +37,6 @@ void usage(const std::string &cmdname); // externally defined
 namespace dangdal {
 
 void NdvDef::printUsage() {
-	// FIXME
 	printf("\
 No-data values:\n\
   -ndv val                           Set a no-data value\n\

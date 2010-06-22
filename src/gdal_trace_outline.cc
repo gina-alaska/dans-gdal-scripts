@@ -81,7 +81,7 @@ Behavior:\n\
   -no-donuts                   Take only top-level rings\n\
   -min-ring-area val           Drop rings with less than this area\n\
                                (in square pixels)\n\
-  -dp-toler val                Tolerance for point reduction\n\
+  -dp-toler val                Tolerance for polygon simplification\n\
                                (in pixels, default is 2.0)\n\
   -bevel-size                  How much to shave off corners at\n\
                                self-intersection points\n\
@@ -259,7 +259,7 @@ int main(int argc, char **argv) {
 				if(*endptr) usage(cmdname);
 				if(bevel_size < 0 || bevel_size >= 1) fatal_error(
 					"-bevel-size must be in the range 0 <= bevel < 1");
-			} else if(arg == "-pinch-excursions") { // FIXME - document
+			} else if(arg == "-pinch-excursions") {
 				do_pinch_excursions = 1;
 			} else if(arg == "-llproj-toler") {
 				if(argp == arg_list.size()) usage(cmdname);

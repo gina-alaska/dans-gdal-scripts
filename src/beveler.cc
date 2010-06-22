@@ -183,7 +183,6 @@ void bevel_self_intersections(Mpoly &mp, double amount) {
 
 	if(VERBOSE) printf("shaving corners\n");
 
-	// FIXME! this goes very slow but could probably be made better
 	for(size_t entry_idx=0; entry_idx<total_num_touch; ) {
 		const Ring &ring = mp.rings[entries[entry_idx].ring_idx];
 		const size_t ring_idx = entries[entry_idx].ring_idx;
