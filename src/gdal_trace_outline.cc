@@ -58,7 +58,6 @@ enum CoordSystem {
 
 using namespace dangdal;
 
-// FIXME! describe setting out-cs and ogr-fmt only before output is specified
 void usage(const std::string &cmdname) {
 	printf("Usage:\n  %s [options] [image_name]\n", cmdname.c_str());
 	printf("\n");
@@ -98,12 +97,14 @@ Output:\n\
   -mask-out fn.pbm             Output mask of bounding polygon in PBM format\n\
   -out-cs [xy | en | ll]       Set coordinate system for following outputs\n\
                                (pixel coords, easting/northing, or lon/lat)\n\
+                               Must be specified before -{wkt,wkb,ogr}-out options\n\
   -llproj-toler val            Error tolerance for curved lines when\n\
                                using '-out-cs ll' (in pixels, default is 1.0)\n\
   -wkt-out fn.wkt              Output polygons in WKT format\n\
   -wkb-out fn.wkb              Output polygons in WKB format\n\
   -ogr-out fn.shp              Output polygons using an OGR format\n\
   -ogr-fmt                     OGR format to use (default is 'ESRI Shapefile')\n\
+                               Must be specified before -ogr-out option\n\
   -split-polys                 Output several polygons rather than one\n\
                                multipolygon\n\
 \n\
