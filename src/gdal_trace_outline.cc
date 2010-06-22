@@ -57,8 +57,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 using namespace dangdal;
 
 // FIXME! describe setting out-cs and ogr-fmt only before output is specified
-void usage(const char *cmdname) {
-	printf("Usage:\n  %s [options] [image_name]\n", cmdname);
+void usage(const std::string &cmdname) {
+	printf("Usage:\n  %s [options] [image_name]\n", cmdname.c_str());
 	printf("\n");
 	
 	GeoOpts::printUsage();
@@ -156,15 +156,19 @@ struct GeomOutput {
 };
 
 int main(int argc, char **argv) {
-	const char *input_raster_fn = NULL;
+	const std::string cmdname = argv[0];
+	if(argc == 1) usage(cmdname);
+	std::vector<std::string> arg_list = argv_to_list(argc, argv);
+
+	std::string input_raster_fn;
 	bool classify = 0;
-	const char *debug_report = NULL;
+	std::string debug_report;
 	std::vector<size_t> inspect_bandids;
 	bool split_polys = 0;
 	int cur_out_cs = CS_UNKNOWN;
-	const char *cur_ogr_fmt = "ESRI Shapefile";
+	std::string cur_ogr_fmt = "ESRI Shapefile";
 	std::vector<GeomOutput> geom_outputs;
-	const char *mask_out_fn = NULL;
+	std::string mask_out_fn;
 	bool major_ring_only = 0;
 	bool no_donuts = 0;
 	int64_t min_ring_area = 0;
@@ -175,104 +179,102 @@ int main(int argc, char **argv) {
 	double bevel_size = .1;
 	bool do_pinch_excursions = 0;
 
-	if(argc == 1) usage(argv[0]);
+	GeoOpts geo_opts = GeoOpts(arg_list);
+	NdvDef ndv_def = NdvDef(arg_list);
 
-	GeoOpts geo_opts = GeoOpts(&argc, &argv);
-	NdvDef ndv_def = NdvDef(&argc, &argv);
-
-	int argp = 1;
-	while(argp < argc) {
-		const char *arg = argv[argp++];
+	size_t argp = 1;
+	while(argp < arg_list.size()) {
+		const std::string &arg = arg_list[argp++];
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
-			if(!strcmp(arg, "-v")) {
+			if(arg == "-v") {
 				VERBOSE++;
-			} else if(!strcmp(arg, "-classify")) {
+			} else if(arg == "-classify") {
 				classify = 1;
-			} else if(!strcmp(arg, "-report")) {
-				if(argp == argc) usage(argv[0]);
-				debug_report = argv[argp++];
-			} else if(!strcmp(arg, "-b")) {
-				if(argp == argc) usage(argv[0]);
+			} else if(arg == "-report") {
+				if(argp == arg_list.size()) usage(cmdname);
+				debug_report = arg_list[argp++];
+			} else if(arg == "-b") {
+				if(argp == arg_list.size()) usage(cmdname);
 				char *endptr;
-				int bandid = strtol(argv[argp++], &endptr, 10);
-				if(*endptr) usage(argv[0]);
+				int bandid = strtol(arg_list[argp++].c_str(), &endptr, 10);
+				if(*endptr) usage(cmdname);
 				inspect_bandids.push_back(bandid);
-			} else if(!strcmp(arg, "-erosion")) {
+			} else if(arg == "-erosion") {
 				do_erosion = 1;
-			} else if(!strcmp(arg, "-invert")) {
+			} else if(arg == "-invert") {
 				do_invert = 1;
-			} else if(!strcmp(arg, "-split-polys")) {
+			} else if(arg == "-split-polys") {
 				split_polys = 1;
-			} else if(!strcmp(arg, "-wkt-out")) {
-				if(argp == argc) usage(argv[0]);
+			} else if(arg == "-wkt-out") {
+				if(argp == arg_list.size()) usage(cmdname);
 				GeomOutput go(cur_out_cs);
-				go.wkt_fn = argv[argp++];
+				go.wkt_fn = arg_list[argp++];
 				geom_outputs.push_back(go);
-			} else if(!strcmp(arg, "-wkb-out")) {
-				if(argp == argc) usage(argv[0]);
+			} else if(arg == "-wkb-out") {
+				if(argp == arg_list.size()) usage(cmdname);
 				GeomOutput go(cur_out_cs);
-				go.wkb_fn = argv[argp++];
+				go.wkb_fn = arg_list[argp++];
 				geom_outputs.push_back(go);
-			} else if(!strcmp(arg, "-ogr-out")) {
-				if(argp == argc) usage(argv[0]);
+			} else if(arg == "-ogr-out") {
+				if(argp == arg_list.size()) usage(cmdname);
 				GeomOutput go(cur_out_cs);
 				go.ogr_fmt = cur_ogr_fmt;
-				go.ogr_fn = argv[argp++];
+				go.ogr_fn = arg_list[argp++];
 				geom_outputs.push_back(go);
-			} else if(!strcmp(arg, "-ogr-fmt")) {
-				if(argp == argc) usage(argv[0]);
-				cur_ogr_fmt = argv[argp++];
-			} else if(!strcmp(arg, "-out-cs")) {
-				if(argp == argc) usage(argv[0]);
-				const char *cs = argv[argp++];
-				if(!strcmp(cs, "xy")) cur_out_cs = CS_XY;
-				else if(!strcmp(cs, "en")) cur_out_cs = CS_EN;
-				else if(!strcmp(cs, "ll")) cur_out_cs = CS_LL;
-				else fatal_error("unrecognized value for -out-cs option (%s)", cs);
-			} else if(!strcmp(arg, "-mask-out")) {
-				if(argp == argc) usage(argv[0]);
-				mask_out_fn = argv[argp++];
-			} else if(!strcmp(arg, "-major-ring")) {
+			} else if(arg == "-ogr-fmt") {
+				if(argp == arg_list.size()) usage(cmdname);
+				cur_ogr_fmt = arg_list[argp++];
+			} else if(arg == "-out-cs") {
+				if(argp == arg_list.size()) usage(cmdname);
+				std::string cs = arg_list[argp++];
+				if(cs == "xy") cur_out_cs = CS_XY;
+				else if(cs == "en") cur_out_cs = CS_EN;
+				else if(cs == "ll") cur_out_cs = CS_LL;
+				else fatal_error("unrecognized value for -out-cs option (%s)", cs.c_str());
+			} else if(arg == "-mask-out") {
+				if(argp == arg_list.size()) usage(cmdname);
+				mask_out_fn = arg_list[argp++];
+			} else if(arg == "-major-ring") {
 				major_ring_only = 1;
-			} else if(!strcmp(arg, "-no-donuts")) {
+			} else if(arg == "-no-donuts") {
 				no_donuts = 1;
-			} else if(!strcmp(arg, "-min-ring-area")) {
-				if(argp == argc) usage(argv[0]);
+			} else if(arg == "-min-ring-area") {
+				if(argp == arg_list.size()) usage(cmdname);
 				char *endptr;
-				min_ring_area = strtol(argv[argp++], &endptr, 10);
-				if(*endptr) usage(argv[0]);
-			} else if(!strcmp(arg, "-dp-toler")) {
-				if(argp == argc) usage(argv[0]);
+				min_ring_area = strtol(arg_list[argp++].c_str(), &endptr, 10);
+				if(*endptr) usage(cmdname);
+			} else if(arg == "-dp-toler") {
+				if(argp == arg_list.size()) usage(cmdname);
 				char *endptr;
-				reduction_tolerance = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
-			} else if(!strcmp(arg, "-bevel-size")) {
-				if(argp == argc) usage(argv[0]);
+				reduction_tolerance = strtod(arg_list[argp++].c_str(), &endptr);
+				if(*endptr) usage(cmdname);
+			} else if(arg == "-bevel-size") {
+				if(argp == arg_list.size()) usage(cmdname);
 				char *endptr;
-				bevel_size = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
+				bevel_size = strtod(arg_list[argp++].c_str(), &endptr);
+				if(*endptr) usage(cmdname);
 				if(bevel_size < 0 || bevel_size >= 1) fatal_error(
 					"-bevel-size must be in the range 0 <= bevel < 1");
-			} else if(!strcmp(arg, "-pinch-excursions")) { // FIXME - document
+			} else if(arg == "-pinch-excursions") { // FIXME - document
 				do_pinch_excursions = 1;
-			} else if(!strcmp(arg, "-llproj-toler")) {
-				if(argp == argc) usage(argv[0]);
+			} else if(arg == "-llproj-toler") {
+				if(argp == arg_list.size()) usage(cmdname);
 				char *endptr;
-				llproj_toler = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
-			} else if(!strcmp(arg, "-h") || !strcmp(arg, "--help")) {
-				usage(argv[0]);
+				llproj_toler = strtod(arg_list[argp++].c_str(), &endptr);
+				if(*endptr) usage(cmdname);
+			} else if(arg == "-h" || arg == "--help") {
+				usage(cmdname);
 			} else {
-				fatal_error("unrecognized option: %s", arg);
+				fatal_error("unrecognized option: %s", arg.c_str());
 			}
 		} else {
-			if(input_raster_fn) usage(argv[0]);
+			if(input_raster_fn.size()) usage(cmdname);
 			input_raster_fn = arg;
 		}
 	}
 
-	if(!input_raster_fn) fatal_error("must specify filename of image");
+	if(input_raster_fn.empty()) fatal_error("must specify filename of image");
 
 	bool do_geom_output = geom_outputs.size();
 
@@ -284,12 +286,12 @@ int main(int argc, char **argv) {
 	if(classify) {
 		if(!ndv_def.empty()) fatal_error("-classify option is not compatible with NDV options");
 		if(do_invert) fatal_error("-classify option is not compatible with -invert option");
-		if(mask_out_fn) fatal_error("-classify option is not compatible with -mask-out option");
+		if(mask_out_fn.size()) fatal_error("-classify option is not compatible with -mask-out option");
 	}
 
 	GDALAllRegister();
 
-	GDALDatasetH ds = GDALOpen(input_raster_fn, GA_ReadOnly);
+	GDALDatasetH ds = GDALOpen(input_raster_fn.c_str(), GA_ReadOnly);
 	if(!ds) fatal_error("open failed");
 
 	if(inspect_bandids.empty()) {
@@ -319,7 +321,7 @@ int main(int argc, char **argv) {
 	}
 
 	DebugPlot *dbuf = NULL;
-	if(debug_report) {
+	if(debug_report.size()) {
 		dbuf = new DebugPlot(georef.w, georef.h);
 		dbuf->mode = do_pinch_excursions ? PLOT_PINCH : PLOT_CONTOURS;
 	}
@@ -436,7 +438,7 @@ int main(int argc, char **argv) {
 			printf("Done pinching excursions.\n");
 		}
 
-		if(mask_out_fn) {
+		if(mask_out_fn.size()) {
 			mask_from_mpoly(feature_poly, georef.w, georef.h, mask_out_fn);
 		}
 

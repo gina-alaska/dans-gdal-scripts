@@ -31,7 +31,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 static const double EPSILON = 1e-9;
 
-void usage(const char *cmdname); // externally defined
+void usage(const std::string &cmdname); // externally defined
 
 namespace dangdal {
 
@@ -48,15 +48,7 @@ Geocoding:\n\
 ");
 }
 
-static void add_arg_to_list(int *argc_ptr, char ***argv_ptr, char *new_arg) {
-	*argv_ptr = REMYALLOC(char *, *argv_ptr, (*argc_ptr+1));
-	(*argv_ptr)[*argc_ptr] = new_arg;
-	(*argc_ptr)++;
-}
-
-GeoOpts::GeoOpts(int *argc_ptr, char ***argv_ptr) :
-	s_srs(NULL),
-	geo_srs(NULL),
+GeoOpts::GeoOpts(std::vector<std::string> &arg_list) :
 	w(0),
 	h(0),
 	got_ll_en(0),
@@ -67,78 +59,74 @@ GeoOpts::GeoOpts(int *argc_ptr, char ***argv_ptr) :
 	res_x(0),
 	res_y(0)
 {
-	int argc = *argc_ptr;
-	char **argv = *argv_ptr;
+	std::vector<std::string> args_out;
+	const std::string cmdname = arg_list[0];
+	args_out.push_back(cmdname);
 
-	int argc_out = 0;
-	char **argv_out = NULL;
-	add_arg_to_list(&argc_out, &argv_out, argv[0]);
-
-	int argp = 1;
-	while(argp < argc) {
-		char *arg = argv[argp++];
+	size_t argp = 1;
+	while(argp < arg_list.size()) {
+		const std::string arg = arg_list[argp++];
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
-			if(!strcmp(arg, "-s_srs")) {
-				if(argp == argc) usage(argv[0]);
-				s_srs = argv[argp++];
-			} else if(!strcmp(arg, "-geo_srs")) {
-				if(argp == argc) usage(argv[0]);
-				geo_srs = argv[argp++];
-			} else if(!strcmp(arg, "-ll_en")) {
-				if(argp+2 > argc) usage(argv[0]);
+			if(arg == "-s_srs") {
+				if(argp == arg_list.size()) usage(cmdname);
+				s_srs = arg_list[argp++];
+			} else if(arg == "-geo_srs") {
+				if(argp == arg_list.size()) usage(cmdname);
+				geo_srs = arg_list[argp++];
+			} else if(arg == "-ll_en") {
+				if(argp+2 > arg_list.size()) usage(cmdname);
 				char *endptr;
-				given_left_e = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
-				given_lower_n = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
+				given_left_e = strtod(arg_list[argp++].c_str(), &endptr);
+				if(*endptr) usage(cmdname);
+				given_lower_n = strtod(arg_list[argp++].c_str(), &endptr);
+				if(*endptr) usage(cmdname);
 				got_ll_en++;
-			} else if(!strcmp(arg, "-ul_en")) {
-				if(argp+2 > argc) usage(argv[0]);
+			} else if(arg == "-ul_en") {
+				if(argp+2 > arg_list.size()) usage(cmdname);
 				char *endptr;
-				given_left_e = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
-				given_upper_n = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
+				given_left_e = strtod(arg_list[argp++].c_str(), &endptr);
+				if(*endptr) usage(cmdname);
+				given_upper_n = strtod(arg_list[argp++].c_str(), &endptr);
+				if(*endptr) usage(cmdname);
 				got_ul_en++;
-			} else if(!strcmp(arg, "-wh")) {
-				if(argp+2 > argc) usage(argv[0]);
+			} else if(arg == "-wh") {
+				if(argp+2 > arg_list.size()) usage(cmdname);
 				char *endptr;
-				w = strtol(argv[argp++], &endptr, 10);
-				if(*endptr) usage(argv[0]);
-				h = strtol(argv[argp++], &endptr, 10);
-				if(*endptr) usage(argv[0]);
-			} else if(!strcmp(arg, "-res")) {
+				w = strtol(arg_list[argp++].c_str(), &endptr, 10);
+				if(*endptr) usage(cmdname);
+				h = strtol(arg_list[argp++].c_str(), &endptr, 10);
+				if(*endptr) usage(cmdname);
+			} else if(arg == "-res") {
 				char *endptr;
-				if(argp == argc) usage(argv[0]);
-				res_x = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
+				if(argp == arg_list.size()) usage(cmdname);
+				res_x = strtod(arg_list[argp++].c_str(), &endptr);
+				if(*endptr) usage(cmdname);
 
-				if(argp == argc) usage(argv[0]);
-				res_y = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
+				if(argp == arg_list.size()) usage(cmdname);
+				res_y = strtod(arg_list[argp++].c_str(), &endptr);
+				if(*endptr) usage(cmdname);
 			} else {
-				add_arg_to_list(&argc_out, &argv_out, arg);
+				args_out.push_back(arg);
 			}
 		} else {
-			add_arg_to_list(&argc_out, &argv_out, arg);
+			args_out.push_back(arg);
 		}
 	}
 
 	if(got_ll_en && got_ul_en) fatal_error("don't specify both -ll_en and -ul_en");
 
-	*argc_ptr = argc_out;
-	*argv_ptr = argv_out;
+	arg_list = args_out;
 }
 
 GeoRef::GeoRef(GeoOpts opt, const GDALDatasetH ds) {
-	if(!ds && !(opt.s_srs && (opt.got_ll_en || opt.got_ul_en) && 
+	if(!ds && !(opt.s_srs.size() && (opt.got_ll_en || opt.got_ul_en) && 
 		opt.w && opt.h && opt.res_x && opt.res_y)) fatal_error("not enough information to determine geolocation");
 
 	spatial_ref = NULL;
-	if(opt.s_srs) {
+	if(opt.s_srs.size()) {
 		spatial_ref = OSRNewSpatialReference(NULL);
-		if(OSRImportFromProj4(spatial_ref, opt.s_srs)
+		if(OSRImportFromProj4(spatial_ref, opt.s_srs.c_str())
 			!= OGRERR_NONE) fatal_error("cannot parse proj4 definition");
 	} else if(ds) {
 		const char *wkt = GDALGetProjectionRef(ds);
@@ -149,12 +137,13 @@ GeoRef::GeoRef(GeoOpts opt, const GDALDatasetH ds) {
 	}
 
 	if(spatial_ref) {
-		s_srs = NULL;
-		OSRExportToProj4(spatial_ref, &s_srs);
+		char *s_srs_str = NULL;
+		OSRExportToProj4(spatial_ref, &s_srs_str);
+		s_srs = s_srs_str;
 
-		if(opt.geo_srs) {
+		if(opt.geo_srs.size()) {
 			geo_sref = OSRNewSpatialReference(NULL);
-			if(OSRImportFromProj4(geo_sref, opt.geo_srs)
+			if(OSRImportFromProj4(geo_sref, opt.geo_srs.c_str())
 				!= OGRERR_NONE) fatal_error("cannot parse proj4 definition");
 			// take only the geographic part of the definition
 			geo_sref = OSRCloneGeogCS(geo_sref);
@@ -162,15 +151,16 @@ GeoRef::GeoRef(GeoOpts opt, const GDALDatasetH ds) {
 			geo_sref = OSRCloneGeogCS(spatial_ref);
 		}
 
-		geo_srs = NULL;
-		OSRExportToProj4(geo_sref, &geo_srs);
+		char *geo_srs_str = NULL;
+		OSRExportToProj4(geo_sref, &geo_srs_str);
+		geo_srs = geo_srs_str;
 
 		fwd_xform = OCTNewCoordinateTransformation(spatial_ref, geo_sref);
 		inv_xform = OCTNewCoordinateTransformation(geo_sref, spatial_ref);
 	} else {
 		fwd_xform = NULL;
 		inv_xform = NULL;
-		s_srs = NULL;
+		s_srs.erase();
 		geo_sref = NULL;
 	}
 
@@ -253,7 +243,6 @@ GeoRef::GeoRef(GeoOpts opt, const GDALDatasetH ds) {
 	res_meters_x = 0;
 	res_meters_y = 0;
 	units_val = 0;
-	units_name = NULL;
 	have_semi_major = false;
 	if(spatial_ref) {
 		OGRErr err = OGRERR_NONE;
@@ -263,13 +252,17 @@ GeoRef::GeoRef(GeoOpts opt, const GDALDatasetH ds) {
 		}
 
 		if(OSRIsProjected(spatial_ref)) {
-			units_val = OSRGetLinearUnits(spatial_ref, &units_name);
-			//printf("units: %s, %lf\n", units_name?units_name:"null", units_val);
+			char *units_name_str = NULL;
+			units_val = OSRGetLinearUnits(spatial_ref, &units_name_str);
+			//printf("units: %s, %lf\n", units_name_str?units_name_str:"null", units_val);
+			if(units_name_str) units_name = units_name_str;
 			res_meters_x = units_val * res_x;
 			res_meters_y = units_val * res_y;
 		} else if(OSRIsGeographic(spatial_ref)) {
-			units_val = OSRGetAngularUnits(spatial_ref, &units_name);
-			//printf("ang units: %s, %lf\n", units_name?units_name:"null", units_val);
+			char *units_name_str = NULL;
+			units_val = OSRGetAngularUnits(spatial_ref, &units_name_str);
+			//printf("ang units: %s, %lf\n", units_name_str?units_name_str:"null", units_val);
+			if(units_name_str) units_name = units_name_str;
 
 			// FIXME - what is the best way to convert degrees to meters on ellipsoid?
 			// The X-resolution will be fictional anyway since the size of a degree

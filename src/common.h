@@ -31,6 +31,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #define COMMON_H
 
 #include <vector>
+#include <string>
 
 #include <ogr_spatialref.h>
 #include <cpl_string.h>
@@ -103,5 +104,6 @@ extern int VERBOSE;
 void fatal_error(const char *s, ...) __attribute__((noreturn, format(printf, 1, 2)));
 void *_myalloc(size_t size) __attribute__((malloc));
 void *_remyalloc(void *p, size_t size) __attribute__((warn_unused_result));
+std::vector<std::string> argv_to_list(int argc, char **argv);
 
 #endif // ifndef COMMON_H

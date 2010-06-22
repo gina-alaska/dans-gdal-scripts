@@ -30,7 +30,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include "common.h"
 #include "ndv.h"
 
-void usage(const char *cmdname); // externally defined
+void usage(const std::string &cmdname); // externally defined
 
 namespace dangdal {
 
@@ -44,12 +44,6 @@ No-data values:\n\
                                      (-Inf and Inf are allowed)\n\
   -valid-range 'min..max min..max ...'  Set a range of valid data values\n\
 ");
-}
-
-static void add_arg_to_list(int *argc_ptr, char ***argv_ptr, char *new_arg) {
-	*argv_ptr = REMYALLOC(char *, *argv_ptr, (*argc_ptr+1));
-	(*argv_ptr)[*argc_ptr] = new_arg;
-	(*argc_ptr)++;
 }
 
 NdvInterval::NdvInterval(const std::string &s) {
@@ -90,33 +84,32 @@ NdvSlab::NdvSlab(const std::string &s) {
 	}
 }
 
-NdvDef::NdvDef(int *argc_ptr, char ***argv_ptr) : invert(false) {
-	int argc = *argc_ptr;
-	char **argv = *argv_ptr;
-
-	int argc_out = 0;
-	char **argv_out = NULL;
-	add_arg_to_list(&argc_out, &argv_out, argv[0]);
+NdvDef::NdvDef(std::vector<std::string> &arg_list) :
+	invert(false)
+{
+	std::vector<std::string> args_out;
+	const std::string cmdname = arg_list[0];
+	args_out.push_back(cmdname);
 
 	bool got_ndv=0, got_dv=0;
 
-	int argp = 1;
-	while(argp < argc) {
-		char *arg = argv[argp++];
+	size_t argp = 1;
+	while(argp < arg_list.size()) {
+		const std::string &arg = arg_list[argp++];
 		if(arg[0] == '-') {
-			if(!strcmp(arg, "-ndv")) {
-				if(argp == argc) usage(argv[0]);
-				slabs.push_back(NdvSlab(argv[argp++]));
+			if(arg == "-ndv") {
+				if(argp == arg_list.size()) usage(cmdname);
+				slabs.push_back(NdvSlab(arg_list[argp++]));
 				got_ndv = 1;
-			} else if(!strcmp(arg, "-valid-range")) {
-				if(argp == argc) usage(argv[0]);
-				slabs.push_back(NdvSlab(argv[argp++]));
+			} else if(arg == "-valid-range") {
+				if(argp == arg_list.size()) usage(cmdname);
+				slabs.push_back(NdvSlab(arg_list[argp++]));
 				got_dv = 1;
 			} else {
-				add_arg_to_list(&argc_out, &argv_out, arg);
+				args_out.push_back(arg);
 			}
 		} else {
-			add_arg_to_list(&argc_out, &argv_out, arg);
+			args_out.push_back(arg);
 		}
 	}
 
@@ -128,8 +121,7 @@ NdvDef::NdvDef(int *argc_ptr, char ***argv_ptr) : invert(false) {
 
 	if(VERBOSE >= 2) debugPrint();
 
-	*argc_ptr = argc_out;
-	*argv_ptr = argv_out;
+	arg_list = args_out;
 }
 
 void NdvDef::debugPrint() const {

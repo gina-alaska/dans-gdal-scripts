@@ -57,7 +57,7 @@ struct NdvSlab {
 class NdvDef {
 public:
 	static void printUsage();
-	NdvDef(int *argc_ptr, char ***argv_ptr);
+	NdvDef(std::vector<std::string> &arg_list);
 	NdvDef(const GDALDatasetH ds, const std::vector<size_t> &bandlist);
 	void debugPrint() const;
 	bool empty() const { return slabs.empty(); }

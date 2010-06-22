@@ -36,10 +36,10 @@ namespace dangdal {
 
 struct GeoOpts {
 	static void printUsage();
-	GeoOpts(int *argc_ptr, char ***argv_ptr);
+	GeoOpts(std::vector<std::string> &arg_list);
 
-	char *s_srs;
-	char *geo_srs;
+	std::string s_srs;
+	std::string geo_srs;
 	size_t w, h;
 	bool got_ll_en;
 	bool got_ul_en;
@@ -64,11 +64,11 @@ public:
 	void xy2ll_or_die(double x, double y, double *lon_out, double *lat_out) const;
 	void ll2xy_or_die(double lon, double lat, double *x_out, double *y_out) const;
 
-	char *s_srs;
-	char *geo_srs;
+	std::string s_srs;
+	std::string geo_srs;
 	double res_x, res_y; // zero if there is rotation
 	double res_meters_x, res_meters_y; // zero if rotated/unknown
-	char *units_name;
+	std::string units_name;
 	double units_val;
 	bool have_semi_major;
 	double semi_major;

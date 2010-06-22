@@ -26,6 +26,9 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 
+#include <vector>
+#include <string>
+
 #include "common.h"
 
 int VERBOSE = 0;
@@ -56,4 +59,12 @@ void *_remyalloc(void *p, size_t size) {
 	p = realloc(p, size);
 	if(!p) fatal_error("out of memory (size=%zd)", size);
 	return p;
+}
+
+std::vector<std::string> argv_to_list(int argc, char **argv) {
+	std::vector<std::string> ret;
+	for(int i=0; i<argc; i++) {
+		ret.push_back(argv[i]);
+	}
+	return ret;
 }
