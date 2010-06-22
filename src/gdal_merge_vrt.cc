@@ -26,12 +26,15 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 
+#include <vector>
+
 #include "common.h"
 
 void usage(const char *cmdname) {
 	printf("Usage:\n");
 	printf("    %s -in <rgb.tif> -in <mask.tif> -out <out.vrt>\n", cmdname);
 	printf("\nMerges several images into one image with many bands.\n");
+	printf("This program is obsoleted by \"gdalbuildvrt -separate\" from GDAL 1.7.\n");
 	exit(1);
 }
 
@@ -62,15 +65,16 @@ int main(int argc, char *argv[]) {
 	if(src_fn.empty()) usage(argv[0]);
 	if(!dst_fn) usage(argv[0]);
 
-	GDALDatasetH *src_ds = MYALLOC(GDALDatasetH, src_ds_count);
+	std::vector<GDALDatasetH> src_ds;
 
 	size_t w=0, h=0;
-	for(int ds_idx=0; ds_idx<src_fn.count(); ds_idx++) {
-		src_ds[ds_idx] = GDALOpen(src_fn[ds_idx].c_str(), GA_ReadOnly);
-		if(!src_ds[ds_idx]) fatal_error("open failed");
+	for(size_t ds_idx=0; ds_idx<src_fn.size(); ds_idx++) {
+		GDALDatasetH ds = GDALOpen(src_fn[ds_idx].c_str(), GA_ReadOnly);
+		if(!ds) fatal_error("open failed");
+		src_ds.push_back(ds);
 
-		size_t ds_w = GDALGetRasterXSize(src_ds[ds_idx]);
-		size_t ds_h = GDALGetRasterYSize(src_ds[ds_idx]);
+		size_t ds_w = GDALGetRasterXSize(ds);
+		size_t ds_h = GDALGetRasterYSize(ds);
 		if(!ds_w || !ds_h) fatal_error("missing width/height");
 
 		if(ds_idx) {
@@ -87,7 +91,7 @@ int main(int argc, char *argv[]) {
 	if(!dst_ds) fatal_error("could not create output");
 
 	int band_idx = GDALGetRasterCount(src_ds[0]);
-	for(int ds_idx=1; ds_idx<src_fn.count(); ds_idx++) {
+	for(size_t ds_idx=1; ds_idx<src_fn.size(); ds_idx++) {
 		int nb = GDALGetRasterCount(src_ds[ds_idx]);
 
 		GDALDatasetH src_vrt_ds = GDALCreateCopy(dst_driver, "", src_ds[ds_idx], 0, NULL, NULL, NULL);
@@ -111,7 +115,7 @@ int main(int argc, char *argv[]) {
 		GDALClose(src_vrt_ds);
 	}
 
-	for(int ds_idx=0; ds_idx<src_fn.count(); ds_idx++) {
+	for(size_t ds_idx=0; ds_idx<src_fn.size(); ds_idx++) {
 		GDALClose(src_ds[ds_idx]);
 	}
 	GDALClose(dst_ds);

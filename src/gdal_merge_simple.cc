@@ -109,9 +109,9 @@ int main(int argc, char *argv[]) {
 	if(!dst_ds) fatal_error("could not create output");
 	copyGeoCode(dst_ds, src_ds[0]);
 
-	GDALRasterBandH *dst_bands = MYALLOC(GDALRasterBandH, band_count);
+	std::vector<GDALRasterBandH> dst_bands;
 	for(size_t i=0; i<band_count; i++) {
-		dst_bands[i] = GDALGetRasterBand(dst_ds, i+1);
+		dst_bands.push_back(GDALGetRasterBand(dst_ds, i+1));
 	}
 
 	//////// process data ////////

@@ -30,6 +30,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #ifndef COMMON_H
 #define COMMON_H
 
+#include <vector>
+
 #include <ogr_spatialref.h>
 #include <cpl_string.h>
 #include <gdal.h>
@@ -101,7 +103,5 @@ extern int VERBOSE;
 void fatal_error(const char *s, ...) __attribute__((noreturn, format(printf, 1, 2)));
 void *_myalloc(size_t size) __attribute__((malloc));
 void *_remyalloc(void *p, size_t size) __attribute__((warn_unused_result));
-int parse_list_of_doubles(const char *input, int *num_out, double **list_out);
-void setup_ndv_list(GDALDatasetH ds, int bandlist_size, int *bandlist, int *num_ndv, double **ndv_list);
 
 #endif // ifndef COMMON_H

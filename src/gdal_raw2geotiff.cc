@@ -26,6 +26,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 
+#include <vector>
+
 #include "common.h"
 
 void usage(const char *cmdname) {
@@ -214,16 +216,16 @@ int main(int argc, char *argv[]) {
 
 	//////////// transfer data
 
-	uint8_t *linebuf = MYALLOC(uint8_t, w * bytes_per_pixel);
+	std::vector<uint8_t> linebuf(w * bytes_per_pixel);
 	for(size_t row=0; row<h; row++) {
 		GDALTermProgress((double)row / h, NULL, NULL);
-		if(w != fread(linebuf, bytes_per_pixel, w, fin)) {
+		if(w != fread(&linebuf[0], bytes_per_pixel, w, fin)) {
 			fatal_error("input was short");
 		}
 		if(endian_mismatch) {
-			GDALSwapWords(linebuf, bytes_per_pixel, w, 0);
+			GDALSwapWords(&linebuf[0], bytes_per_pixel, w, 0);
 		}
-		GDALRasterIO(dst_band, GF_Write, 0, row, w, 1, linebuf, w, 1, gdal_dt, 0, 0);
+		GDALRasterIO(dst_band, GF_Write, 0, row, w, 1, &linebuf[0], w, 1, gdal_dt, 0, 0);
 	}
 
 	//////////// shutdown
@@ -235,7 +237,7 @@ int main(int argc, char *argv[]) {
 	// This error is checked after the output is closed.
 	// The script exits with error but the output is
 	// still saved to disk.
-	if(fread(linebuf, 1, 1, fin)) {
+	if(fread(&linebuf[0], 1, 1, fin)) {
 		fatal_error("warning: input had extra data at end\n");
 	}
 
