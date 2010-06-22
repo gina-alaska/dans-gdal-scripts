@@ -33,17 +33,17 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 using namespace dangdal;
 
-void compute_histogram(
+std::vector<std::vector<size_t> > compute_histogram(
 	std::vector<GDALRasterBandH> src_bands, const NdvDef &ndv_def, 
-	size_t w, size_t h, size_t **histograms, int input_range
+	size_t w, size_t h, int input_range
 );
-void print_band_stats(size_t band_idx, size_t *histogram, int input_range, size_t npix);
-void get_scale_from_stddev(size_t *histogram, int input_range,
+void print_band_stats(size_t band_idx, const std::vector<size_t> &histogram, size_t npix);
+void get_scale_from_stddev(const std::vector<size_t> &histogram,
 	double dst_avg, double dst_stddev, double *scale_out, double *offset_out);
-void get_scale_from_percentile(size_t *histogram, int input_range, int output_range,
+void get_scale_from_percentile(const std::vector<size_t> &histogram, int output_range,
 	double from_percentile, double to_percentile, double *scale_out, double *offset_out);
-void invert_histogram_to_gaussian(size_t *histogram_in, double variance, 
-	int *table_out, int input_range, int output_range, double max_rel_freq);
+std::vector<size_t> invert_histogram_to_gaussian(const std::vector<size_t> &histogram_in, double variance, 
+	int output_range, double max_rel_freq);
 void copyGeoCode(GDALDatasetH dst_ds, GDALDatasetH src_ds);
 
 void usage(const char *cmdname) {
@@ -58,7 +58,7 @@ Stretch mode:\n\
   -percentile-range <from: 0.0-1.0> <to: 0.0-1.0>   Linear stretch using a percentile range of input\n\
   -histeq <target_stddev>                           Histogram normalize to a target bell curve\n\
 \n\
-Input must be either 8-bit or 16-bit.  Output is 8-bit.\n\
+Input must be either 8-bit or 16-bit (unsigned).  Output is 8-bit.\n\
 ");
 	exit(1);
 }
@@ -219,49 +219,44 @@ int main(int argc, char *argv[]) {
 
 	int mode_noeq = !(mode_percentile || mode_stddev || mode_histeq);
 
-	size_t **histograms = NULL;
+	std::vector<std::vector<size_t> > histograms;
 	if(!mode_noeq) {
-		histograms = MYALLOC(size_t *, dst_band_count);
-		for(size_t band_idx=0; band_idx<dst_band_count; band_idx++) {
-			histograms[band_idx] = MYALLOC(size_t, input_range);
-		}
-		compute_histogram(src_bands, ndv_def, w, h, histograms, input_range);
+		histograms = compute_histogram(src_bands, ndv_def, w, h, input_range);
 		printf("\n");
 	}
 
-	int **xform_table = MYALLOC(int *, dst_band_count);
+	std::vector<std::vector<size_t> > xform_table(dst_band_count);
 
 	for(size_t band_idx=0; band_idx<dst_band_count; band_idx++) {
-		xform_table[band_idx] = MYALLOC(int, input_range);
-
 		if(mode_noeq) {
+			xform_table[band_idx].resize(input_range);
 			for(int i=0; i<input_range; i++) xform_table[band_idx][i] = i;
 		} else {
-			print_band_stats(band_idx, histograms[band_idx], input_range, w*h);
+			print_band_stats(band_idx, histograms[band_idx], w*h);
 			if(mode_stddev || mode_percentile) {
 				double scale, offset;
 				if(mode_stddev) {
-					get_scale_from_stddev(histograms[band_idx], input_range,
+					get_scale_from_stddev(histograms[band_idx],
 						dst_avg, dst_stddev, &scale, &offset);
 				} else if(mode_percentile) {
-					get_scale_from_percentile(histograms[band_idx], input_range, output_range,
+					get_scale_from_percentile(histograms[band_idx], output_range,
 						from_percentile, to_percentile, &scale, &offset);
 				}
 				printf("  scale=%f, offset=%f, src_range=[%f, %f]\n",
 					scale, offset, -offset/scale, ((double)(output_range-1)-offset)/scale);
+				xform_table[band_idx].resize(input_range);
 				for(int i=0; i<input_range; i++) {
 					xform_table[band_idx][i] = (int)( (double)i * scale + offset );
 				}
 			} else if(mode_histeq) {
-				invert_histogram_to_gaussian(histograms[band_idx], dst_stddev,
-					xform_table[band_idx], input_range, output_range, 5.0);
+				xform_table[band_idx] = invert_histogram_to_gaussian(
+					histograms[band_idx], dst_stddev, output_range, 5.0);
 			} else {
 				fatal_error("unrecognized mode");
 			}
-			free(histograms[band_idx]);
 		}
 	}
-	free(histograms);
+	histograms.clear(); // free up memory
 
 	// clipping
 	for(size_t band_idx=0; band_idx<dst_band_count; band_idx++) {
@@ -297,15 +292,15 @@ int main(int argc, char *argv[]) {
 	size_t blocksize_y = blocksize_y_int;
 	size_t block_len = blocksize_x*blocksize_y;
 
-	GUInt16 **buf_in = MYALLOC(GUInt16 *, dst_band_count);
-	uint8_t **buf_out = MYALLOC(uint8_t *, dst_band_count);
+	std::vector<std::vector<GUInt16> > buf_in(dst_band_count);
+	std::vector<std::vector<uint8_t> > buf_out(dst_band_count);
 	for(size_t band_idx=0; band_idx<dst_band_count; band_idx++) {
-		buf_in[band_idx] = MYALLOC(GUInt16, block_len);
-		buf_out[band_idx] = MYALLOC(uint8_t, block_len);
+		buf_in[band_idx].resize(block_len);
+		buf_out[band_idx].resize(block_len);
 	}
-	double *buf_in_dbl = MYALLOC(double, block_len);
-	uint8_t *ndv_mask = MYALLOC(uint8_t, block_len);
-	uint8_t *band_mask = MYALLOC(uint8_t, block_len);
+	std::vector<double> buf_in_dbl(block_len);
+	std::vector<uint8_t> ndv_mask(block_len);
+	std::vector<uint8_t> band_mask(block_len);
 
 	for(size_t boff_y=0; boff_y<h; boff_y+=blocksize_y) {
 		size_t bsize_y = blocksize_y;
@@ -324,24 +319,24 @@ int main(int argc, char *argv[]) {
 
 			for(size_t band_idx=0; band_idx<dst_band_count; band_idx++) {
 				GDALRasterIO(src_bands[band_idx], GF_Read, boff_x, boff_y, bsize_x, bsize_y, 
-					buf_in[band_idx], bsize_x, bsize_y, GDT_UInt16, 0, 0);
+					&buf_in[band_idx][0], bsize_x, bsize_y, GDT_UInt16, 0, 0);
 
 				for(size_t i=0; i<block_len; i++) {
 					buf_in_dbl[i] = buf_in[band_idx][i];
 				}
 				if(band_idx == 0) {
-					ndv_def.arrayCheckNdv(band_idx, buf_in_dbl, ndv_mask, block_len);
+					ndv_def.arrayCheckNdv(band_idx, &buf_in_dbl[0], &ndv_mask[0], block_len);
 				} else {
-					ndv_def.arrayCheckNdv(band_idx, buf_in_dbl, band_mask, block_len);
-					ndv_def.aggregateMask(ndv_mask, band_mask, block_len);
+					ndv_def.arrayCheckNdv(band_idx, &buf_in_dbl[0], &band_mask[0], block_len);
+					ndv_def.aggregateMask(&ndv_mask[0], &band_mask[0], block_len);
 				}
 			}
 
 			for(size_t band_idx=0; band_idx<dst_band_count; band_idx++) {
-				int *xform = xform_table[band_idx];
-				GUInt16 *p_in = buf_in[band_idx];
-				uint8_t *p_out = buf_out[band_idx];
-				uint8_t *p_ndv = ndv_mask;
+				size_t *xform = &xform_table[band_idx][0];
+				GUInt16 *p_in = &buf_in[band_idx][0];
+				uint8_t *p_out = &buf_out[band_idx][0];
+				uint8_t *p_ndv = &ndv_mask[0];
 
 				for(size_t i=0; i<block_len; i++) {
 					if(*p_ndv) {
@@ -353,7 +348,7 @@ int main(int argc, char *argv[]) {
 				}
 
 				GDALRasterIO(dst_bands[band_idx], GF_Write, boff_x, boff_y, bsize_x, bsize_y, 
-					buf_out[band_idx], bsize_x, bsize_y, GDT_Byte, 0, 0);
+					&buf_out[band_idx][0], bsize_x, bsize_y, GDT_Byte, 0, 0);
 			} // band
 		} // block x
 	} // block y
@@ -366,16 +361,17 @@ int main(int argc, char *argv[]) {
 	return 0;
 }
 
-void compute_histogram(
+std::vector<std::vector<size_t> > compute_histogram(
 	std::vector<GDALRasterBandH> src_bands, const NdvDef &ndv_def, 
-	size_t w, size_t h, size_t **histograms, int input_range
+	size_t w, size_t h, int input_range
 ) {
 	printf("\nComputing histogram...\n");
 
 	size_t band_count = src_bands.size();
+	std::vector<std::vector<size_t> > histograms(band_count);
 
 	for(size_t band_idx=0; band_idx<band_count; band_idx++) {
-		for(int i=0; i<input_range; i++) histograms[band_idx][i] = 0;
+		histograms[band_idx].assign(input_range, 0);
 	}
 
 	int blocksize_x_int, blocksize_y_int;
@@ -384,13 +380,13 @@ void compute_histogram(
 	size_t blocksize_y = blocksize_y_int;
 	size_t block_len = blocksize_x*blocksize_y;
 
-	GUInt16 **buf_in = MYALLOC(GUInt16 *, band_count);
+	std::vector<std::vector<GUInt16> > buf_in(band_count);
 	for(size_t band_idx=0; band_idx<band_count; band_idx++) {
-		buf_in[band_idx] = MYALLOC(GUInt16, block_len);
+		buf_in[band_idx].resize(block_len);
 	}
-	double *buf_in_dbl = MYALLOC(double, block_len);
-	uint8_t *ndv_mask = MYALLOC(uint8_t, block_len);
-	uint8_t *band_mask = MYALLOC(uint8_t, block_len);
+	std::vector<double> buf_in_dbl(block_len);
+	std::vector<uint8_t> ndv_mask(block_len);
+	std::vector<uint8_t> band_mask(block_len);
 
 	for(size_t boff_y=0; boff_y<h; boff_y+=blocksize_y) {
 		size_t bsize_y = blocksize_y;
@@ -409,21 +405,21 @@ void compute_histogram(
 
 			for(size_t band_idx=0; band_idx<band_count; band_idx++) {
 				GDALRasterIO(src_bands[band_idx], GF_Read, boff_x, boff_y, bsize_x, bsize_y, 
-					buf_in[band_idx], bsize_x, bsize_y, GDT_UInt16, 0, 0);
+					&buf_in[band_idx][0], bsize_x, bsize_y, GDT_UInt16, 0, 0);
 
 				for(size_t i=0; i<block_len; i++) {
 					buf_in_dbl[i] = buf_in[band_idx][i];
 				}
 				if(band_idx == 0) {
-					ndv_def.arrayCheckNdv(band_idx, buf_in_dbl, ndv_mask, block_len);
+					ndv_def.arrayCheckNdv(band_idx, &buf_in_dbl[0], &ndv_mask[0], block_len);
 				} else {
-					ndv_def.arrayCheckNdv(band_idx, buf_in_dbl, band_mask, block_len);
-					ndv_def.aggregateMask(ndv_mask, band_mask, block_len);
+					ndv_def.arrayCheckNdv(band_idx, &buf_in_dbl[0], &band_mask[0], block_len);
+					ndv_def.aggregateMask(&ndv_mask[0], &band_mask[0], block_len);
 				}
 			}
 			for(size_t band_idx=0; band_idx<band_count; band_idx++) {
-				GUInt16 *p = buf_in[band_idx];
-				size_t *hg = histograms[band_idx];
+				GUInt16 *p = &buf_in[band_idx][0];
+				size_t *hg = &histograms[band_idx][0];
 				
 				for(size_t i=0; i<block_len; i++) {
 					if(!ndv_mask[i]) hg[p[i]]++;
@@ -433,43 +429,37 @@ void compute_histogram(
 	}
 	GDALTermProgress(1, NULL, NULL);
 
-	for(size_t band_idx=0; band_idx<band_count; band_idx++) {
-		free(buf_in[band_idx]);
-	}
-	free(buf_in);
-	free(buf_in_dbl);
-	free(ndv_mask);
-	free(band_mask);
+	return histograms;
 }
 
-void print_band_stats(size_t band_idx, size_t *histogram, int input_range, size_t npix) {
+void print_band_stats(size_t band_idx, const std::vector<size_t> &histogram, size_t npix) {
 	size_t ngood=0;
-	int min=0, max=0;
-	for(int i=0; i<input_range; i++) {
+	size_t min=0, max=0;
+	for(size_t i=0; i<histogram.size(); i++) {
 		if(histogram[i]) {
 			if(!ngood || i < min) min = i;
 			if(!ngood || i > max) max = i;
 			ngood += histogram[i];
 		}
 	}
-	printf("Band %zd:\n  valid_pixels=%zd, ndv_pixels=%zd, min=%d, max=%d\n", 
+	printf("Band %zd:\n  valid_pixels=%zd, ndv_pixels=%zd, min=%zd, max=%zd\n", 
 		band_idx, ngood, npix-ngood, min, max);
 }
 
 void get_scale_from_stddev(
-	size_t *histogram, int input_range,
+	const std::vector<size_t> &histogram,
 	double dst_avg, double dst_stddev,
 	double *scale_out, double *offset_out
 ) {
 	size_t num_pixels = 0;
 	double pixel_total = 0;
-	for(int i=0; i<input_range; i++) {
+	for(size_t i=0; i<histogram.size(); i++) {
 		num_pixels += histogram[i];
 		pixel_total += i*histogram[i];
 	}
 	double src_avg = pixel_total / (double)num_pixels;
 	double error_total = 0;
-	for(int i=0; i<input_range; i++) {
+	for(size_t i=0; i<histogram.size(); i++) {
 		double diff = (double)i - src_avg;
 		error_total += diff*diff*(double)histogram[i];
 	}
@@ -482,12 +472,12 @@ void get_scale_from_stddev(
 }
 
 void get_scale_from_percentile(
-	size_t *histogram, int input_range, int output_range,
+	const std::vector<size_t> &histogram, int output_range,
 	double from_percentile, double to_percentile,
 	double *scale_out, double *offset_out
 ) {
 	size_t num_pixels = 0;
-	for(int i=0; i<input_range; i++) num_pixels += histogram[i];
+	for(size_t i=0; i<histogram.size(); i++) num_pixels += histogram[i];
 
 	size_t start_count = (size_t)(num_pixels * from_percentile);
 	size_t end_count = (size_t)(num_pixels * to_percentile);
@@ -495,21 +485,21 @@ void get_scale_from_percentile(
 	size_t cnt = 0;
 	int from_val = -1;
 	int to_val = -1;
-	for(int i=0; i<input_range; i++) {
+	for(size_t i=0; i<histogram.size(); i++) {
 		if(cnt <= start_count) from_val = i;
 		cnt += histogram[i];
 		if(cnt <= end_count) to_val = i; 
 		else break;
 	}
 	if(from_val<0 || to_val<0) fatal_error("impossible: could not find window");
-	if(from_val == to_val) { from_val=0; to_val=input_range-1; } // FIXME
+	if(from_val == to_val) { from_val=0; to_val=histogram.size()-1; } // FIXME
 
 	*scale_out = (double)(output_range-1) / (double)(to_val-from_val);
 	*offset_out = -(double)from_val * (*scale_out);
 }
 
-double *gen_gaussian(double variance, int bin_count) {
-	double *arr = MYALLOC(double, bin_count);
+std::vector<double> gen_gaussian(double variance, int bin_count) {
+	std::vector<double> arr(bin_count);
 	double total = 0;
 	for(int i=0; i<bin_count; i++) {
 		if(variance == 0.0) {
@@ -530,14 +520,18 @@ double *gen_gaussian(double variance, int bin_count) {
 	return arr;
 }
 
-void invert_histogram(size_t *src_h, double *dst_h, int *out_h, 
-int input_range, int output_range, double max_rel_freq) {
-	int pixel_count = 0;
-	for(int i=0; i<input_range; i++) pixel_count += src_h[i];
+std::vector<size_t> invert_histogram(
+	const std::vector<size_t> &src_h_in,
+	const std::vector<double> dst_h,
+	size_t output_range, double max_rel_freq
+) {
+	std::vector<size_t> src_h(src_h_in);
+	size_t pixel_count = 0;
+	for(size_t i=0; i<src_h.size(); i++) pixel_count += src_h[i];
 
 	if(max_rel_freq) {
-		size_t bin_max = size_t(max_rel_freq * pixel_count / input_range);
-		for(int i=0; i<input_range; i++) {
+		size_t bin_max = size_t(max_rel_freq * pixel_count / src_h.size());
+		for(size_t i=0; i<src_h.size(); i++) {
 			if(src_h[i] > bin_max) {
 				pixel_count -= src_h[i] - bin_max;
 				src_h[i] = bin_max;
@@ -545,23 +539,27 @@ int input_range, int output_range, double max_rel_freq) {
 		}
 	}
 
+	std::vector<size_t> out_h(src_h.size());
 	double src_total = 0;
 	double dst_total = 0;
-	int j = 0;
-	for(int i=0; i<input_range; i++) {
+	size_t j = 0;
+	for(size_t i=0; i<src_h.size(); i++) {
 		out_h[i] = j;
 		src_total += src_h[i];
 		while(j<output_range && dst_total < src_total) {
 			dst_total += dst_h[j++] * (double)pixel_count;
 		}
 	}
+
+	return out_h;
 }
 
-void invert_histogram_to_gaussian(size_t *histogram_in, double variance, 
-int *table_out, int input_range, int output_range, double max_rel_freq) {
-	double *gaussian = gen_gaussian(variance, output_range);
-	invert_histogram(histogram_in, gaussian, table_out, input_range, output_range, max_rel_freq);
-	free(gaussian);
+std::vector<size_t> invert_histogram_to_gaussian(
+	const std::vector<size_t> &histogram_in, double variance, 
+	int output_range, double max_rel_freq
+) {
+	std::vector<double> gaussian = gen_gaussian(variance, output_range);
+	return invert_histogram(histogram_in, gaussian, output_range, max_rel_freq);
 }
 
 void copyGeoCode(GDALDatasetH dst_ds, GDALDatasetH src_ds) {

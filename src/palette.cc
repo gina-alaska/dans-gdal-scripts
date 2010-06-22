@@ -46,7 +46,7 @@ Palette Palette::fromLines(const std::vector<std::string> &lines) {
 
 	p.nan_color = RGB(0, 0, 0);
 
-	for(size_t line_num=0; lines.size(); line_num++) {
+	for(size_t line_num=0; line_num<lines.size(); line_num++) {
 		const std::string &line = lines[line_num];
 		if(line.empty() || line[0] == '#') continue;
 		RGB rgb;
