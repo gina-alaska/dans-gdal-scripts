@@ -1,13 +1,13 @@
 #!/bin/sh
 rm -f out_*
 
-../gdal_trace_outline testcase_1.tif      -ndv 255 -out-cs xy -wkt-out out_1.wkt    -report out_1.ppm -split-polys -dp-toler 0
-../gdal_trace_outline testcase_1.tif      -ndv 255 -out-cs en -wkt-out out_1_en.wkt -dp-toler 0
-../gdal_trace_outline testcase_2.tif      -ndv 255 -out-cs xy -wkt-out out_2.wkt    -report out_2.ppm -split-polys -dp-toler 0
-../gdal_trace_outline testcase_3.tif      -ndv 255 -out-cs xy -wkt-out out_3.wkt    -report out_3.ppm -split-polys -dp-toler 0
-../gdal_trace_outline testcase_4.png -b 1 -ndv   0 -out-cs xy -wkt-out out_4.wkt    -report out_4.ppm -split-polys -dp-toler 0
-../gdal_trace_outline testcase_5.png -b 1 -ndv 255 -out-cs xy -wkt-out out_5.wkt    -report out_5.ppm -split-polys -dp-toler 0
-../gdal_trace_outline testcase_maze.png  -b 1 -ndv 255 -out-cs xy -wkt-out out_maze.wkt  -report out_maze.ppm  -split-polys -dp-toler 0
+../gdal_trace_outline testcase_1.tif -ndv 255 -out-cs xy -wkt-out out_1.wkt    -report out_1.ppm -split-polys -dp-toler 0
+../gdal_trace_outline testcase_1.tif -ndv 255 -out-cs en -wkt-out out_1_en.wkt -dp-toler 0
+../gdal_trace_outline testcase_2.tif -ndv 255 -out-cs xy -wkt-out out_2.wkt    -report out_2.ppm -split-polys -dp-toler 0
+../gdal_trace_outline testcase_3.tif -ndv 255 -out-cs xy -wkt-out out_3.wkt    -report out_3.ppm -split-polys -dp-toler 0
+../gdal_trace_outline testcase_4.png -ndv '0..255 0..255 0..255 0' -out-cs xy -wkt-out out_4.wkt    -report out_4.ppm -split-polys -dp-toler 0
+../gdal_trace_outline testcase_5.png -ndv 255 -out-cs xy -wkt-out out_5.wkt    -report out_5.ppm -split-polys -dp-toler 0
+../gdal_trace_outline testcase_maze.png  -ndv 255 -out-cs xy -wkt-out out_maze.wkt  -report out_maze.ppm  -split-polys -dp-toler 0
 ../gdal_trace_outline testcase_noise.png -b 1 -ndv   0 -out-cs xy -wkt-out out_noise.wkt -report out_noise.ppm -split-polys -dp-toler 0
 ../gdal_trace_outline testcase_noise.png -b 1 -ndv   0 -out-cs xy -wkt-out out_noise_dp3.wkt -report out_noise_dp3.ppm -split-polys -dp-toler 3
 
