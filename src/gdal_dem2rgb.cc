@@ -40,9 +40,9 @@ double default_slope_exageration = 2.0;
 double default_lightvec[] = { 0, 1, 1.5 };
 double default_shade_params[] = { 0, 1, .5, 10 };
 
-#define SHADE_TABLE_SIZE 500
-#define SHADE_TABLE_SCALE 100.0
-#define EARTH_RADIUS 6370997.0
+static const int SHADE_TABLE_SIZE = 500;
+static const double SHADE_TABLE_SCALE = 100.0;
+static const double EARTH_RADIUS = 6370997.0;
 
 void scale_values(double *vals, size_t w, double scale, double offset);
 
@@ -644,10 +644,11 @@ void compute_invaffine(
 	lon_dy /= epsilon; lat_dy /= epsilon;
 
 	// convert lon/lat infinitesimals to true east/north infinitesimals
-	double te_dx = cos(lat_0 * D2R) * lon_dx * D2R * EARTH_RADIUS;
-	double tn_dx = lat_dx * D2R * EARTH_RADIUS;
-	double te_dy = cos(lat_0 * D2R) * lon_dy * D2R * EARTH_RADIUS;
-	double tn_dy = lat_dy * D2R * EARTH_RADIUS;
+	double planet_radius = georef.have_semi_major ? georef.semi_major : EARTH_RADIUS;
+	double te_dx = cos(lat_0 * D2R) * lon_dx * D2R * planet_radius;
+	double tn_dx = lat_dx * D2R * planet_radius;
+	double te_dy = cos(lat_0 * D2R) * lon_dy * D2R * planet_radius;
+	double tn_dy = lat_dy * D2R * planet_radius;
 
 	// invert the affine matrix:
 

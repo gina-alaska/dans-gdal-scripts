@@ -33,7 +33,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include "polygon.h"
 #include "debugplot.h"
 
-#define DEBUG 0
+static const bool DEBUG = 0;
 
 namespace dangdal {
 

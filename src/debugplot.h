@@ -34,9 +34,11 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 namespace dangdal {
 
-#define PLOT_RECT4 1
-#define PLOT_CONTOURS 2
-#define PLOT_PINCH 3
+enum DebugPlotMode {
+	PLOT_RECT4,
+	PLOT_CONTOURS,
+	PLOT_PINCH
+};
 
 class DebugPlot {
 public:
@@ -55,7 +57,7 @@ private:
 	size_t img_w, img_h;
 public:
 	int stride_x, stride_y;
-	int mode;
+	DebugPlotMode mode;
 };
 
 } // namespace dangdal

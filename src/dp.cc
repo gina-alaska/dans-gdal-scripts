@@ -37,9 +37,12 @@ namespace dangdal {
 // (and adapted from src/linework/dp.c in SwathViewer)
 // Modifications were made to ensure valid topology of output
 
-#define EPSILON 10E-10
+static const double EPSILON = 10E-10;
+
 // FIXME - it is possible to factor out the sqrt call
-#define VECLEN(x,y) sqrt((x)*(x)+(y)*(y))
+static inline double veclen(double x, double y) {
+	return sqrt(x*x + y*y);
+}
 
 Mpoly compute_reduced_pointset(const Mpoly &in_mpoly, double tolerance) {
 	if(VERBOSE) printf("reducing...\n");
@@ -70,7 +73,7 @@ static inline double get_dist_to_seg(
 	if(scalar_prod < 0.0) {
 		// past beginning of segment - distance from segment
 		// is equal to distance from first endpoint of segment
-		return VECLEN(vert_vec_x, vert_vec_y);
+		return veclen(vert_vec_x, vert_vec_y);
 	} else {
 		vert_vec_x = seg_vert2.x - test_vert.x;
 		vert_vec_y = seg_vert2.y - test_vert.y;
@@ -78,7 +81,7 @@ static inline double get_dist_to_seg(
 		if(scalar_prod < 0.0) {
 			// past end of segment - distance from segment
 			// is equal to distance from second endpoint of segment
-			return VECLEN(vert_vec_x, vert_vec_y);
+			return veclen(vert_vec_x, vert_vec_y);
 		} else {
 			double c_squared = vert_vec_x*vert_vec_x + vert_vec_y*vert_vec_y;
 			double a_squared = scalar_prod * scalar_prod;
@@ -129,7 +132,7 @@ ReducedRing compute_reduced_ring(const Ring &orig_string, double res) {
 
 		double seg_vec_x = pts_in[seg_end].x - pts_in[seg_begin].x;
 		double seg_vec_y = pts_in[seg_end].y - pts_in[seg_begin].y;
-		double seg_vec_len = VECLEN(seg_vec_x, seg_vec_y);
+		double seg_vec_len = veclen(seg_vec_x, seg_vec_y);
 		if(seg_vec_len > 0.0) {
 			// normalize vector
 			seg_vec_x /= seg_vec_len;
@@ -151,7 +154,7 @@ ReducedRing compute_reduced_ring(const Ring &orig_string, double res) {
 			for(i=seg_begin+1; i<seg_end; i++) {
 				double dx = pts_in[i].x - pts_in[seg_begin].x;
 				double dy = pts_in[i].y - pts_in[seg_begin].y;
-				double dist_to_seg = VECLEN(dx, dy);
+				double dist_to_seg = veclen(dx, dy);
 
 				if(dist_to_seg > max_dist) {
 					max_dist = dist_to_seg;
