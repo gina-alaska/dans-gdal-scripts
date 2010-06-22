@@ -30,8 +30,11 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #define DANGDAL_POLYGON_H
 
 #include <vector>
+#include <string>
 #include <algorithm>
+
 #include <ogr_api.h>
+
 #include "common.h"
 #include "georef.h"
 

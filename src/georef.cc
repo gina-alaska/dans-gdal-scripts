@@ -26,6 +26,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 
+#include <string>
+
 #include "common.h"
 #include "georef.h"
 

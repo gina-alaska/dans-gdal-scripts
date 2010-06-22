@@ -26,6 +26,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 
+#include <vector>
+
 #include "mask.h"
 #include "mask-tracer.h"
 #include "common.h"

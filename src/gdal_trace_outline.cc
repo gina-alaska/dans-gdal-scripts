@@ -133,7 +133,7 @@ Mpoly calc_ring_from_mask(BitGrid &mask, size_t w, size_t h,
 	int64_t min_ring_area, double bevel_size);
 
 struct GeomOutput {
-	GeomOutput(CoordSystem _out_cs=CS_UNKNOWN) :
+	explicit GeomOutput(CoordSystem _out_cs=CS_UNKNOWN) :
 		out_cs(_out_cs),
 		wkt_fh(NULL),
 		wkb_fh(NULL),

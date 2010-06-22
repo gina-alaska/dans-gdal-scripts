@@ -26,6 +26,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 
+#include <algorithm>
+
 #include <boost/tokenizer.hpp>
 #include "common.h"
 #include "ndv.h"
@@ -125,6 +127,7 @@ NdvDef::NdvDef(std::vector<std::string> &arg_list) :
 }
 
 void NdvDef::debugPrint() const {
+	printf("=== NDV\n");
 	for(size_t i=0; i<slabs.size(); i++) {
 		const NdvSlab &slab = slabs[i];
 		for(size_t j=0; j<slab.range_by_band.size(); j++) {
@@ -132,6 +135,7 @@ void NdvDef::debugPrint() const {
 			printf("range %zd,%zd = [%g,%g]\n", i, j, range.first, range.second);
 		}
 	}
+	printf("=== end NDV\n");
 }
 
 NdvDef::NdvDef(const GDALDatasetH ds, const std::vector<size_t> &bandlist) {

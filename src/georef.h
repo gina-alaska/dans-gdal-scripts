@@ -30,13 +30,14 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #ifndef DANGDAL_GEOCODE_H
 #define DANGDAL_GEOCODE_H
 
+#include <string>
 #include <vector>
 
 namespace dangdal {
 
 struct GeoOpts {
 	static void printUsage();
-	GeoOpts(std::vector<std::string> &arg_list);
+	explicit GeoOpts(std::vector<std::string> &arg_list);
 
 	std::string s_srs;
 	std::string geo_srs;

@@ -29,6 +29,9 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #ifndef DANGDAL_DEBUGPLOT_H
 #define DANGDAL_DEBUGPLOT_H
 
+#include <string>
+#include <vector>
+
 #include "common.h"
 #include "polygon.h"
 

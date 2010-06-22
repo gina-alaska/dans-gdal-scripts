@@ -31,6 +31,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #define DANGDAL_NDV_H
 
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace dangdal {
@@ -39,7 +40,7 @@ struct NdvInterval : std::pair<double, double> {
 	NdvInterval() { }
 	NdvInterval(double _min, double _max) : 
 		std::pair<double, double>(_min, _max) { }
-	NdvInterval(const std::string &s);
+	explicit NdvInterval(const std::string &s);
 
 	bool contains(double v) const {
 		return v >= first && v <= second;
@@ -48,7 +49,7 @@ struct NdvInterval : std::pair<double, double> {
 
 struct NdvSlab {
 	NdvSlab() { }
-	NdvSlab(const std::string &s);
+	explicit NdvSlab(const std::string &s);
 
 	// an interval for each band, or a single interval for all bands
 	std::vector<NdvInterval> range_by_band;
@@ -57,7 +58,7 @@ struct NdvSlab {
 class NdvDef {
 public:
 	static void printUsage();
-	NdvDef(std::vector<std::string> &arg_list);
+	explicit NdvDef(std::vector<std::string> &arg_list);
 	NdvDef(const GDALDatasetH ds, const std::vector<size_t> &bandlist);
 	void debugPrint() const;
 	bool empty() const { return slabs.empty(); }

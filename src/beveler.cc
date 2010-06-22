@@ -47,7 +47,7 @@ struct VertRef {
 
 class CoordsComparator {
 public:
-	CoordsComparator(Mpoly *_mp) : mp(_mp) { }
+	explicit CoordsComparator(Mpoly *_mp) : mp(_mp) { }
 
 	bool operator()(const VertRef &a, const VertRef &b) const {
 		const Vertex &va = a.getVert(*mp);
@@ -74,7 +74,7 @@ private:
 
 class RingsComparator {
 public:
-	RingsComparator(Mpoly *_mp) : mp(_mp) { }
+	explicit RingsComparator(Mpoly *_mp) : mp(_mp) { }
 
 	bool operator()(const VertRef &a, const VertRef &b) const {
 		return

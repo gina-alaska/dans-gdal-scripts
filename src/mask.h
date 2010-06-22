@@ -31,6 +31,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #define DANGDAL_MASK_H
 
 #include <cassert>
+#include <vector>
 
 #include "common.h"
 #include "polygon.h"
