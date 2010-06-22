@@ -52,8 +52,8 @@ void compute_tierow_invaffine(
 	double *invaffine_tierow
 );
 
-void usage(const char *cmdname) {
-	printf("Usage: %s <options> src_dataset dst_dataset\n\n", cmdname);
+void usage(const std::string &cmdname) {
+	printf("Usage: %s <options> src_dataset dst_dataset\n\n", cmdname.c_str());
 	
 	GeoOpts::printUsage();
 	printf("\n");
@@ -90,18 +90,22 @@ void usage(const char *cmdname) {
 }
 
 int main(int argc, char *argv[]) {
+	const std::string cmdname = argv[0];
+	if(argc == 1) usage(cmdname);
+	std::vector<std::string> arg_list = argv_to_list(argc, argv);
+
 	double slope_exageration = default_slope_exageration;
 	double lightvec[3];
 	memcpy(lightvec, default_lightvec, 3*sizeof(double));
 	double shade_params[4];
 	memcpy(shade_params, default_shade_params, 4*sizeof(double));
 
-	const char *src_fn = NULL;
-	const char *tex_fn = NULL;
-	const char *dst_fn = NULL;
-	const char *palette_fn = NULL;
+	std::string src_fn;
+	std::string tex_fn;
+	std::string dst_fn;
+	std::string palette_fn;
 	bool use_default_palette = 0;
-	const char *output_format = NULL;
+	std::string output_format;
 	int grid_spacing = 20; // could be configurable...
 	int band_id = 1;
 	double src_offset = 0;
@@ -109,70 +113,70 @@ int main(int argc, char *argv[]) {
 	bool data24bit = 0;
 	bool alpha_overlay = 0;
 
-	GeoOpts geo_opts = GeoOpts(&argc, &argv);
-	NdvDef ndv_def = NdvDef(&argc, &argv);
+	GeoOpts geo_opts = GeoOpts(arg_list);
+	NdvDef ndv_def = NdvDef(arg_list);
 
-	int argp = 1;
-	while(argp < argc) {
-		char *arg = argv[argp++];
+	size_t argp = 1;
+	while(argp < arg_list.size()) {
+		const std::string &arg = arg_list[argp++];
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
-			if(!strcmp(arg, "-b")) {
-				if(argp == argc) usage(argv[0]);
+			if(arg == "-b") {
+				if(argp == arg_list.size()) usage(cmdname);
 				char *endptr;
-				band_id = strtol(argv[argp++], &endptr, 10);
-				if(*endptr) usage(argv[0]);
-			} else if(!strcmp(arg, "-palette")) {
-				if(argp == argc) usage(argv[0]);
-				palette_fn = argv[argp++];
-				if(!strcmp(palette_fn, "data24bit")) {
+				band_id = strtol(arg_list[argp++].c_str(), &endptr, 10);
+				if(*endptr) usage(cmdname);
+			} else if(arg == "-palette") {
+				if(argp == arg_list.size()) usage(cmdname);
+				palette_fn = arg_list[argp++];
+				if(palette_fn == "data24bit") {
 					data24bit = 1;
-					palette_fn = NULL;
+					palette_fn.erase();
 				}
-			} else if(!strcmp(arg, "-default-palette")) {
+			} else if(arg == "-default-palette") {
 				use_default_palette = 1;
-			} else if(!strcmp(arg, "-texture")) {
-				if(argp == argc) usage(argv[0]);
-				tex_fn = argv[argp++];
-			} else if(!strcmp(arg, "-alpha-overlay")) {
+			} else if(arg == "-texture") {
+				if(argp == arg_list.size()) usage(cmdname);
+				tex_fn = arg_list[argp++];
+			} else if(arg == "-alpha-overlay") {
 				alpha_overlay = 1;
-			} else if(!strcmp(arg, "-of")) {
-				if(argp == argc) usage(argv[0]);
-				output_format = argv[argp++];
-			} else if(!strcmp(arg, "-exag")) {
-				if(argp == argc) usage(argv[0]);
+			} else if(arg == "-of") {
+				if(argp == arg_list.size()) usage(cmdname);
+				output_format = arg_list[argp++];
+			} else if(arg == "-exag") {
+				if(argp == arg_list.size()) usage(cmdname);
 				char *endptr;
-				slope_exageration = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
-			} else if(!strcmp(arg, "-lightvec")) {
+				slope_exageration = strtod(arg_list[argp++].c_str(), &endptr);
+				if(*endptr) usage(cmdname);
+			} else if(arg == "-lightvec") {
 				for(int i=0; i<3; i++) {
-					if(argp == argc) usage(argv[0]);
+					if(argp == arg_list.size()) usage(cmdname);
 					char *endptr;
-					lightvec[i] = strtod(argv[argp++], &endptr);
-					if(*endptr) usage(argv[0]);
+					lightvec[i] = strtod(arg_list[argp++].c_str(), &endptr);
+					if(*endptr) usage(cmdname);
 				}
-			} else if(!strcmp(arg, "-shade")) {
+			} else if(arg == "-shade") {
 				for(int i=0; i<4; i++) {
-					if(argp == argc) usage(argv[0]);
+					if(argp == arg_list.size()) usage(cmdname);
 					char *endptr;
-					shade_params[i] = strtod(argv[argp++], &endptr);
-					if(*endptr) usage(argv[0]);
+					shade_params[i] = strtod(arg_list[argp++].c_str(), &endptr);
+					if(*endptr) usage(cmdname);
 				}
-			} else if(!strcmp(arg, "-offset")) {
-				if(argp == argc) usage(argv[0]);
+			} else if(arg == "-offset") {
+				if(argp == arg_list.size()) usage(cmdname);
 				char *endptr;
-				src_offset = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
-			} else if(!strcmp(arg, "-scale")) {
-				if(argp == argc) usage(argv[0]);
+				src_offset = strtod(arg_list[argp++].c_str(), &endptr);
+				if(*endptr) usage(cmdname);
+			} else if(arg == "-scale") {
+				if(argp == arg_list.size()) usage(cmdname);
 				char *endptr;
-				src_scale = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
-			} else usage(argv[0]);
+				src_scale = strtod(arg_list[argp++].c_str(), &endptr);
+				if(*endptr) usage(cmdname);
+			} else usage(cmdname);
 		} else {
-			if(src_fn && dst_fn) {
-				usage(argv[0]);
-			} else if(src_fn) {
+			if(src_fn.size() && dst_fn.size()) {
+				usage(cmdname);
+			} else if(src_fn.size()) {
 				dst_fn = arg;
 			} else {
 				src_fn = arg;
@@ -180,14 +184,14 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	if(!src_fn || !dst_fn) usage(argv[0]);
+	if(src_fn.empty() || dst_fn.empty()) usage(cmdname);
 
-	if(!output_format) output_format = "GTiff";
+	if(output_format.empty()) output_format = "GTiff";
 
 	int num_output_modes = 
 		(data24bit ? 1 : 0) +
 		(use_default_palette ? 1 : 0) +
-		(palette_fn ? 1 : 0) +
+		(palette_fn.size() ? 1 : 0) +
 		(alpha_overlay ? 1 : 0);
 	if(num_output_modes > 1) fatal_error("you can only use one of the -palette, -default-palette, -texture, and -alpha-overlay options");
 
@@ -210,7 +214,7 @@ int main(int argc, char *argv[]) {
 		palette = Palette::createDefault();
 		do_shade = 1;
 		out_numbands = 3;
-	} else if(palette_fn) {
+	} else if(palette_fn.size()) {
 		use_palette = true;
 		palette = Palette::fromFile(palette_fn);
 		do_shade = 1;
@@ -227,7 +231,7 @@ int main(int argc, char *argv[]) {
 
 	//////// open DEM ////////
 
-	GDALDatasetH src_ds = GDALOpen(src_fn, GA_ReadOnly);
+	GDALDatasetH src_ds = GDALOpen(src_fn.c_str(), GA_ReadOnly);
 	if(!src_ds) fatal_error("open failed");
 
 	GDALRasterBandH src_band = GDALGetRasterBand(src_ds, band_id);
@@ -260,8 +264,8 @@ int main(int argc, char *argv[]) {
 
 	GDALDatasetH tex_ds = NULL;
 	std::vector<GDALRasterBandH> tex_bands;
-	if(tex_fn) {
-		tex_ds = GDALOpen(tex_fn, GA_ReadOnly);
+	if(tex_fn.size()) {
+		tex_ds = GDALOpen(tex_fn.c_str(), GA_ReadOnly);
 		if(!tex_ds) fatal_error("open failed");
 
 		size_t tex_w = GDALGetRasterXSize(tex_ds);
@@ -280,9 +284,10 @@ int main(int argc, char *argv[]) {
 
 	//////// open output ////////
 
-	GDALDriverH dst_driver = GDALGetDriverByName(output_format);
-	if(!dst_driver) fatal_error("unrecognized output format (%s)", output_format);
-	GDALDatasetH dst_ds = GDALCreate(dst_driver, dst_fn, w, h, out_numbands, GDT_Byte, NULL);
+	GDALDriverH dst_driver = GDALGetDriverByName(output_format.c_str());
+	if(!dst_driver) fatal_error("unrecognized output format (%s)", output_format.c_str());
+	GDALDatasetH dst_ds = GDALCreate(
+		dst_driver, dst_fn.c_str(), w, h, out_numbands, GDT_Byte, NULL);
 	if(!dst_ds) fatal_error("couldn't create dst_dataset");
 
 	if(georef.hasAffine()) {
