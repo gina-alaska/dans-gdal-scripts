@@ -68,8 +68,9 @@ int main(int argc, char *argv[]) {
 				GDALDatasetH ds = GDALOpen(fn.c_str(), GA_ReadOnly);
 				if(!ds) fatal_error("open failed");
 				src_ds.push_back(ds); 
+			} else {
+				usage(cmdname);
 			}
-			else usage(cmdname);
 		} else {
 			usage(cmdname);
 		}

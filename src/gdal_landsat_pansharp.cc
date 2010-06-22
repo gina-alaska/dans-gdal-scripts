@@ -122,8 +122,9 @@ int main(int argc, char *argv[]) {
 					lum_weights.push_back(w);
 					nb--;
 				}
+			} else {
+				usage(cmdname);
 			}
-			else usage(cmdname);
 		} else {
 			usage(cmdname);
 		}

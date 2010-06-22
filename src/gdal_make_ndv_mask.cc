@@ -83,7 +83,9 @@ int main(int argc, char **argv) {
 			} else if(arg == "-mask-out") {
 				if(argp == arg_list.size()) usage(cmdname);
 				mask_out_fn = arg_list[argp++];
-			} else usage(cmdname);
+			} else {
+				usage(cmdname);
+			}
 		} else {
 			if(input_raster_fn.empty()) {
 				input_raster_fn = arg;

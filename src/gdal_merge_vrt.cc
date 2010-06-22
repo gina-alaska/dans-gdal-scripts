@@ -59,8 +59,9 @@ int main(int argc, char *argv[]) {
 			} else if(arg == "-in") {
 				if(argp == arg_list.size()) usage(cmdname);
 				src_fn.push_back(arg_list[argp++]);
+			} else {
+				usage(cmdname);
 			}
-			else usage(cmdname);
 		} else {
 			usage(cmdname);
 		}

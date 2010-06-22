@@ -118,7 +118,9 @@ int main(int argc, char *argv[]) {
 				endian = 'L';
 			} else if(arg == "-msb") {
 				endian = 'M';
-			} else usage(cmdname);
+			} else {
+				usage(cmdname);
+			}
 		} else {
 			if(src_fn.size() && dst_fn.size()) {
 				usage(cmdname);

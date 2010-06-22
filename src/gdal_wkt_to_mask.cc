@@ -79,7 +79,9 @@ int main(int argc, char **argv) {
 			} else if(arg == "-geo-from") {
 				if(argp == arg_list.size()) usage(cmdname);
 				geo_fn = arg_list[argp++];
-			} else usage(cmdname);
+			} else {
+				usage(cmdname);
+			}
 		} else {
 			usage(cmdname);
 		}

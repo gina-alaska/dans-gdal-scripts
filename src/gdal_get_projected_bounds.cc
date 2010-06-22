@@ -29,7 +29,6 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include "common.h"
 #include "polygon.h"
 #include "debugplot.h"
-#include "polygon.h"
 
 using namespace dangdal;
 
@@ -134,7 +133,9 @@ int main(int argc, char **argv) {
 			} else if(arg == "-report") {
 				if(argp == arg_list.size()) usage(cmdname);
 				report_fn = arg_list[argp++];
-			} else usage(cmdname);
+			} else {
+				usage(cmdname);
+			}
 		} else {
 			usage(cmdname);
 		}

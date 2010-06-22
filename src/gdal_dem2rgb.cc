@@ -172,7 +172,9 @@ int main(int argc, char *argv[]) {
 				char *endptr;
 				src_scale = strtod(arg_list[argp++].c_str(), &endptr);
 				if(*endptr) usage(cmdname);
-			} else usage(cmdname);
+			} else {
+				usage(cmdname);
+			}
 		} else {
 			if(src_fn.size() && dst_fn.size()) {
 				usage(cmdname);

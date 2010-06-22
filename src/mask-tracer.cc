@@ -48,7 +48,7 @@ typedef int pixquad_t;
 int dbg_idx = 0;
 static void debug_write_mask(const BitGrid &mask, size_t w, size_t h) {
 	char fn[1000];
-	sprintf(fn, "zz-debug-%04d.pgm", dbg_idx++);
+	snprintf(fn, sizeof(fn), "zz-debug-%04d.pgm", dbg_idx++);
 
 	uint8_t *row = new uint8_t[w];
 

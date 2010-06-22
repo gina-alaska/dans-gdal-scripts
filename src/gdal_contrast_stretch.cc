@@ -128,7 +128,9 @@ int main(int argc, char *argv[]) {
 				if(ndv_long != (long)out_ndv) fatal_error("ndv must be in the range 0..255");
 				set_out_ndv++;
 				if(*endptr) usage(cmdname);
-			} else usage(cmdname);
+			} else {
+				usage(cmdname);
+			}
 		} else {
 			if(src_fn.empty()) {
 				src_fn = arg;

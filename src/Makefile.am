@@ -65,6 +65,7 @@ lint:
 	| grep -v 'Include the directory when naming .h files' \
 	| grep -v 'Is this a non-const reference' \
 	| grep -v 'Do not use namespace using-directives.' \
+	| grep -v 'Using deprecated casting style.  Use static_cast' \
 	| grep -v 'Done processing '
 
 noinst_HEADERS = common.h debugplot.h default_palette.h dp.h excursion_pincher.h georef.h mask-tracer.h mask.h ndv.h polygon-rasterizer.h polygon.h rectangle_finder.h

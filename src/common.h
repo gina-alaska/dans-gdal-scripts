@@ -65,7 +65,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #  include <string.h>
 #endif
 
-/* see http://www.unixwiz.net/techtips/gnu-c-attributes.html */
+// see http://www.unixwiz.net/techtips/gnu-c-attributes.html
 #ifndef __GNUC__
 #  define  __attribute__(x)  /*NOTHING*/
 #endif

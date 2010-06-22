@@ -121,8 +121,11 @@ void DebugPlot::debugPlotMpoly(const Mpoly &mpoly) {
 		uint8_t g = ((v&2) ? 150 : 0) + ((v&16) ? 100 : 0);
 		uint8_t b = ((v&4) ? 150 : 0) + ((v&32) ? 100 : 0);
 		const Ring &ring = mpoly.rings[i];
-		if(ring.is_hole) { r=255; g=0; b=0; }
-		else { r=255; g=255; b=0; }
+		if(ring.is_hole) {
+			r=255; g=0; b=0;
+		} else {
+			r=255; g=255; b=0;
+		}
 		if(VERBOSE) {
 			printf("ring %zd: %zd pts color=%02x%02x%02x\n",
 				i, ring.pts.size(), r, g, b);
