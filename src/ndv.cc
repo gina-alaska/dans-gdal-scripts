@@ -126,19 +126,9 @@ NdvDef::NdvDef(std::vector<std::string> &arg_list) :
 	arg_list = args_out;
 }
 
-void NdvDef::debugPrint() const {
-	printf("=== NDV\n");
-	for(size_t i=0; i<slabs.size(); i++) {
-		const NdvSlab &slab = slabs[i];
-		for(size_t j=0; j<slab.range_by_band.size(); j++) {
-			const NdvInterval &range = slab.range_by_band[j];
-			printf("range %zd,%zd = [%g,%g]\n", i, j, range.first, range.second);
-		}
-	}
-	printf("=== end NDV\n");
-}
-
-NdvDef::NdvDef(const GDALDatasetH ds, const std::vector<size_t> &bandlist) {
+NdvDef::NdvDef(const GDALDatasetH ds, const std::vector<size_t> &bandlist) :
+	invert(false)
+{
 	bool got_error = 0;
 
 	NdvSlab slab;
@@ -162,6 +152,18 @@ NdvDef::NdvDef(const GDALDatasetH ds, const std::vector<size_t> &bandlist) {
 	if(!got_error) {
 		slabs.push_back(slab);
 	}
+}
+
+void NdvDef::debugPrint() const {
+	printf("=== NDV\n");
+	for(size_t i=0; i<slabs.size(); i++) {
+		const NdvSlab &slab = slabs[i];
+		for(size_t j=0; j<slab.range_by_band.size(); j++) {
+			const NdvInterval &range = slab.range_by_band[j];
+			printf("range %zd,%zd = [%g,%g]\n", i, j, range.first, range.second);
+		}
+	}
+	printf("=== end NDV\n");
 }
 
 template<class T>
@@ -235,6 +237,7 @@ void NdvDef::arrayCheckNdv(
 			mask_out[i] = mask_out[i] ? 0 : 1;
 		}
 	}
+	//printf("XXX %d\n", mask_out[0]?1:0);
 	flagNaN(in_data, mask_out, nsamps);
 }
 
