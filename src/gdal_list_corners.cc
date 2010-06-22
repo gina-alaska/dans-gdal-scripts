@@ -109,7 +109,7 @@ int main(int argc, char **argv) {
 			} else if(arg == "-b") {
 				if(argp == arg_list.size()) usage(cmdname);
 				char *endptr;
-				int bandid = strtol(arg_list[argp++], &endptr, 10);
+				int bandid = strtol(arg_list[argp++].c_str(), &endptr, 10);
 				if(*endptr) usage(cmdname);
 				inspect_bandids.push_back(bandid);
 			} else if(arg == "-erosion") {

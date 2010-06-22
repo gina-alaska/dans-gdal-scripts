@@ -92,7 +92,7 @@ int main(int argc, char *argv[]) {
 			if(arg == "-ndv") {
 				if(argp == arg_list.size()) usage(cmdname);
 				char *endptr;
-				ndv = (double)strtol(arg_list[argp++], &endptr, 10);
+				ndv = (double)strtol(arg_list[argp++].c_str(), &endptr, 10);
 				use_ndv++;
 				if(*endptr) usage(cmdname);
 				if(ndv < 0 || ndv > 255) fatal_error("no_data_val must be in the range 0-255");
@@ -117,7 +117,7 @@ int main(int argc, char *argv[]) {
 				while(nb) {
 					if(argp == arg_list.size()) usage(cmdname);
 					char *endptr;
-					double w = strtod(arg_list[argp++], &endptr);
+					double w = strtod(arg_list[argp++].c_str(), &endptr);
 					if(*endptr) usage(cmdname);
 					lum_weights.push_back(w);
 					nb--;

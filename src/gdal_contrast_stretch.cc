@@ -94,36 +94,36 @@ int main(int argc, char *argv[]) {
 			} else if(arg == "-linear-stretch") {
 				if(argp == arg_list.size()) usage(cmdname);
 				char *endptr;
-				dst_avg = strtod(arg_list[argp++], &endptr);
+				dst_avg = strtod(arg_list[argp++].c_str(), &endptr);
 				if(*endptr) usage(cmdname);
 
 				if(argp == arg_list.size()) usage(cmdname);
-				dst_stddev = strtod(arg_list[argp++], &endptr);
+				dst_stddev = strtod(arg_list[argp++].c_str(), &endptr);
 				if(*endptr) usage(cmdname);
 
 				mode_stddev = 1;
 			} else if(arg == "-percentile-range") {
 				if(argp == arg_list.size()) usage(cmdname);
 				char *endptr;
-				from_percentile = strtod(arg_list[argp++], &endptr);
+				from_percentile = strtod(arg_list[argp++].c_str(), &endptr);
 				if(*endptr) usage(cmdname);
 
 				if(argp == arg_list.size()) usage(cmdname);
-				to_percentile = strtod(arg_list[argp++], &endptr);
+				to_percentile = strtod(arg_list[argp++].c_str(), &endptr);
 				if(*endptr) usage(cmdname);
 
 				mode_percentile = 1;
 			} else if(arg == "-histeq") {
 				if(argp == arg_list.size()) usage(cmdname);
 				char *endptr;
-				dst_stddev = strtod(arg_list[argp++], &endptr);
+				dst_stddev = strtod(arg_list[argp++].c_str(), &endptr);
 				if(*endptr) usage(cmdname);
 
 				mode_histeq = 1;
 			} else if(arg == "-outndv") {
  				if(argp == arg_list.size()) usage(cmdname);
 				char *endptr;
-				long ndv_long = strtol(arg_list[argp++], &endptr, 10);
+				long ndv_long = strtol(arg_list[argp++].c_str(), &endptr, 10);
 				out_ndv = (uint8_t)ndv_long;
 				if(ndv_long != (long)out_ndv) fatal_error("ndv must be in the range 0..255");
 				set_out_ndv++;

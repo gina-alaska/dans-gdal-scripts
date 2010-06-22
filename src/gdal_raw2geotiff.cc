@@ -70,34 +70,34 @@ int main(int argc, char *argv[]) {
 				char *endptr;
 
 				if(argp == arg_list.size()) usage(cmdname);
-				w = (int)strtol(arg_list[argp++], &endptr, 10);
+				w = (int)strtol(arg_list[argp++].c_str(), &endptr, 10);
 				if(*endptr) usage(cmdname);
 
 				if(argp == arg_list.size()) usage(cmdname);
-				h = (int)strtol(arg_list[argp++], &endptr, 10);
+				h = (int)strtol(arg_list[argp++].c_str(), &endptr, 10);
 				if(*endptr) usage(cmdname);
 			} else if(arg == "-affine") {
 				for(int i=0; i<6; i++) {
 					if(argp == arg_list.size()) usage(cmdname);
 					char *endptr;
-					affine[i] = strtod(arg_list[argp++], &endptr);
+					affine[i] = strtod(arg_list[argp++].c_str(), &endptr);
 					if(*endptr) usage(cmdname);
 				}
 				got_affine = 1;
 			} else if(arg == "-res") {
 				if(argp == arg_list.size()) usage(cmdname);
 				char *endptr;
-				res = strtod(arg_list[argp++], &endptr);
+				res = strtod(arg_list[argp++].c_str(), &endptr);
 				if(*endptr) usage(cmdname);
 			} else if(arg == "-origin") {
 				char *endptr;
 
 				if(argp == arg_list.size()) usage(cmdname);
-				origin_e = strtod(arg_list[argp++], &endptr);
+				origin_e = strtod(arg_list[argp++].c_str(), &endptr);
 				if(*endptr) usage(cmdname);
 
 				if(argp == arg_list.size()) usage(cmdname);
-				origin_n = strtod(arg_list[argp++], &endptr);
+				origin_n = strtod(arg_list[argp++].c_str(), &endptr);
 				if(*endptr) usage(cmdname);
 
 				got_en++;
@@ -107,7 +107,7 @@ int main(int argc, char *argv[]) {
 			} else if(arg == "-ndv") {
 				if(argp == arg_list.size()) usage(cmdname);
 				char *endptr;
-				ndv = strtod(arg_list[argp++], &endptr);
+				ndv = strtod(arg_list[argp++].c_str(), &endptr);
 				if(*endptr) usage(cmdname);
 
 				got_ndv = 1;
