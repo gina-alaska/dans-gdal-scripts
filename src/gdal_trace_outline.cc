@@ -49,10 +49,12 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #define WKB_BYTE_ORDER wkbXDR
 #endif
 
-#define CS_UNKNOWN 0
-#define CS_XY 1
-#define CS_EN 2
-#define CS_LL 3
+enum CoordSystem {
+	CS_UNKNOWN,
+	CS_XY,
+	CS_EN,
+	CS_LL
+};
 
 using namespace dangdal;
 
@@ -131,7 +133,7 @@ Mpoly calc_ring_from_mask(BitGrid &mask, size_t w, size_t h,
 	int64_t min_ring_area, double bevel_size);
 
 struct GeomOutput {
-	GeomOutput(int _out_cs=CS_UNKNOWN) :
+	GeomOutput(CoordSystem _out_cs=CS_UNKNOWN) :
 		out_cs(_out_cs),
 		wkt_fh(NULL),
 		wkb_fh(NULL),
@@ -139,7 +141,7 @@ struct GeomOutput {
 		ogr_layer(NULL)
 	{ }
 
-	int out_cs;
+	CoordSystem out_cs;
 
 	std::string wkt_fn;
 	FILE *wkt_fh;
@@ -165,7 +167,7 @@ int main(int argc, char **argv) {
 	std::string debug_report;
 	std::vector<size_t> inspect_bandids;
 	bool split_polys = 0;
-	int cur_out_cs = CS_UNKNOWN;
+	CoordSystem cur_out_cs = CS_UNKNOWN;
 	std::string cur_ogr_fmt = "ESRI Shapefile";
 	std::vector<GeomOutput> geom_outputs;
 	std::string mask_out_fn;
@@ -311,7 +313,7 @@ int main(int argc, char **argv) {
 	GeoRef georef = GeoRef(geo_opts, ds);
 
 	for(size_t i=0; i<geom_outputs.size(); i++) {
-		int out_cs = geom_outputs[i].out_cs;
+		CoordSystem out_cs = geom_outputs[i].out_cs;
 		if(out_cs == CS_UNKNOWN) fatal_error(
 			"must specify output coordinate system with -out-cs option before specifying output");
 		if((out_cs == CS_EN || out_cs == CS_LL) && !georef.hasAffine()) 

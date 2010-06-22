@@ -30,7 +30,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include "polygon.h"
 #include "polygon-rasterizer.h"
 
-#define EPSILON 1e-9
+static const double EPSILON = 1e-9;
 
 namespace dangdal {
 

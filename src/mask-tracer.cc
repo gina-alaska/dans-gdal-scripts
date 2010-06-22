@@ -34,10 +34,12 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 namespace dangdal {
 
-#define DIR_UP 0
-#define DIR_RT 1
-#define DIR_DN 2
-#define DIR_LF 3
+enum Direction {
+	DIR_UP = 0,
+	DIR_RT = 1,
+	DIR_DN = 2,
+	DIR_LF = 3
+};
 
 typedef int pixquad_t;
 
