@@ -38,8 +38,7 @@ void usage(const char *cmdname) {
 int main(int argc, char *argv[]) {
 	char *dst_fn = NULL;
 
-	int src_ds_count = 0;
-	char **src_fn = NULL;
+	std::vector<std::string> src_fn;
 
 	GDALAllRegister();
 
@@ -52,9 +51,7 @@ int main(int argc, char *argv[]) {
 			else if(!strcmp(arg, "-in")) {
 				if(argp == argc) usage(argv[0]);
 				char *fn = argv[argp++];
-				src_fn = REMYALLOC(char *, src_fn, (src_ds_count+1));
-				src_fn[src_ds_count] = fn; 
-				src_ds_count++;
+				src_fn.push_back(fn); 
 			}
 			else usage(argv[0]);
 		} else {
@@ -62,14 +59,14 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	if(src_ds_count < 1) usage(argv[0]);
+	if(src_fn.empty()) usage(argv[0]);
 	if(!dst_fn) usage(argv[0]);
 
 	GDALDatasetH *src_ds = MYALLOC(GDALDatasetH, src_ds_count);
 
 	size_t w=0, h=0;
-	for(int ds_idx=0; ds_idx<src_ds_count; ds_idx++) {
-		src_ds[ds_idx] = GDALOpen(src_fn[ds_idx], GA_ReadOnly);
+	for(int ds_idx=0; ds_idx<src_fn.count(); ds_idx++) {
+		src_ds[ds_idx] = GDALOpen(src_fn[ds_idx].c_str(), GA_ReadOnly);
 		if(!src_ds[ds_idx]) fatal_error("open failed");
 
 		size_t ds_w = GDALGetRasterXSize(src_ds[ds_idx]);
@@ -90,7 +87,7 @@ int main(int argc, char *argv[]) {
 	if(!dst_ds) fatal_error("could not create output");
 
 	int band_idx = GDALGetRasterCount(src_ds[0]);
-	for(int ds_idx=1; ds_idx<src_ds_count; ds_idx++) {
+	for(int ds_idx=1; ds_idx<src_fn.count(); ds_idx++) {
 		int nb = GDALGetRasterCount(src_ds[ds_idx]);
 
 		GDALDatasetH src_vrt_ds = GDALCreateCopy(dst_driver, "", src_ds[ds_idx], 0, NULL, NULL, NULL);
@@ -114,7 +111,7 @@ int main(int argc, char *argv[]) {
 		GDALClose(src_vrt_ds);
 	}
 
-	for(int ds_idx=0; ds_idx<src_ds_count; ds_idx++) {
+	for(int ds_idx=0; ds_idx<src_fn.count(); ds_idx++) {
 		GDALClose(src_ds[ds_idx]);
 	}
 	GDALClose(dst_ds);

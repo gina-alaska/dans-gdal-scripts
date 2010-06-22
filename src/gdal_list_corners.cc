@@ -181,22 +181,16 @@ int main(int argc, char **argv) {
 
 	if(ds) {
 		int band_count = GDALGetRasterCount(ds);
-		const char *datatypes = "";
+		std::string datatypes;
 		for(int i=0; i<band_count; i++) {
 			GDALRasterBandH band = GDALGetRasterBand(ds, i+1);
 			GDALDataType gdt = GDALGetRasterDataType(band);
 			const char *dt = GDALGetDataTypeName(gdt);
-			if(i) {
-				char *join_str = MYALLOC(char,
-					strlen(datatypes) + 1 + strlen(dt) + 1);
-				sprintf(join_str, "%s,%s", datatypes, dt);
-				datatypes = join_str;
-			} else {
-				datatypes = dt;
-			}
+			if(i) datatypes.append(",");
+			datatypes.append(dt);
 		}
 		fprintf(yaml_fh, "num_bands: %d\n", band_count);
-		fprintf(yaml_fh, "datatype: %s\n", datatypes);
+		fprintf(yaml_fh, "datatype: %s\n", datatypes.c_str());
 
 		char **metadata = GDALGetMetadata(ds, "");
 		if(metadata) {

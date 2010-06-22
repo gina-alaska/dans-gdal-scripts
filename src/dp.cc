@@ -106,7 +106,7 @@ ReducedRing compute_reduced_ring(const Ring &orig_string, double res) {
 	double tolerance = res;
 	int i;
 
-	segment_t *stack = MYALLOC(segment_t, num_in);
+	std::vector<segment_t> stack(num_in);
 	size_t stack_ptr = 0;
 
 	ReducedRing keep;
@@ -186,8 +186,6 @@ ReducedRing compute_reduced_ring(const Ring &orig_string, double res) {
 //printf("keeping %d of %d\n", keep.segs.size(), num_in);
 //printf("exit dp\n");
 
-	free(stack);
-
 	return keep;
 }
 
@@ -266,7 +264,7 @@ Mpoly reduction_to_mpoly(const Mpoly &in_mpoly, const std::vector<ReducedRing> &
 	}
 
 	// Map index of old rings to index of new rings.
-	int *new_idx_map = MYALLOC(int, in_mpoly.rings.size());
+	std::vector<int> new_idx_map(in_mpoly.rings.size());
 	int out_idx = 0;
 	for(size_t c_idx=0; c_idx<in_mpoly.rings.size(); c_idx++) {
 		if(keep_rings[c_idx]) {

@@ -131,10 +131,10 @@ int main(int argc, char **argv) {
 	FILE *fout = fopen(mask_out_fn, "wb");
 	if(!fout) fatal_error("cannot open mask output");
 	fprintf(fout, "P4\n%zd %zd\n", w, h);
-	uint8_t *buf = MYALLOC(uint8_t, (w+7)/8);
+	std::vector<uint8_t> buf((w+7)/8);
 	for(size_t y=0; y<h; y++) {
-		memset(buf, 0, (w+7)/8);
-		uint8_t *p = buf;
+		buf.assign((w+7)/8, 0);
+		uint8_t *p = &buf[0];
 		uint8_t bitp = 128;
 		for(size_t x=0; x<w; x++) {
 			if(!mask(x, y)) *p |= bitp;
@@ -144,7 +144,7 @@ int main(int argc, char **argv) {
 				bitp = 128;
 			}
 		}
-		fwrite(buf, (w+7)/8, 1, fout);
+		fwrite(&buf[0], (w+7)/8, 1, fout);
 	}
 	fclose(fout);
 }

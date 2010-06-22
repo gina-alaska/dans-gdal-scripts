@@ -26,6 +26,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 
+#include <vector>
+
 #include "common.h"
 
 void copyGeoCode(GDALDatasetH dst_ds, GDALDatasetH src_ds);
@@ -41,9 +43,7 @@ void usage(const char *cmdname) {
 int main(int argc, char *argv[]) {
 	const char *dst_fn = NULL;
 
-	int src_ds_count = 0;
-	int band_count = 0;
-	GDALDatasetH *src_ds = NULL;
+	std::vector<GDALDatasetH> src_ds;
 
 	const char *output_format = NULL;
 
@@ -59,11 +59,9 @@ int main(int argc, char *argv[]) {
 			else if(!strcmp(arg, "-in")) {
 				if(argp == argc) usage(argv[0]);
 				char *fn = argv[argp++];
-				src_ds = REMYALLOC(GDALDatasetH, src_ds, (src_ds_count+1));
 				GDALDatasetH ds = GDALOpen(fn, GA_ReadOnly);
 				if(!ds) fatal_error("open failed");
-				src_ds[src_ds_count++] = ds; 
-				band_count += GDALGetRasterCount(ds);
+				src_ds.push_back(ds); 
 			}
 			else usage(argv[0]);
 		} else {
@@ -71,18 +69,17 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	if(!band_count) usage(argv[0]);
 	if(!dst_fn) usage(argv[0]);
 
 	if(!output_format) output_format = "GTiff";
 
 	//////// open source ////////
 
-	GDALRasterBandH *src_bands = MYALLOC(GDALRasterBandH, band_count);
+	std::vector<GDALRasterBandH> src_bands;
 
 	size_t w=0, h=0;
 
-	for(int ds_idx=0, band_idx=0; ds_idx<src_ds_count; ds_idx++) {
+	for(size_t ds_idx=0; ds_idx<src_ds.size(); ds_idx++) {
 		size_t ds_w = GDALGetRasterXSize(src_ds[ds_idx]);
 		size_t ds_h = GDALGetRasterYSize(src_ds[ds_idx]);
 		if(!ds_w || !ds_h) fatal_error("missing width/height");
@@ -95,13 +92,16 @@ int main(int argc, char *argv[]) {
 
 		int nb = GDALGetRasterCount(src_ds[ds_idx]);
 		for(int i=0; i<nb; i++) {
-			src_bands[band_idx++] = GDALGetRasterBand(src_ds[ds_idx], i+1);
+			src_bands.push_back(GDALGetRasterBand(src_ds[ds_idx], i+1));
 		}
 	}
 
+	size_t band_count = src_bands.size();
+	if(!band_count) usage(argv[0]);
+
 	//////// open output ////////
 
-	printf("Output size is %zd x %zd x %d\n", w, h, band_count);
+	printf("Output size is %zd x %zd x %zd\n", w, h, band_count);
 
 	GDALDriverH dst_driver = GDALGetDriverByName(output_format);
 	if(!dst_driver) fatal_error("unrecognized output format (%s)", output_format);
@@ -110,7 +110,7 @@ int main(int argc, char *argv[]) {
 	copyGeoCode(dst_ds, src_ds[0]);
 
 	GDALRasterBandH *dst_bands = MYALLOC(GDALRasterBandH, band_count);
-	for(int i=0; i<band_count; i++) {
+	for(size_t i=0; i<band_count; i++) {
 		dst_bands[i] = GDALGetRasterBand(dst_ds, i+1);
 	}
 
@@ -119,34 +119,32 @@ int main(int argc, char *argv[]) {
 	int chunk_size = 200;
 
 	// FIXME - handle other datatypes
-	uint8_t *buf = MYALLOC(uint8_t, w * chunk_size);
+	std::vector<uint8_t> buf(w * chunk_size);
 
 	for(size_t row=0; row<h; row+=chunk_size) {
 		GDALTermProgress((double)row/(double)h, NULL, NULL);
 
 		int num_lines = chunk_size;
 		if(row+num_lines > h) num_lines = h - row;
-		for(int band_idx=0; band_idx<band_count; band_idx++) {
+		for(size_t band_idx=0; band_idx<band_count; band_idx++) {
 			if(GDALRasterIO(
 				src_bands[band_idx], GF_Read,
 				0, row, w, num_lines,
-				buf, w, num_lines,
+				&buf[0], w, num_lines,
 				GDT_Byte, 0, 0
 			) != CE_None) fatal_error("read error");
 			if(GDALRasterIO(
 				dst_bands[band_idx], GF_Write,
 				0, row, w, num_lines,
-				buf, w, num_lines,
+				&buf[0], w, num_lines,
 				GDT_Byte, 0, 0
 			) != CE_None) fatal_error("write error");
 		}
 	}
 
-	free(buf);
-
 	//////// shutdown ////////
 
-	for(int ds_idx=0; ds_idx<src_ds_count; ds_idx++) {
+	for(size_t ds_idx=0; ds_idx<src_ds.size(); ds_idx++) {
 		GDALClose(src_ds[ds_idx]);
 	}
 	GDALClose(dst_ds);
