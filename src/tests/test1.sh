@@ -1,5 +1,6 @@
 #!/bin/sh
-rm -f out_*.wkt
+rm -f out_*
+
 ../gdal_trace_outline testcase_1.tif      -ndv 255 -out-cs xy -wkt-out out_1.wkt    -report out_1.ppm -split-polys -dp-toler 0
 ../gdal_trace_outline testcase_1.tif      -ndv 255 -out-cs en -wkt-out out_1_en.wkt -dp-toler 0
 ../gdal_trace_outline testcase_2.tif      -ndv 255 -out-cs xy -wkt-out out_2.wkt    -report out_2.ppm -split-polys -dp-toler 0
