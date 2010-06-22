@@ -50,13 +50,13 @@ int main(int argc, char *argv[]) {
 	GDALAllRegister();
 
 	size_t argp = 1;
-	while(argp < argc) {
+	while(argp < arg_list.size()) {
 		const std::string &arg = arg_list[argp++];
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
-			if(!strcmp(arg, "-out")) { if(argp == argc) usage(cmdname); dst_fn = arg_list[argp++]; }
-			else if(!strcmp(arg, "-in")) {
-				if(argp == argc) usage(cmdname);
+			if(arg == "-out") { if(argp == arg_list.size()) usage(cmdname); dst_fn = arg_list[argp++]; }
+			else if(arg == "-in") {
+				if(argp == arg_list.size()) usage(cmdname);
 				char *fn = arg_list[argp++];
 				src_fn.push_back(fn); 
 			}

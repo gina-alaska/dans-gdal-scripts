@@ -62,61 +62,61 @@ int main(int argc, char *argv[]) {
 	char endian=0;
 
 	size_t argp = 1;
-	while(argp < argc) {
+	while(argp < arg_list.size()) {
 		const std::string &arg = arg_list[argp++];
 		// FIXME - check for duplicate values
 		if(arg[0] == '-' && arg[1]) {
-			if(!strcmp(arg, "-wh")) {
+			if(arg == "-wh") {
 				char *endptr;
 
-				if(argp == argc) usage(cmdname);
+				if(argp == arg_list.size()) usage(cmdname);
 				w = (int)strtol(arg_list[argp++], &endptr, 10);
 				if(*endptr) usage(cmdname);
 
-				if(argp == argc) usage(cmdname);
+				if(argp == arg_list.size()) usage(cmdname);
 				h = (int)strtol(arg_list[argp++], &endptr, 10);
 				if(*endptr) usage(cmdname);
-			} else if(!strcmp(arg, "-affine")) {
+			} else if(arg == "-affine") {
 				for(int i=0; i<6; i++) {
-					if(argp == argc) usage(cmdname);
+					if(argp == arg_list.size()) usage(cmdname);
 					char *endptr;
 					affine[i] = strtod(arg_list[argp++], &endptr);
 					if(*endptr) usage(cmdname);
 				}
 				got_affine = 1;
-			} else if(!strcmp(arg, "-res")) {
-				if(argp == argc) usage(cmdname);
+			} else if(arg == "-res") {
+				if(argp == arg_list.size()) usage(cmdname);
 				char *endptr;
 				res = strtod(arg_list[argp++], &endptr);
 				if(*endptr) usage(cmdname);
-			} else if(!strcmp(arg, "-origin")) {
+			} else if(arg == "-origin") {
 				char *endptr;
 
-				if(argp == argc) usage(cmdname);
+				if(argp == arg_list.size()) usage(cmdname);
 				origin_e = strtod(arg_list[argp++], &endptr);
 				if(*endptr) usage(cmdname);
 
-				if(argp == argc) usage(cmdname);
+				if(argp == arg_list.size()) usage(cmdname);
 				origin_n = strtod(arg_list[argp++], &endptr);
 				if(*endptr) usage(cmdname);
 
 				got_en++;
-			} else if(!strcmp(arg, "-srs")) {
-				if(argp == argc) usage(cmdname);
+			} else if(arg == "-srs") {
+				if(argp == arg_list.size()) usage(cmdname);
 				srs = arg_list[argp++];
-			} else if(!strcmp(arg, "-ndv")) {
-				if(argp == argc) usage(cmdname);
+			} else if(arg == "-ndv") {
+				if(argp == arg_list.size()) usage(cmdname);
 				char *endptr;
 				ndv = strtod(arg_list[argp++], &endptr);
 				if(*endptr) usage(cmdname);
 
 				got_ndv = 1;
-			} else if(!strcmp(arg, "-datatype")) {
-				if(argp == argc) usage(cmdname);
+			} else if(arg == "-datatype") {
+				if(argp == arg_list.size()) usage(cmdname);
 				datatype = arg_list[argp++];
-			} else if(!strcmp(arg, "-lsb")) {
+			} else if(arg == "-lsb") {
 				endian = 'L';
-			} else if(!strcmp(arg, "-msb")) {
+			} else if(arg == "-msb") {
 				endian = 'M';
 			} else usage(cmdname);
 		} else {
@@ -147,25 +147,25 @@ int main(int argc, char *argv[]) {
 
 	GDALDataType gdal_dt = GDT_Unknown;
 	int bytes_per_pixel = 0;
-	if(!strcmp(datatype, "UINT8")) {
+	if(datatype == "UINT8") {
 		gdal_dt = GDT_Byte;
 		bytes_per_pixel = 1;
-	} else if(!strcmp(datatype, "UINT16")) {
+	} else if(datatype == "UINT16") {
 		gdal_dt = GDT_UInt16;
 		bytes_per_pixel = 2;
-	} else if(!strcmp(datatype, "INT16")) {
+	} else if(datatype == "INT16") {
 		gdal_dt = GDT_Int16;
 		bytes_per_pixel = 2;
-	} else if(!strcmp(datatype, "UINT32")) {
+	} else if(datatype == "UINT32") {
 		gdal_dt = GDT_UInt32;
 		bytes_per_pixel = 4;
-	} else if(!strcmp(datatype, "INT32")) {
+	} else if(datatype == "INT32") {
 		gdal_dt = GDT_Int32;
 		bytes_per_pixel = 4;
-	} else if(!strcmp(datatype, "FLOAT32")) {
+	} else if(datatype == "FLOAT32") {
 		gdal_dt = GDT_Float32;
 		bytes_per_pixel = 4;
-	} else if(!strcmp(datatype, "FLOAT64")) {
+	} else if(datatype == "FLOAT64") {
 		gdal_dt = GDT_Float64;
 		bytes_per_pixel = 8;
 	}
@@ -185,7 +185,7 @@ int main(int argc, char *argv[]) {
 	//////////// open input
 
 	FILE *fin;
-	if(!strcmp(src_fn, "-")) {
+	if(src_fn == "-") {
 		fin = stdin;
 	} else {
 		fin = fopen(src_fn, "r");

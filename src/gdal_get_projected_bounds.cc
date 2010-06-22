@@ -112,29 +112,27 @@ int main(int argc, char **argv) {
 	const char *t_srs = NULL;
 	const char *report_fn = NULL;
 
-	if(argc == 1) usage(cmdname);
-
 	size_t argp = 1;
-	while(argp < argc) {
+	while(argp < arg_list.size()) {
 		const std::string &arg = arg_list[argp++];
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
-			if(!strcmp(arg, "-v")) {
+			if(arg == "-v") {
 				VERBOSE++;
-			} else if(!strcmp(arg, "-s_wkt")) {
-				if(argp == argc) usage(cmdname);
+			} else if(arg == "-s_wkt") {
+				if(argp == arg_list.size()) usage(cmdname);
 				src_wkt_fn = arg_list[argp++];
-			} else if(!strcmp(arg, "-t_bounds_wkt")) {
-				if(argp == argc) usage(cmdname);
+			} else if(arg == "-t_bounds_wkt") {
+				if(argp == arg_list.size()) usage(cmdname);
 				t_bounds_wkt_fn = arg_list[argp++];
-			} else if(!strcmp(arg, "-s_srs")) {
-				if(argp == argc) usage(cmdname);
+			} else if(arg == "-s_srs") {
+				if(argp == arg_list.size()) usage(cmdname);
 				s_srs = arg_list[argp++];
-			} else if(!strcmp(arg, "-t_srs")) {
-				if(argp == argc) usage(cmdname);
+			} else if(arg == "-t_srs") {
+				if(argp == arg_list.size()) usage(cmdname);
 				t_srs = arg_list[argp++];
-			} else if(!strcmp(arg, "-report")) {
-				if(argp == argc) usage(cmdname);
+			} else if(arg == "-report") {
+				if(argp == arg_list.size()) usage(cmdname);
 				report_fn = arg_list[argp++];
 			} else usage(cmdname);
 		} else {

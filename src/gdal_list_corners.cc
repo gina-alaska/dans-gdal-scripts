@@ -84,8 +84,6 @@ int main(int argc, char **argv) {
 	std::vector<size_t> inspect_bandids;
 	bool do_erosion = 0;
 
-	if(argc == 1) usage(cmdname);
-
 	// We will be sending YAML to stdout, so stuff that would normally
 	// go to stdout (such as debug messages or progress bars) should
 	// go to stderr.
@@ -98,29 +96,29 @@ int main(int argc, char **argv) {
 	NdvDef ndv_def = NdvDef(arg_list);
 
 	size_t argp = 1;
-	while(argp < argc) {
+	while(argp < arg_list.size()) {
 		const std::string &arg = arg_list[argp++];
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
-			if(!strcmp(arg, "-v")) {
+			if(arg == "-v") {
 				VERBOSE++;
-			} else if(!strcmp(arg, "-inspect-rect4")) {
+			} else if(arg == "-inspect-rect4") {
 				inspect_rect4 = 1;
-			} else if(!strcmp(arg, "-fuzzy-match")) {
+			} else if(arg == "-fuzzy-match") {
 				fuzzy_match = 1;
-			} else if(!strcmp(arg, "-b")) {
-				if(argp == argc) usage(cmdname);
+			} else if(arg == "-b") {
+				if(argp == arg_list.size()) usage(cmdname);
 				char *endptr;
 				int bandid = strtol(arg_list[argp++], &endptr, 10);
 				if(*endptr) usage(cmdname);
 				inspect_bandids.push_back(bandid);
-			} else if(!strcmp(arg, "-erosion")) {
+			} else if(arg == "-erosion") {
 				do_erosion = 1;
-			} else if(!strcmp(arg, "-report")) {
-				if(argp == argc) usage(cmdname);
+			} else if(arg == "-report") {
+				if(argp == arg_list.size()) usage(cmdname);
 				debug_report = arg_list[argp++];
-			} else if(!strcmp(arg, "-mask-out")) {
-				if(argp == argc) usage(cmdname);
+			} else if(arg == "-mask-out") {
+				if(argp == arg_list.size()) usage(cmdname);
 				mask_out_fn = arg_list[argp++];
 			} else usage(cmdname);
 		} else {

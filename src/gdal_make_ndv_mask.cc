@@ -62,29 +62,27 @@ int main(int argc, char **argv) {
 	bool do_invert = 0;
 	std::vector<size_t> inspect_bandids;
 
-	if(argc == 1) usage(cmdname);
-
 	NdvDef ndv_def = NdvDef(arg_list);
 
 	size_t argp = 1;
-	while(argp < argc) {
+	while(argp < arg_list.size()) {
 		const std::string &arg = arg_list[argp++];
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
-			if(!strcmp(arg, "-v")) {
+			if(arg == "-v") {
 				VERBOSE++;
-			} else if(!strcmp(arg, "-b")) {
-				if(argp == argc) usage(cmdname);
+			} else if(arg == "-b") {
+				if(argp == arg_list.size()) usage(cmdname);
 				char *endptr;
 				int bandid = (int)strtol(arg_list[argp++], &endptr, 10);
 				if(*endptr) usage(cmdname);
 				inspect_bandids.push_back(bandid);
-			} else if(!strcmp(arg, "-erosion")) {
+			} else if(arg == "-erosion") {
 				do_erosion = 1;
-			} else if(!strcmp(arg, "-invert")) {
+			} else if(arg == "-invert") {
 				do_invert = 1;
-			} else if(!strcmp(arg, "-mask-out")) {
-				if(argp == argc) usage(cmdname);
+			} else if(arg == "-mask-out") {
+				if(argp == arg_list.size()) usage(cmdname);
 				mask_out_fn = arg_list[argp++];
 			} else usage(cmdname);
 		} else {

@@ -61,25 +61,23 @@ int main(int argc, char **argv) {
 	char *mask_fn = NULL;
 	char *geo_fn = NULL;
 
-	if(argc == 1) usage(cmdname);
-
 	GeoOpts geo_opts = GeoOpts(arg_list);
 
 	size_t argp = 1;
-	while(argp < argc) {
+	while(argp < arg_list.size()) {
 		const std::string &arg = arg_list[argp++];
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
-			if(!strcmp(arg, "-v")) {
+			if(arg == "-v") {
 				VERBOSE++;
-			} else if(!strcmp(arg, "-wkt")) {
-				if(argp == argc) usage(cmdname);
+			} else if(arg == "-wkt") {
+				if(argp == arg_list.size()) usage(cmdname);
 				wkt_fn = arg_list[argp++];
-			} else if(!strcmp(arg, "-mask-out")) {
-				if(argp == argc) usage(cmdname);
+			} else if(arg == "-mask-out") {
+				if(argp == arg_list.size()) usage(cmdname);
 				mask_fn = arg_list[argp++];
-			} else if(!strcmp(arg, "-geo-from")) {
-				if(argp == argc) usage(cmdname);
+			} else if(arg == "-geo-from") {
+				if(argp == arg_list.size()) usage(cmdname);
 				geo_fn = arg_list[argp++];
 			} else usage(cmdname);
 		} else {

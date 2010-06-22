@@ -84,44 +84,44 @@ int main(int argc, char *argv[]) {
 	NdvDef ndv_def = NdvDef(arg_list);
 
 	size_t argp = 1;
-	while(argp < argc) {
+	while(argp < arg_list.size()) {
 		const std::string &arg = arg_list[argp++];
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
-			if(!strcmp(arg, "-of")) {
-				if(argp == argc) usage(cmdname);
+			if(arg == "-of") {
+				if(argp == arg_list.size()) usage(cmdname);
 				output_format = arg_list[argp++];
-			} else if(!strcmp(arg, "-linear-stretch")) {
-				if(argp == argc) usage(cmdname);
+			} else if(arg == "-linear-stretch") {
+				if(argp == arg_list.size()) usage(cmdname);
 				char *endptr;
 				dst_avg = strtod(arg_list[argp++], &endptr);
 				if(*endptr) usage(cmdname);
 
-				if(argp == argc) usage(cmdname);
+				if(argp == arg_list.size()) usage(cmdname);
 				dst_stddev = strtod(arg_list[argp++], &endptr);
 				if(*endptr) usage(cmdname);
 
 				mode_stddev = 1;
-			} else if(!strcmp(arg, "-percentile-range")) {
-				if(argp == argc) usage(cmdname);
+			} else if(arg == "-percentile-range") {
+				if(argp == arg_list.size()) usage(cmdname);
 				char *endptr;
 				from_percentile = strtod(arg_list[argp++], &endptr);
 				if(*endptr) usage(cmdname);
 
-				if(argp == argc) usage(cmdname);
+				if(argp == arg_list.size()) usage(cmdname);
 				to_percentile = strtod(arg_list[argp++], &endptr);
 				if(*endptr) usage(cmdname);
 
 				mode_percentile = 1;
-			} else if(!strcmp(arg, "-histeq")) {
-				if(argp == argc) usage(cmdname);
+			} else if(arg == "-histeq") {
+				if(argp == arg_list.size()) usage(cmdname);
 				char *endptr;
 				dst_stddev = strtod(arg_list[argp++], &endptr);
 				if(*endptr) usage(cmdname);
 
 				mode_histeq = 1;
-			} else if(!strcmp(arg, "-outndv")) {
- 				if(argp == argc) usage(cmdname);
+			} else if(arg == "-outndv") {
+ 				if(argp == arg_list.size()) usage(cmdname);
 				char *endptr;
 				long ndv_long = strtol(arg_list[argp++], &endptr, 10);
 				out_ndv = (uint8_t)ndv_long;

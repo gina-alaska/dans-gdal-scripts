@@ -85,37 +85,37 @@ int main(int argc, char *argv[]) {
 	GDALAllRegister();
 
 	size_t argp = 1;
-	while(argp < argc) {
+	while(argp < arg_list.size()) {
 		const std::string &arg = arg_list[argp++];
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
-			if(!strcmp(arg, "-ndv")) {
-				if(argp == argc) usage(cmdname);
+			if(arg == "-ndv") {
+				if(argp == arg_list.size()) usage(cmdname);
 				char *endptr;
 				ndv = (double)strtol(arg_list[argp++], &endptr, 10);
 				use_ndv++;
 				if(*endptr) usage(cmdname);
 				if(ndv < 0 || ndv > 255) fatal_error("no_data_val must be in the range 0-255");
 			} 
-			else if(!strcmp(arg, "-of" )) { if(argp == argc) usage(cmdname); output_format = arg_list[argp++]; }
-			else if(!strcmp(arg, "-o"  )) { if(argp == argc) usage(cmdname); dst_fn = arg_list[argp++]; }
-			else if(!strcmp(arg, "-pan")) { if(argp == argc) usage(cmdname); pan_fn = arg_list[argp++]; }
-			else if(!strcmp(arg, "-rgb")) {
-				if(argp == argc) usage(cmdname);
+			else if(arg == "-of" ) { if(argp == arg_list.size()) usage(cmdname); output_format = arg_list[argp++]; }
+			else if(arg == "-o"  ) { if(argp == arg_list.size()) usage(cmdname); dst_fn = arg_list[argp++]; }
+			else if(arg == "-pan") { if(argp == arg_list.size()) usage(cmdname); pan_fn = arg_list[argp++]; }
+			else if(arg == "-rgb") {
+				if(argp == arg_list.size()) usage(cmdname);
 				char *fn = arg_list[argp++];
 				GDALDatasetH ds = GDALOpen(fn, GA_ReadOnly);
 				if(!ds) fatal_error("open failed");
 				rgb_ds.push_back(ds); 
 			}
-			else if(!strcmp(arg, "-lum")) {
-				if(argp == argc) usage(cmdname);
+			else if(arg == "-lum") {
+				if(argp == arg_list.size()) usage(cmdname);
 				char *fn = arg_list[argp++];
 				GDALDatasetH ds = GDALOpen(fn, GA_ReadOnly);
 				if(!ds) fatal_error("open failed");
 				lum_ds.push_back(ds); 
 				int nb = GDALGetRasterCount(ds);
 				while(nb) {
-					if(argp == argc) usage(cmdname);
+					if(argp == arg_list.size()) usage(cmdname);
 					char *endptr;
 					double w = strtod(arg_list[argp++], &endptr);
 					if(*endptr) usage(cmdname);
