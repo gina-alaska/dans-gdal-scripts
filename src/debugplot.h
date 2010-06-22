@@ -26,8 +26,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 
-#ifndef DEBUGPLOT_H
-#define DEBUGPLOT_H
+#ifndef DANGDAL_DEBUGPLOT_H
+#define DANGDAL_DEBUGPLOT_H
 
 #include "common.h"
 #include "polygon.h"
@@ -60,4 +60,4 @@ public:
 
 } // namespace dangdal
 
-#endif // ifndef DEBUGPLOT_H
+#endif // ifndef DANGDAL_DEBUGPLOT_H

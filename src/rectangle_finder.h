@@ -25,6 +25,9 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 */
 
 
+#ifndef DANGDAL_RECTANGLE_FINDER_H
+#define DANGDAL_RECTANGLE_FINDER_H
+
 #include "mask.h"
 
 namespace dangdal {
@@ -32,3 +35,5 @@ namespace dangdal {
 Ring calc_rect4_from_mask(const BitGrid &mask, int w, int h, DebugPlot *dbuf, bool use_ai);
 
 } // namespace dangdal
+
+#endif // DANGDAL_RECTANGLE_FINDER_H

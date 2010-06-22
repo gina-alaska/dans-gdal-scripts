@@ -27,8 +27,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 
-#ifndef COMMON_H
-#define COMMON_H
+#ifndef DANGDAL_COMMON_H
+#define DANGDAL_COMMON_H
 
 #include <vector>
 #include <string>
@@ -82,4 +82,4 @@ void fatal_error(const std::string &s) __attribute__((noreturn));
 void fatal_error(const char *s, ...) __attribute__((noreturn, format(printf, 1, 2)));
 std::vector<std::string> argv_to_list(int argc, char **argv);
 
-#endif // ifndef COMMON_H
+#endif // ifndef DANGDAL_COMMON_H

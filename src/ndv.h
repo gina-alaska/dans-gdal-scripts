@@ -27,8 +27,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 
-#ifndef NDV_H
-#define NDV_H
+#ifndef DANGDAL_NDV_H
+#define DANGDAL_NDV_H
 
 #include <string>
 #include <vector>
@@ -81,4 +81,4 @@ public:
 
 } // namespace dangdal
 
-#endif // NDV_H
+#endif // DANGDAL_NDV_H

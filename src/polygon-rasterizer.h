@@ -26,8 +26,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 
-#ifndef POLYGON_RASTERIZER_H
-#define POLYGON_RASTERIZER_H
+#ifndef DANGDAL_POLYGON_RASTERIZER_H
+#define DANGDAL_POLYGON_RASTERIZER_H
 
 #include "common.h"
 #include "polygon.h"
@@ -46,4 +46,4 @@ row_crossings_t crossings_intersection(
 
 } // namespace dangdal
 
-#endif // ifndef POLYGON_RASTERIZER_H
+#endif // ifndef DANGDAL_POLYGON_RASTERIZER_H

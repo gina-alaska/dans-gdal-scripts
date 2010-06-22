@@ -26,8 +26,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 
-#ifndef DP_H
-#define DP_H
+#ifndef DANGDAL_DP_H
+#define DANGDAL_DP_H
 
 #include "polygon.h"
 
@@ -52,4 +52,4 @@ Mpoly reduction_to_mpoly(const Mpoly &in_mpoly, const std::vector<ReducedRing> &
 
 } // namespace dangdal
 
-#endif // ifndef DP_H
+#endif // ifndef DANGDAL_DP_H

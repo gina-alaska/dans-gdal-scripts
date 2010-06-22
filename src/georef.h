@@ -27,8 +27,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 
-#ifndef GEOCODE_H
-#define GEOCODE_H
+#ifndef DANGDAL_GEOCODE_H
+#define DANGDAL_GEOCODE_H
 
 #include <vector>
 
@@ -84,4 +84,4 @@ public:
 
 } // namespace dangdal
 
-#endif // ifndef GEOCODE_H
+#endif // ifndef DANGDAL_GEOCODE_H

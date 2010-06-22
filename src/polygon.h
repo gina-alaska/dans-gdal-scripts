@@ -26,8 +26,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 
-#ifndef POLYGON_H
-#define POLYGON_H
+#ifndef DANGDAL_POLYGON_H
+#define DANGDAL_POLYGON_H
 
 #include <vector>
 #include <algorithm>
@@ -147,4 +147,4 @@ Mpoly mpoly_from_wktfile(const std::string &fn);
 
 } // namespace dangdal
 
-#endif // ifndef POLYGON_H
+#endif // ifndef DANGDAL_POLYGON_H

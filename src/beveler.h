@@ -26,8 +26,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 
-#ifndef BEVELER_H
-#define BEVELER_H
+#ifndef DANGDAL_BEVELER_H
+#define DANGDAL_BEVELER_H
 
 #include "polygon.h"
 
@@ -37,4 +37,4 @@ void bevel_self_intersections(Mpoly &mp, double amount);
 
 } // namespace dangdal
 
-#endif // ifndef BEVELER_H
+#endif // ifndef DANGDAL_BEVELER_H

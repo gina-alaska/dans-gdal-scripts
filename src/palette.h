@@ -26,8 +26,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 
-#ifndef PALETTE_H
-#define PALETTE_H
+#ifndef DANGDAL_PALETTE_H
+#define DANGDAL_PALETTE_H
 
 #include <string>
 #include <vector>
@@ -57,4 +57,4 @@ public:
 
 } // namespace dangdal
 
-#endif // ifndef PALETTE_H
+#endif // ifndef DANGDAL_PALETTE_H

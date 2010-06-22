@@ -26,7 +26,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 
-#ifndef MASK_TRACER_H
+#ifndef DANGDAL_MASK_TRACER_H
+#define DANGDAL_MASK_TRACER_H
 
 #include "mask.h"
 #include "polygon.h"
@@ -38,4 +39,4 @@ Mpoly trace_mask(BitGrid &mask, size_t w, size_t h, int64_t min_area, bool no_do
 
 } // namespace dangdal
 
-#endif // ifndef MASK_TRACER_H
+#endif // ifndef DANGDAL_MASK_TRACER_H

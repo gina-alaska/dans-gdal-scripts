@@ -26,7 +26,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 
-#ifndef EXCURSION_PINCHER_H
+#ifndef DANGDAL_EXCURSION_PINCHER_H
 
 #include "polygon.h"
 
@@ -37,4 +37,4 @@ Mpoly pinch_excursions2(const Mpoly &mp_in, DebugPlot *dbuf);
 
 } // namespace dangdal
 
-#endif // ifndef EXCURSION_PINCHER_H
+#endif // ifndef DANGDAL_EXCURSION_PINCHER_H
