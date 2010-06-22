@@ -26,6 +26,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 
+#include <cassert>
+
 #include "common.h"
 #include "georef.h"
 #include "ndv.h"
@@ -239,12 +241,14 @@ int main(int argc, char *argv[]) {
 
 	//////// compute orientation ////////
 
-	double *constant_invaffine = NULL;
+	std::vector<double> constant_invaffine;
+	bool use_constant_invaffine = false;
 	if(do_shade) {
 		if(!georef.fwd_xform) {
 			if(!georef.hasAffine()) fatal_error("please specify resolution of image");
 			printf("warning: no SRS available - basing orientation on affine transform\n");
-			constant_invaffine = MYALLOC(double, 4);
+			use_constant_invaffine = true;
+			constant_invaffine.resize(4);
 			constant_invaffine[0] = georef.inv_affine[1];
 			constant_invaffine[1] = georef.inv_affine[2];
 			constant_invaffine[2] = georef.inv_affine[4];
@@ -255,7 +259,7 @@ int main(int argc, char *argv[]) {
 	//////// open texture ////////
 
 	GDALDatasetH tex_ds = NULL;
-	GDALRasterBandH *tex_bands = NULL;
+	std::vector<GDALRasterBandH> tex_bands;
 	if(tex_fn) {
 		tex_ds = GDALOpen(tex_fn, GA_ReadOnly);
 		if(!tex_ds) fatal_error("open failed");
@@ -266,10 +270,11 @@ int main(int argc, char *argv[]) {
 		if(tex_w != w || tex_h != h) fatal_error("DEM and texture are different sizes");
 
 		out_numbands = GDALGetRasterCount(tex_ds);
-		tex_bands = MYALLOC(GDALRasterBandH, out_numbands);
+		if(!out_numbands) fatal_error("texture file had no bands");
 		for(int i=0; i<out_numbands; i++) {
-			tex_bands[i] = GDALGetRasterBand(tex_ds, i+1);
-			if(!tex_bands[i]) fatal_error("could not open texture band");
+			GDALRasterBandH b = GDALGetRasterBand(tex_ds, i+1);
+			if(!b) fatal_error("could not open texture band");
+			tex_bands.push_back(b);
 		}
 	}
 
@@ -285,23 +290,23 @@ int main(int argc, char *argv[]) {
 	}
 	GDALSetProjection(dst_ds, GDALGetProjectionRef(src_ds));
 
-	GDALRasterBandH *dst_band = MYALLOC(GDALRasterBandH, out_numbands);
+	std::vector<GDALRasterBandH> dst_band;
 	for(int i=0; i<out_numbands; i++) {
-		dst_band[i] = GDALGetRasterBand(dst_ds, i+1);
+		dst_band.push_back(GDALGetRasterBand(dst_ds, i+1));
 	}
 
 	//////// setup shade table ////////
 
-	double **shade_table = NULL;
-	double **spec_table = NULL;
+	std::vector<std::vector<double> > shade_table;
+	std::vector<std::vector<double> > spec_table;
 	double ALPHA_THRESH = .5F;
 	double thresh_brite = 1;
 	if(do_shade) {
-		shade_table = MYALLOC(double *, SHADE_TABLE_SIZE*2+1);
-		spec_table  = MYALLOC(double *, SHADE_TABLE_SIZE*2+1);
+		shade_table.resize(SHADE_TABLE_SIZE*2+1);
+		spec_table .resize(SHADE_TABLE_SIZE*2+1);
 		for(int i=0; i<SHADE_TABLE_SIZE*2+1; i++) {
-			shade_table[i] = MYALLOC(double, SHADE_TABLE_SIZE*2+1);
-			spec_table [i] = MYALLOC(double, SHADE_TABLE_SIZE*2+1);
+			shade_table[i].resize(SHADE_TABLE_SIZE*2+1);
+			spec_table [i].resize(SHADE_TABLE_SIZE*2+1);
 		}
 		double lightvec_len = sqrt(
 			lightvec[0] * lightvec[0] +
@@ -353,23 +358,24 @@ int main(int argc, char *argv[]) {
 		ndv_def = NdvDef(src_ds, ndv_bandids);
 	}
 
-	double *inbuf_prev = MYALLOC(double, w);
-	double *inbuf_this = MYALLOC(double, w);
-	double *inbuf_next = MYALLOC(double, w);
-	uint8_t *inbuf_ndv_prev = MYALLOC(uint8_t, w);
-	uint8_t *inbuf_ndv_this = MYALLOC(uint8_t, w);
-	uint8_t *inbuf_ndv_next = MYALLOC(uint8_t, w);
+	std::vector<double> inbuf_prev(w);
+	std::vector<double> inbuf_this(w);
+	std::vector<double> inbuf_next(w);
+	std::vector<uint8_t> inbuf_ndv_prev(w);
+	std::vector<uint8_t> inbuf_ndv_this(w);
+	std::vector<uint8_t> inbuf_ndv_next(w);
 
-	uint8_t **outbuf = MYALLOC(uint8_t *, out_numbands);
+	std::vector<std::vector<uint8_t> > outbuf(out_numbands);
 	for(int i=0; i<out_numbands; i++) {
-		outbuf[i] = MYALLOC(uint8_t, w);
+		outbuf[i].resize(w);
 	}
-	uint8_t *pixel = MYALLOC(uint8_t, out_numbands);
+	std::vector<uint8_t> pixel(out_numbands);
 
-	double *invaffine_tierow_above=NULL, *invaffine_tierow_below=NULL;
-	if(do_shade && !constant_invaffine) {
-		invaffine_tierow_above = MYALLOC(double, w * 4);
-		invaffine_tierow_below = MYALLOC(double, w * 4);
+	std::vector<double> invaffine_tierow_above;
+	std::vector<double> invaffine_tierow_below;
+	if(do_shade && !use_constant_invaffine) {
+		invaffine_tierow_above.resize(w * 4);
+		invaffine_tierow_below.resize(w * 4);
 	}
 
 	double min=0, max=0; // initialized to prevent compiler warning
@@ -377,53 +383,52 @@ int main(int argc, char *argv[]) {
 	for(size_t row=0; row<h; row++) {
 		GDALTermProgress((double)row / (double)h, NULL, NULL);
 		if(row == 0) {
-			GDALRasterIO(src_band, GF_Read, 0, 0, w, 1, inbuf_prev, w, 1, GDT_Float64, 0, 0);
-			GDALRasterIO(src_band, GF_Read, 0, 0, w, 1, inbuf_this, w, 1, GDT_Float64, 0, 0);
-			GDALRasterIO(src_band, GF_Read, 0, 1, w, 1, inbuf_next, w, 1, GDT_Float64, 0, 0);
-			ndv_def.arrayCheckNdv(0, inbuf_prev, inbuf_ndv_prev, w);
-			ndv_def.arrayCheckNdv(0, inbuf_this, inbuf_ndv_this, w);
-			ndv_def.arrayCheckNdv(0, inbuf_next, inbuf_ndv_next, w);
-			scale_values(inbuf_prev, w, src_scale, src_offset);
-			scale_values(inbuf_this, w, src_scale, src_offset);
-			scale_values(inbuf_next, w, src_scale, src_offset);
+			GDALRasterIO(src_band, GF_Read, 0, 0, w, 1, &inbuf_prev[0], w, 1, GDT_Float64, 0, 0);
+			GDALRasterIO(src_band, GF_Read, 0, 0, w, 1, &inbuf_this[0], w, 1, GDT_Float64, 0, 0);
+			GDALRasterIO(src_band, GF_Read, 0, 1, w, 1, &inbuf_next[0], w, 1, GDT_Float64, 0, 0);
+			ndv_def.arrayCheckNdv(0, &inbuf_prev[0], &inbuf_ndv_prev[0], w);
+			ndv_def.arrayCheckNdv(0, &inbuf_this[0], &inbuf_ndv_this[0], w);
+			ndv_def.arrayCheckNdv(0, &inbuf_next[0], &inbuf_ndv_next[0], w);
+			scale_values(&inbuf_prev[0], w, src_scale, src_offset);
+			scale_values(&inbuf_this[0], w, src_scale, src_offset);
+			scale_values(&inbuf_next[0], w, src_scale, src_offset);
 		} else {
-			double *swapd = inbuf_prev;
-			inbuf_prev = inbuf_this;
-			inbuf_this = inbuf_next;
-			inbuf_next = swapd;
-			uint8_t *swapc = inbuf_ndv_prev;
-			inbuf_ndv_prev = inbuf_ndv_this;
-			inbuf_ndv_this = inbuf_ndv_next;
-			inbuf_ndv_next = swapc;
-			if(row == h-1) {
-				GDALRasterIO(src_band, GF_Read, 0, row, w, 1, inbuf_next, w, 1, GDT_Float64, 0, 0);
-			} else {
-				GDALRasterIO(src_band, GF_Read, 0, row+1, w, 1, inbuf_next, w, 1, GDT_Float64, 0, 0);
-			}
-			ndv_def.arrayCheckNdv(0, inbuf_next, inbuf_ndv_next, w);
-			scale_values(inbuf_next, w, src_scale, src_offset);
+			// rotate buffers
+			std::vector<double> swapd;
+			std::swap(swapd, inbuf_prev);
+			std::swap(inbuf_prev, inbuf_this);
+			std::swap(inbuf_this, inbuf_next);
+			std::swap(inbuf_next, swapd);
+			std::vector<uint8_t> swapc;
+			std::swap(swapc, inbuf_ndv_prev);
+			std::swap(inbuf_ndv_prev, inbuf_ndv_this);
+			std::swap(inbuf_ndv_this, inbuf_ndv_next);
+			std::swap(inbuf_ndv_next, swapc);
+
+			int read_row = (row == h-1) ? row : row+1;
+			GDALRasterIO(src_band, GF_Read, 0, read_row, w, 1, &inbuf_next[0], w, 1, GDT_Float64, 0, 0);
+			ndv_def.arrayCheckNdv(0, &inbuf_next[0], &inbuf_ndv_next[0], w);
+			scale_values(&inbuf_next[0], w, src_scale, src_offset);
 		}
-		if(tex_bands) {
+		if(tex_bands.size()) {
 			for(int i=0; i<out_numbands; i++) {
-				GDALRasterIO(tex_bands[i], GF_Read, 0, row, w, 1, outbuf[i], w, 1, GDT_Byte, 0, 0);
+				GDALRasterIO(tex_bands[i], GF_Read, 0, row, w, 1, &outbuf[i][0], w, 1, GDT_Byte, 0, 0);
 			}
 		}
 
 		double grid_fraction = 0;
-		if(do_shade && !constant_invaffine) {
+		if(do_shade && !use_constant_invaffine) {
 			// the part sets up the bilinear interpolation of invaffine
 			int above_tiept = grid_spacing * (row / grid_spacing);
 			int below_tiept = above_tiept + grid_spacing;
 			if(below_tiept > (int)h) below_tiept = (int)h;
 			if(row == (size_t)above_tiept) {
 				if(row == 0) {
-					compute_tierow_invaffine(georef, w, 0, grid_spacing, invaffine_tierow_above);
+					compute_tierow_invaffine(georef, w, 0, grid_spacing, &invaffine_tierow_above[0]);
 				} else {
-					double *tmp = invaffine_tierow_above;
-					invaffine_tierow_above = invaffine_tierow_below;
-					invaffine_tierow_below = tmp;
+					std::swap(invaffine_tierow_above, invaffine_tierow_below);
 				}
-				compute_tierow_invaffine(georef, w, below_tiept, grid_spacing, invaffine_tierow_below);
+				compute_tierow_invaffine(georef, w, below_tiept, grid_spacing, &invaffine_tierow_below[0]);
 			}
 			double segment_height = below_tiept - above_tiept;
 			grid_fraction = ((double)row - (double)above_tiept) / segment_height;
@@ -464,7 +469,7 @@ int main(int argc, char *argv[]) {
 				//double dy2 = invaffine_c * dx + invaffine_d * (-dy);
 				
 				double invaffine[4];
-				if(constant_invaffine) {
+				if(use_constant_invaffine) {
 					for(int i=0; i<4; i++) invaffine[i] = constant_invaffine[i];
 				} else {
 					for(int i=0; i<4; i++) {
@@ -494,8 +499,9 @@ int main(int argc, char *argv[]) {
 			}
 			if(inbuf_ndv_this[col]) {
 				if(use_palette) {
-					get_nan_color(pixel, palette);
-					for(int i=0; i<out_numbands; i++) outbuf[i][col] = pixel[i];
+					outbuf[0][col] = palette.nan_color.r;
+					outbuf[1][col] = palette.nan_color.g;
+					outbuf[2][col] = palette.nan_color.b;
 				} else {
 					for(int i=0; i<out_numbands; i++) outbuf[i][col] = 0;
 				}
@@ -533,7 +539,10 @@ int main(int argc, char *argv[]) {
 					pixel[3] = (uint8_t)(255.0 * alpha);
 				} else {
 					if(use_palette) {
-						get_palette_color(pixel, val, palette);
+						RGB c = palette.get(val);
+						pixel[0] = c.r;
+						pixel[1] = c.g;
+						pixel[2] = c.b;
 					} else if(tex_ds) {
 						for(int i=0; i<out_numbands; i++) pixel[i] = outbuf[i][col];
 					} else {
@@ -555,7 +564,7 @@ int main(int argc, char *argv[]) {
 			}
 		}
 		for(int i=0; i<out_numbands; i++) {
-			GDALRasterIO(dst_band[i], GF_Write, 0, row, w, 1, outbuf[i], w, 1, GDT_Byte, 0, 0);
+			GDALRasterIO(dst_band[i], GF_Write, 0, row, w, 1, &outbuf[i][0], w, 1, GDT_Byte, 0, 0);
 		}
 	}
 

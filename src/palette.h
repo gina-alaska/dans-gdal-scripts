@@ -42,6 +42,7 @@ struct RGB {
 };
 
 class Palette {
+public:
 	static Palette fromLines(const char * const *lines);
 	static Palette fromLines(const std::vector<std::string> &lines);
 	static Palette fromFile(const std::string &fn);
