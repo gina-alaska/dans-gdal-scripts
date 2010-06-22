@@ -46,9 +46,9 @@ std::vector<size_t> invert_histogram_to_gaussian(const std::vector<size_t> &hist
 	int output_range, double max_rel_freq);
 void copyGeoCode(GDALDatasetH dst_ds, GDALDatasetH src_ds);
 
-void usage(const char *cmdname) {
+void usage(const std::string &cmdname) {
 	// FIXME - layout/grammar
-	printf("Usage: %s <options> src.tif dst.tif\n\n", cmdname);
+	printf("Usage: %s <options> src.tif dst.tif\n\n", cmdname.c_str());
 	NdvDef::printUsage();
 	printf("\
   -outndv <output_nodata_val>             Output no-data value\n\
@@ -64,6 +64,10 @@ Input must be either 8-bit or 16-bit (unsigned).  Output is 8-bit.\n\
 }
 
 int main(int argc, char *argv[]) {
+	const std::string cmdname = argv[0];
+	if(argc == 1) usage(cmdname);
+	std::vector<std::string> arg_list = argv_to_list(argc, argv);
+
 	const char *src_fn = NULL;
 	const char *dst_fn = NULL;
 	const char *output_format = NULL;
@@ -85,64 +89,64 @@ int main(int argc, char *argv[]) {
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
 			if(!strcmp(arg, "-of")) {
-				if(argp == argc) usage(argv[0]);
+				if(argp == argc) usage(cmdname);
 				output_format = argv[argp++];
 			} else if(!strcmp(arg, "-linear-stretch")) {
-				if(argp == argc) usage(argv[0]);
+				if(argp == argc) usage(cmdname);
 				char *endptr;
 				dst_avg = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
+				if(*endptr) usage(cmdname);
 
-				if(argp == argc) usage(argv[0]);
+				if(argp == argc) usage(cmdname);
 				dst_stddev = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
+				if(*endptr) usage(cmdname);
 
 				mode_stddev = 1;
 			} else if(!strcmp(arg, "-percentile-range")) {
-				if(argp == argc) usage(argv[0]);
+				if(argp == argc) usage(cmdname);
 				char *endptr;
 				from_percentile = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
+				if(*endptr) usage(cmdname);
 
-				if(argp == argc) usage(argv[0]);
+				if(argp == argc) usage(cmdname);
 				to_percentile = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
+				if(*endptr) usage(cmdname);
 
 				mode_percentile = 1;
 			} else if(!strcmp(arg, "-histeq")) {
-				if(argp == argc) usage(argv[0]);
+				if(argp == argc) usage(cmdname);
 				char *endptr;
 				dst_stddev = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
+				if(*endptr) usage(cmdname);
 
 				mode_histeq = 1;
 			} else if(!strcmp(arg, "-outndv")) {
- 				if(argp == argc) usage(argv[0]);
+ 				if(argp == argc) usage(cmdname);
 				char *endptr;
 				long ndv_long = strtol(argv[argp++], &endptr, 10);
 				out_ndv = (uint8_t)ndv_long;
 				if(ndv_long != (long)out_ndv) fatal_error("ndv must be in the range 0..255");
 				set_out_ndv++;
-				if(*endptr) usage(argv[0]);
-			} else usage(argv[0]);
+				if(*endptr) usage(cmdname);
+			} else usage(cmdname);
 		} else {
 			if(!src_fn) {
 				src_fn = arg;
 			} else if(!dst_fn) {
 				dst_fn = arg;
 			} else {
-				usage(argv[0]);
+				usage(cmdname);
 			}
 		}
 	}
 
-	if(!src_fn || !dst_fn) usage(argv[0]);
-	if(mode_percentile + mode_stddev + mode_histeq > 1) usage(argv[0]);
-	if(mode_stddev && (dst_avg < 0 || dst_stddev < 0)) usage(argv[0]);
+	if(!src_fn || !dst_fn) usage(cmdname);
+	if(mode_percentile + mode_stddev + mode_histeq > 1) usage(cmdname);
+	if(mode_stddev && (dst_avg < 0 || dst_stddev < 0)) usage(cmdname);
 	if(mode_percentile && !(
 		0 <= from_percentile && 
 		from_percentile < to_percentile &&
-		to_percentile <= 1)) usage(argv[0]);
+		to_percentile <= 1)) usage(cmdname);
 
 	if(!output_format) output_format = "GTiff";
 

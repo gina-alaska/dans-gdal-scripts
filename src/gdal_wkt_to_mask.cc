@@ -39,8 +39,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 using namespace dangdal;
 
-void usage(const char *cmdname) {
-	printf("Usage:\n  %s [options] \n", cmdname);
+void usage(const std::string &cmdname) {
+	printf("Usage:\n  %s [options] \n", cmdname.c_str());
 	printf("\n");
 	
 	GeoOpts::printUsage();
@@ -53,6 +53,10 @@ void usage(const char *cmdname) {
 }
 
 int main(int argc, char **argv) {
+	const std::string cmdname = argv[0];
+	if(argc == 1) usage(cmdname);
+	std::vector<std::string> arg_list = argv_to_list(argc, argv);
+
 	char *wkt_fn = NULL;
 	char *mask_fn = NULL;
 	char *geo_fn = NULL;

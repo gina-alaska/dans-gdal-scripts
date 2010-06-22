@@ -30,8 +30,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 #include "common.h"
 
-void usage(const char *cmdname) {
-	printf("Usage: %s\n", cmdname);
+void usage(const std::string &cmdname) {
+	printf("Usage: %s\n", cmdname.c_str());
 	printf("\t-wh <width> <height>\n");
 	printf("\t-origin <left easting> <top northing>\n");
 	printf("\t-res <pixel_size>\n");
@@ -43,6 +43,10 @@ void usage(const char *cmdname) {
 }
 
 int main(int argc, char *argv[]) {
+	const std::string cmdname = argv[0];
+	if(argc == 1) usage(cmdname);
+	std::vector<std::string> arg_list = argv_to_list(argc, argv);
+
 	char *src_fn = NULL;
 	char *dst_fn = NULL;
 	size_t w=0, h=0;

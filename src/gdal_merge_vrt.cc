@@ -30,15 +30,19 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 #include "common.h"
 
-void usage(const char *cmdname) {
+void usage(const std::string &cmdname) {
 	printf("Usage:\n");
-	printf("    %s -in <rgb.tif> -in <mask.tif> -out <out.vrt>\n", cmdname);
+	printf("    %s -in <rgb.tif> -in <mask.tif> -out <out.vrt>\n", cmdname.c_str());
 	printf("\nMerges several images into one image with many bands.\n");
 	printf("This program is obsoleted by \"gdalbuildvrt -separate\" from GDAL 1.7.\n");
 	exit(1);
 }
 
 int main(int argc, char *argv[]) {
+	const std::string cmdname = argv[0];
+	if(argc == 1) usage(cmdname);
+	std::vector<std::string> arg_list = argv_to_list(argc, argv);
+
 	char *dst_fn = NULL;
 
 	std::vector<std::string> src_fn;

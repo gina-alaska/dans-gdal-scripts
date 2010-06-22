@@ -32,8 +32,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 using namespace dangdal;
 
-void usage(const char *cmdname) {
-	printf("Usage:\n  %s [options] [image_name] [mask_name.pbm]\n", cmdname);
+void usage(const std::string &cmdname) {
+	printf("Usage:\n  %s [options] [image_name] [mask_name.pbm]\n", cmdname.c_str());
 	printf("\n");
 	
 	NdvDef::printUsage();
@@ -51,6 +51,10 @@ Misc:\n\
 }
 
 int main(int argc, char **argv) {
+	const std::string cmdname = argv[0];
+	if(argc == 1) usage(cmdname);
+	std::vector<std::string> arg_list = argv_to_list(argc, argv);
+
 	char *input_raster_fn = NULL;
 
 	char *mask_out_fn = NULL;

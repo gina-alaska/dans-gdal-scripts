@@ -54,8 +54,8 @@ struct PointStats {
 	size_t contained;
 };
 
-void usage(const char *cmdname) {
-	printf("Usage: %s [options] \n", cmdname);
+void usage(const std::string &cmdname) {
+	printf("Usage: %s [options] \n", cmdname.c_str());
 	printf("  -s_wkt <fn>           File containing WKT of source region\n");
 	printf("  -t_bounds_wkt <fn>    File containing WKT for valid region of target SRS (optional)\n");
 	printf("  -s_srs <srs_def>      Source SRS\n");
@@ -102,13 +102,17 @@ bool picky_transform(
 }
 
 int main(int argc, char **argv) {
+	const std::string cmdname = argv[0];
+	if(argc == 1) usage(cmdname);
+	std::vector<std::string> arg_list = argv_to_list(argc, argv);
+
 	const char *src_wkt_fn = NULL;
 	const char *t_bounds_wkt_fn = NULL;
 	const char *s_srs = NULL;
 	const char *t_srs = NULL;
 	const char *report_fn = NULL;
 
-	if(argc == 1) usage(argv[0]);
+	if(argc == 1) usage(cmdname);
 
 	int argp = 1;
 	while(argp < argc) {
@@ -118,27 +122,27 @@ int main(int argc, char **argv) {
 			if(!strcmp(arg, "-v")) {
 				VERBOSE++;
 			} else if(!strcmp(arg, "-s_wkt")) {
-				if(argp == argc) usage(argv[0]);
+				if(argp == argc) usage(cmdname);
 				src_wkt_fn = argv[argp++];
 			} else if(!strcmp(arg, "-t_bounds_wkt")) {
-				if(argp == argc) usage(argv[0]);
+				if(argp == argc) usage(cmdname);
 				t_bounds_wkt_fn = argv[argp++];
 			} else if(!strcmp(arg, "-s_srs")) {
-				if(argp == argc) usage(argv[0]);
+				if(argp == argc) usage(cmdname);
 				s_srs = argv[argp++];
 			} else if(!strcmp(arg, "-t_srs")) {
-				if(argp == argc) usage(argv[0]);
+				if(argp == argc) usage(cmdname);
 				t_srs = argv[argp++];
 			} else if(!strcmp(arg, "-report")) {
-				if(argp == argc) usage(argv[0]);
+				if(argp == argc) usage(cmdname);
 				report_fn = argv[argp++];
-			} else usage(argv[0]);
+			} else usage(cmdname);
 		} else {
-			usage(argv[0]);
+			usage(cmdname);
 		}
 	}
 
-	if(!src_wkt_fn || !s_srs || !t_srs) usage(argv[0]);
+	if(!src_wkt_fn || !s_srs || !t_srs) usage(cmdname);
 
 	GDALAllRegister();
 

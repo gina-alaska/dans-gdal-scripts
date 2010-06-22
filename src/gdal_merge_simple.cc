@@ -32,15 +32,19 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 void copyGeoCode(GDALDatasetH dst_ds, GDALDatasetH src_ds);
 
-void usage(const char *cmdname) {
+void usage(const std::string &cmdname) {
 	printf("Usage:\n");
-	printf("    %s -in <rgb.tif> -in <mask.tif> -out <out.tif>\n", cmdname);
+	printf("    %s -in <rgb.tif> -in <mask.tif> -out <out.tif>\n", cmdname.c_str());
 	printf("\nMerges several images into one image with many bands.\n");
 	printf("Currently only 8-bit data is supported.\n");
 	exit(1);
 }
 
 int main(int argc, char *argv[]) {
+	const std::string cmdname = argv[0];
+	if(argc == 1) usage(cmdname);
+	std::vector<std::string> arg_list = argv_to_list(argc, argv);
+
 	const char *dst_fn = NULL;
 
 	std::vector<GDALDatasetH> src_ds;

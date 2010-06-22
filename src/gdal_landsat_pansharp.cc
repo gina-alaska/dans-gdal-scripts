@@ -46,8 +46,8 @@ void copyGeoCode(GDALDatasetH dst_ds, GDALDatasetH src_ds);
 scaled_band_t getScaledBand(GDALDatasetH lores_ds, int band_id, GDALDatasetH hires_ds);
 void readLineScaled(scaled_band_t &sb, int row, double *hires_buf);
 
-void usage(const char *cmdname) {
-	printf("Usage:\n %s\n", cmdname);
+void usage(const std::string &cmdname) {
+	printf("Usage:\n %s\n", cmdname.c_str());
 	printf("\
       -rgb <src_rgb.tif> [ -rgb <src.tif> ... ]\n\
       [ -lum <lum.tif> <weight> ... ] -pan <pan.tif>\n\
@@ -68,6 +68,10 @@ Examples:\n\
 }
 
 int main(int argc, char *argv[]) {
+	const std::string cmdname = argv[0];
+	if(argc == 1) usage(cmdname);
+	std::vector<std::string> arg_list = argv_to_list(argc, argv);
+
 	std::vector<GDALDatasetH> rgb_ds;
 	std::vector<GDALDatasetH> lum_ds;
 	std::vector<double> lum_weights;
