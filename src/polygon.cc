@@ -810,9 +810,9 @@ static std::string read_whole_file(FILE *fin) {
 	return accum;
 }
 
-Mpoly mpoly_from_wktfile(const char *fn) {
-	FILE *fh = fopen(fn, "r");
-	if(!fh) fatal_error("cannot read file [%s]", fn);
+Mpoly mpoly_from_wktfile(const std::string &fn) {
+	FILE *fh = fopen(fn.c_str(), "r");
+	if(!fh) fatal_error("cannot read file [%s]", fn.c_str());
 	std::string wkt = read_whole_file(fh);
 	for(size_t i=0; i<wkt.size(); i++) {
 		if(wkt[i] == '\r') wkt[i] = ' ';

@@ -100,8 +100,9 @@ extern int VERBOSE;
 #define MYALLOC(type, cnt) ((type *)_myalloc(sizeof(type) * (cnt)))
 #define REMYALLOC(type, buf, cnt) ((type *)_remyalloc(buf, sizeof(type) * (cnt)))
 
-// use the MYALLOC macro which wraps this function
+void fatal_error(const std::string &s) __attribute__((noreturn));
 void fatal_error(const char *s, ...) __attribute__((noreturn, format(printf, 1, 2)));
+// use the MYALLOC macro which wraps this function
 void *_myalloc(size_t size) __attribute__((malloc));
 void *_remyalloc(void *p, size_t size) __attribute__((warn_unused_result));
 std::vector<std::string> argv_to_list(int argc, char **argv);

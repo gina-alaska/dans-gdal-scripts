@@ -55,9 +55,8 @@ int main(int argc, char **argv) {
 	if(argc == 1) usage(cmdname);
 	std::vector<std::string> arg_list = argv_to_list(argc, argv);
 
-	char *input_raster_fn = NULL;
-
-	char *mask_out_fn = NULL;
+	std::string input_raster_fn;
+	std::string mask_out_fn;
 	bool do_erosion = 0;
 	bool do_invert = 0;
 	std::vector<size_t> inspect_bandids;
@@ -86,9 +85,9 @@ int main(int argc, char **argv) {
 				mask_out_fn = arg_list[argp++];
 			} else usage(cmdname);
 		} else {
-			if(!input_raster_fn) {
+			if(input_raster_fn.empty()) {
 				input_raster_fn = arg;
-			} else if(!mask_out_fn) {
+			} else if(mask_out_fn.empty()) {
 				mask_out_fn = arg;
 			} else {
 				usage(cmdname);
@@ -96,11 +95,11 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	if(!input_raster_fn || !mask_out_fn) usage(cmdname);
+	if(input_raster_fn.empty() || mask_out_fn.empty()) usage(cmdname);
 
 	GDALAllRegister();
 
-	GDALDatasetH ds = GDALOpen(input_raster_fn, GA_ReadOnly);
+	GDALDatasetH ds = GDALOpen(input_raster_fn.c_str(), GA_ReadOnly);
 	if(!ds) fatal_error("open failed");
 	size_t w = GDALGetRasterXSize(ds);
 	size_t h = GDALGetRasterYSize(ds);
@@ -130,7 +129,7 @@ int main(int argc, char **argv) {
 		mask.erode();
 	}
 
-	FILE *fout = fopen(mask_out_fn, "wb");
+	FILE *fout = fopen(mask_out_fn.c_str(), "wb");
 	if(!fout) fatal_error("cannot open mask output");
 	fprintf(fout, "P4\n%zd %zd\n", w, h);
 	std::vector<uint8_t> buf((w+7)/8);

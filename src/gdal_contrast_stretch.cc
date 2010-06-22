@@ -68,9 +68,9 @@ int main(int argc, char *argv[]) {
 	if(argc == 1) usage(cmdname);
 	std::vector<std::string> arg_list = argv_to_list(argc, argv);
 
-	const char *src_fn = NULL;
-	const char *dst_fn = NULL;
-	const char *output_format = NULL;
+	std::string src_fn;
+	std::string dst_fn;
+	std::string output_format;
 
 	char mode_histeq = 0;
 	char mode_stddev = 0;
@@ -130,9 +130,9 @@ int main(int argc, char *argv[]) {
 				if(*endptr) usage(cmdname);
 			} else usage(cmdname);
 		} else {
-			if(!src_fn) {
+			if(src_fn.empty()) {
 				src_fn = arg;
-			} else if(!dst_fn) {
+			} else if(dst_fn.empty()) {
 				dst_fn = arg;
 			} else {
 				usage(cmdname);
@@ -140,7 +140,7 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	if(!src_fn || !dst_fn) usage(cmdname);
+	if(src_fn.empty() || dst_fn.empty()) usage(cmdname);
 	if(mode_percentile + mode_stddev + mode_histeq > 1) usage(cmdname);
 	if(mode_stddev && (dst_avg < 0 || dst_stddev < 0)) usage(cmdname);
 	if(mode_percentile && !(
@@ -148,13 +148,13 @@ int main(int argc, char *argv[]) {
 		from_percentile < to_percentile &&
 		to_percentile <= 1)) usage(cmdname);
 
-	if(!output_format) output_format = "GTiff";
+	if(output_format.empty()) output_format = "GTiff";
 
 	GDALAllRegister();
 
 	//////// open source ////////
 
-	GDALDatasetH src_ds = GDALOpen(src_fn, GA_ReadOnly);
+	GDALDatasetH src_ds = GDALOpen(src_fn.c_str(), GA_ReadOnly);
 	if(!src_ds) fatal_error("open failed");
 
 	size_t w = GDALGetRasterXSize(src_ds);
@@ -200,9 +200,9 @@ int main(int argc, char *argv[]) {
 
 	printf("Output size is %zd x %zd x %zd\n", w, h, dst_band_count);
 
-	GDALDriverH dst_driver = GDALGetDriverByName(output_format);
-	if(!dst_driver) fatal_error("unrecognized output format (%s)", output_format);
-	GDALDatasetH dst_ds = GDALCreate(dst_driver, dst_fn, w, h, dst_band_count, GDT_Byte, NULL);
+	GDALDriverH dst_driver = GDALGetDriverByName(output_format.c_str());
+	if(!dst_driver) fatal_error("unrecognized output format (%s)", output_format.c_str());
+	GDALDatasetH dst_ds = GDALCreate(dst_driver, dst_fn.c_str(), w, h, dst_band_count, GDT_Byte, NULL);
 	if(!dst_ds) fatal_error("couldn't create output");
 	copyGeoCode(dst_ds, src_ds);
 

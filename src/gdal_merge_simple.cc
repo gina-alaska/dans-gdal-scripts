@@ -45,11 +45,9 @@ int main(int argc, char *argv[]) {
 	if(argc == 1) usage(cmdname);
 	std::vector<std::string> arg_list = argv_to_list(argc, argv);
 
-	const char *dst_fn = NULL;
-
+	std::string dst_fn;
 	std::vector<GDALDatasetH> src_ds;
-
-	const char *output_format = NULL;
+	std::string output_format;
 
 	GDALAllRegister();
 
@@ -58,12 +56,16 @@ int main(int argc, char *argv[]) {
 		const std::string &arg = arg_list[argp++];
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
-			if(arg == "-out") { if(argp == arg_list.size()) usage(cmdname); dst_fn = arg_list[argp++]; }
-			else if(arg == "-of") { if(argp == arg_list.size()) usage(cmdname); output_format = arg_list[argp++]; }
-			else if(arg == "-in") {
+			if(arg == "-out") {
+				if(argp == arg_list.size()) usage(cmdname); 
+				dst_fn = arg_list[argp++];
+			} else if(arg == "-of") { 
 				if(argp == arg_list.size()) usage(cmdname);
-				char *fn = arg_list[argp++];
-				GDALDatasetH ds = GDALOpen(fn, GA_ReadOnly);
+				output_format = arg_list[argp++];
+			} else if(arg == "-in") {
+				if(argp == arg_list.size()) usage(cmdname);
+				std::string fn = arg_list[argp++];
+				GDALDatasetH ds = GDALOpen(fn.c_str(), GA_ReadOnly);
 				if(!ds) fatal_error("open failed");
 				src_ds.push_back(ds); 
 			}
@@ -73,9 +75,9 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	if(!dst_fn) usage(cmdname);
+	if(dst_fn.empty()) usage(cmdname);
 
-	if(!output_format) output_format = "GTiff";
+	if(output_format.empty()) output_format = "GTiff";
 
 	//////// open source ////////
 
@@ -107,9 +109,9 @@ int main(int argc, char *argv[]) {
 
 	printf("Output size is %zd x %zd x %zd\n", w, h, band_count);
 
-	GDALDriverH dst_driver = GDALGetDriverByName(output_format);
-	if(!dst_driver) fatal_error("unrecognized output format (%s)", output_format);
-	GDALDatasetH dst_ds = GDALCreate(dst_driver, dst_fn, w, h, band_count, GDT_Byte, NULL);
+	GDALDriverH dst_driver = GDALGetDriverByName(output_format.c_str());
+	if(!dst_driver) fatal_error("unrecognized output format (%s)", output_format.c_str());
+	GDALDatasetH dst_ds = GDALCreate(dst_driver, dst_fn.c_str(), w, h, band_count, GDT_Byte, NULL);
 	if(!dst_ds) fatal_error("could not create output");
 	copyGeoCode(dst_ds, src_ds[0]);
 

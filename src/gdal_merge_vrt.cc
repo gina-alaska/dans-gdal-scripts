@@ -43,8 +43,7 @@ int main(int argc, char *argv[]) {
 	if(argc == 1) usage(cmdname);
 	std::vector<std::string> arg_list = argv_to_list(argc, argv);
 
-	char *dst_fn = NULL;
-
+	std::string dst_fn;
 	std::vector<std::string> src_fn;
 
 	GDALAllRegister();
@@ -54,11 +53,12 @@ int main(int argc, char *argv[]) {
 		const std::string &arg = arg_list[argp++];
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
-			if(arg == "-out") { if(argp == arg_list.size()) usage(cmdname); dst_fn = arg_list[argp++]; }
-			else if(arg == "-in") {
+			if(arg == "-out") {
 				if(argp == arg_list.size()) usage(cmdname);
-				char *fn = arg_list[argp++];
-				src_fn.push_back(fn); 
+				dst_fn = arg_list[argp++];
+			} else if(arg == "-in") {
+				if(argp == arg_list.size()) usage(cmdname);
+				src_fn.push_back(arg_list[argp++]);
 			}
 			else usage(cmdname);
 		} else {
@@ -67,7 +67,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	if(src_fn.empty()) usage(cmdname);
-	if(!dst_fn) usage(cmdname);
+	if(dst_fn.empty()) usage(cmdname);
 
 	std::vector<GDALDatasetH> src_ds;
 
@@ -91,7 +91,7 @@ int main(int argc, char *argv[]) {
 
 	GDALDriverH dst_driver = GDALGetDriverByName("VRT");
 	if(!dst_driver) fatal_error("unrecognized output format (VRT)");
-	GDALDatasetH dst_ds = GDALCreateCopy(dst_driver, dst_fn, src_ds[0], 0, NULL, NULL, NULL);
+	GDALDatasetH dst_ds = GDALCreateCopy(dst_driver, dst_fn.c_str(), src_ds[0], 0, NULL, NULL, NULL);
 	if(!dst_ds) fatal_error("could not create output");
 
 	int band_idx = GDALGetRasterCount(src_ds[0]);

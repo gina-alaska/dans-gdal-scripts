@@ -47,16 +47,16 @@ int main(int argc, char *argv[]) {
 	if(argc == 1) usage(cmdname);
 	std::vector<std::string> arg_list = argv_to_list(argc, argv);
 
-	char *src_fn = NULL;
-	char *dst_fn = NULL;
+	std::string src_fn;
+	std::string dst_fn;
 	size_t w=0, h=0;
 	double res=0;
 	double origin_e=0, origin_n=0;
 	double got_en=0;
-	char *srs = NULL;
+	std::string srs;
 	double ndv=0;
 	bool got_ndv=0;
-	const char *datatype = "UINT8";
+	std::string datatype = "UINT8";
 	double affine[6];
 	bool got_affine=0;
 	char endian=0;
@@ -120,9 +120,9 @@ int main(int argc, char *argv[]) {
 				endian = 'M';
 			} else usage(cmdname);
 		} else {
-			if(src_fn && dst_fn) {
+			if(src_fn.size() && dst_fn.size()) {
 				usage(cmdname);
-			} else if(src_fn) {
+			} else if(src_fn.size()) {
 				dst_fn = arg;
 			} else {
 				src_fn = arg;
@@ -131,8 +131,8 @@ int main(int argc, char *argv[]) {
 	}
 
 	if(!(
-		src_fn && dst_fn &&
-		w && h && srs
+		src_fn.size() && dst_fn.size() &&
+		w && h && srs.size()
 	)) usage(cmdname);
 
 	if(!got_affine) {
@@ -188,7 +188,7 @@ int main(int argc, char *argv[]) {
 	if(src_fn == "-") {
 		fin = stdin;
 	} else {
-		fin = fopen(src_fn, "r");
+		fin = fopen(src_fn.c_str(), "r");
 	}
 	if(!fin) fatal_error("could not open input");
 
@@ -198,13 +198,13 @@ int main(int argc, char *argv[]) {
 
 	GDALDriverH dst_driver = GDALGetDriverByName("GTiff");
 	if(!dst_driver) fatal_error("unrecognized output format (GTiff)");
-	GDALDatasetH dst_ds = GDALCreate(dst_driver, dst_fn, w, h, 1, gdal_dt, NULL);
+	GDALDatasetH dst_ds = GDALCreate(dst_driver, dst_fn.c_str(), w, h, 1, gdal_dt, NULL);
 	if(!dst_ds) fatal_error("couldn't create dst_dataset");
 
 	GDALSetGeoTransform(dst_ds, affine);
 
 	OGRSpatialReference output_srs;
-	if(output_srs.SetFromUserInput(srs) != OGRERR_NONE) {
+	if(output_srs.SetFromUserInput(srs.c_str()) != OGRERR_NONE) {
 		fatal_error("could not parse SRS");
 	}
 	char *wkt = NULL;

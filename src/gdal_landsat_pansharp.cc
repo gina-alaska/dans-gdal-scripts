@@ -102,15 +102,15 @@ int main(int argc, char *argv[]) {
 			else if(arg == "-pan") { if(argp == arg_list.size()) usage(cmdname); pan_fn = arg_list[argp++]; }
 			else if(arg == "-rgb") {
 				if(argp == arg_list.size()) usage(cmdname);
-				char *fn = arg_list[argp++];
-				GDALDatasetH ds = GDALOpen(fn, GA_ReadOnly);
+				std::string fn = arg_list[argp++];
+				GDALDatasetH ds = GDALOpen(fn.c_str(), GA_ReadOnly);
 				if(!ds) fatal_error("open failed");
 				rgb_ds.push_back(ds); 
 			}
 			else if(arg == "-lum") {
 				if(argp == arg_list.size()) usage(cmdname);
-				char *fn = arg_list[argp++];
-				GDALDatasetH ds = GDALOpen(fn, GA_ReadOnly);
+				std::string fn = arg_list[argp++];
+				GDALDatasetH ds = GDALOpen(fn.c_str(), GA_ReadOnly);
 				if(!ds) fatal_error("open failed");
 				lum_ds.push_back(ds); 
 				int nb = GDALGetRasterCount(ds);

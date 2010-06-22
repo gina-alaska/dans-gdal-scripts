@@ -75,12 +75,12 @@ int main(int argc, char **argv) {
 	if(argc == 1) usage(cmdname);
 	std::vector<std::string> arg_list = argv_to_list(argc, argv);
 
-	char *input_raster_fn = NULL;
+	std::string input_raster_fn;
 
 	bool inspect_rect4 = 0;
 	bool fuzzy_match = 0;
-	char *debug_report = NULL;
-	char *mask_out_fn = NULL;
+	std::string debug_report;
+	std::string mask_out_fn;
 	std::vector<size_t> inspect_bandids;
 	bool do_erosion = 0;
 
@@ -122,19 +122,19 @@ int main(int argc, char **argv) {
 				mask_out_fn = arg_list[argp++];
 			} else usage(cmdname);
 		} else {
-			if(input_raster_fn) usage(cmdname);
+			if(input_raster_fn.size()) usage(cmdname);
 			input_raster_fn = arg;
 		}
 	}
 
 	bool do_inspect = inspect_rect4;
-	if(do_inspect && !input_raster_fn) fatal_error("must specify filename of image");
+	if(do_inspect && input_raster_fn.empty()) fatal_error("must specify filename of image");
 
 	GDALAllRegister();
 
 	GDALDatasetH ds = NULL;
-	if(input_raster_fn) {
-		ds = GDALOpen(input_raster_fn, GA_ReadOnly);
+	if(input_raster_fn.size()) {
+		ds = GDALOpen(input_raster_fn.c_str(), GA_ReadOnly);
 		if(!ds) fatal_error("open failed");
 	}
 
@@ -144,12 +144,13 @@ int main(int argc, char **argv) {
 	}
 
 	if(!do_inspect) {
-		if(fuzzy_match)      fatal_error("-fuzzy-match option can only be used with -inspect-rect4 option");
-		if(!ndv_def.empty()) fatal_error("NDV options can only be used with -inspect-rect4 option");
-		if(debug_report)     fatal_error("-report option can only be used with -inspect-rect4 option");
-		if(mask_out_fn)      fatal_error("-mask-out option can only be used with -inspect-rect4 option");
-		if(inspect_bandids.size()) fatal_error("-b option can only be used with -inspect-rect4 option");
-		if(do_erosion)       fatal_error("-erosion option can only be used with -inspect-rect4 option");
+		std::string suffix(" can only be used with -inspect-rect4 option");
+		if(fuzzy_match)            fatal_error("-fuzzy-match option"+suffix);
+		if(!ndv_def.empty())       fatal_error("NDV options"+suffix);
+		if(debug_report.size())    fatal_error("-report option"+suffix);
+		if(mask_out_fn.size())     fatal_error("-mask-out option"+suffix);
+		if(inspect_bandids.size()) fatal_error("-b option"+suffix);
+		if(do_erosion)             fatal_error("-erosion option"+suffix);
 	}
 
 	CPLPushErrorHandler(CPLQuietErrorHandler);
@@ -163,7 +164,7 @@ int main(int argc, char **argv) {
 			ndv_def = NdvDef(ds, inspect_bandids);
 		}
 
-		if(debug_report) {
+		if(debug_report.size()) {
 			dbuf = new DebugPlot(georef.w, georef.h);
 			dbuf->mode = PLOT_RECT4;
 		}
@@ -203,11 +204,11 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	if(georef.s_srs && strlen(georef.s_srs)) {
-		fprintf(yaml_fh, "s_srs: '%s'\n", georef.s_srs);
+	if(georef.s_srs.size()) {
+		fprintf(yaml_fh, "s_srs: '%s'\n", georef.s_srs.c_str());
 	}
-	if(georef.units_name) {
-		fprintf(yaml_fh, "units_name: '%s'\n", georef.units_name);
+	if(georef.units_name.size()) {
+		fprintf(yaml_fh, "units_name: '%s'\n", georef.units_name.c_str());
 	}
 	if(georef.units_val) {
 		fprintf(yaml_fh, "units_val: %lf\n", georef.units_val);
@@ -267,7 +268,7 @@ int main(int argc, char **argv) {
 			fatal_error("could not find four-sided region");
 		}
 
-		if(mask_out_fn) {
+		if(mask_out_fn.size()) {
 			Mpoly bpoly;
 			bpoly.rings.push_back(rect4);
 

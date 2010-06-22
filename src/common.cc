@@ -33,6 +33,11 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 int VERBOSE = 0;
 
+void fatal_error(const std::string &s) {
+	fprintf(stderr, "\n\nerror:\n%s\n\n", s.c_str());
+	exit(1);
+}
+
 void fatal_error(const char *fmt, ...) {
 	va_list argp;
 	

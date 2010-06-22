@@ -57,9 +57,9 @@ int main(int argc, char **argv) {
 	if(argc == 1) usage(cmdname);
 	std::vector<std::string> arg_list = argv_to_list(argc, argv);
 
-	char *wkt_fn = NULL;
-	char *mask_fn = NULL;
-	char *geo_fn = NULL;
+	std::string wkt_fn;
+	std::string mask_fn;
+	std::string geo_fn;
 
 	GeoOpts geo_opts = GeoOpts(arg_list);
 
@@ -85,13 +85,13 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	if(!wkt_fn || !mask_fn) usage(cmdname);
+	if(wkt_fn.empty() || mask_fn.empty()) usage(cmdname);
 
 	GDALAllRegister();
 
 	GDALDatasetH ds = NULL;
-	if(geo_fn) {
-		ds = GDALOpen(geo_fn, GA_ReadOnly);
+	if(geo_fn.size()) {
+		ds = GDALOpen(geo_fn.c_str(), GA_ReadOnly);
 		if(!ds) fatal_error("open failed");
 	}
 

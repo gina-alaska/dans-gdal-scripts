@@ -143,7 +143,7 @@ Vertex line_line_intersection(
 	Vertex p3, Vertex p4
 );
 RingRelation ring_ring_relation(const Ring &r1, const Ring &r2);
-Mpoly mpoly_from_wktfile(const char *fn);
+Mpoly mpoly_from_wktfile(const std::string &fn);
 
 } // namespace dangdal
 

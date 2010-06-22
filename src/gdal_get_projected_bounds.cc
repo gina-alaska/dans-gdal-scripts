@@ -33,7 +33,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 using namespace dangdal;
 
-void plot_points(const Ring &pl, const char *fn);
+void plot_points(const Ring &pl, const std::string &fn);
 
 struct PointStats {
 	PointStats() : 
@@ -106,11 +106,11 @@ int main(int argc, char **argv) {
 	if(argc == 1) usage(cmdname);
 	std::vector<std::string> arg_list = argv_to_list(argc, argv);
 
-	const char *src_wkt_fn = NULL;
-	const char *t_bounds_wkt_fn = NULL;
-	const char *s_srs = NULL;
-	const char *t_srs = NULL;
-	const char *report_fn = NULL;
+	std::string src_wkt_fn;
+	std::string t_bounds_wkt_fn;
+	std::string s_srs;
+	std::string t_srs;
+	std::string report_fn;
 
 	size_t argp = 1;
 	while(argp < arg_list.size()) {
@@ -140,7 +140,7 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	if(!src_wkt_fn || !s_srs || !t_srs) usage(cmdname);
+	if(src_wkt_fn.empty() || s_srs.empty() || t_srs.empty()) usage(cmdname);
 
 	GDALAllRegister();
 
@@ -149,11 +149,11 @@ int main(int argc, char **argv) {
 	///////////////////////
 	
 	OGRSpatialReferenceH s_sref = OSRNewSpatialReference(NULL);
-	if(OSRImportFromProj4(s_sref, s_srs) != OGRERR_NONE)
+	if(OSRImportFromProj4(s_sref, s_srs.c_str()) != OGRERR_NONE)
 		fatal_error("cannot parse proj4 definition for -s_srs");
 
 	OGRSpatialReferenceH t_sref = OSRNewSpatialReference(NULL);
-	if(OSRImportFromProj4(t_sref, t_srs) != OGRERR_NONE)
+	if(OSRImportFromProj4(t_sref, t_srs.c_str()) != OGRERR_NONE)
 		fatal_error("cannot parse proj4 definition for -t_srs");
 
 	OGRCoordinateTransformationH fwd_xform = 
@@ -167,7 +167,7 @@ int main(int argc, char **argv) {
 	Mpoly t_bounds_mp;
 	bool use_t_bounds;
 	Bbox t_bounds_bbox;
-	if(t_bounds_wkt_fn) {
+	if(t_bounds_wkt_fn.size()) {
 		use_t_bounds = 1;
 		t_bounds_mp = mpoly_from_wktfile(t_bounds_wkt_fn);
 		t_bounds_bbox = t_bounds_mp.getBbox();
@@ -302,12 +302,12 @@ int main(int argc, char **argv) {
 	printf("  max_e: %.15f\n", bbox.max_x);
 	printf("  max_n: %.15f\n", bbox.max_y);
 
-	if(report_fn) plot_points(pl, report_fn);
+	if(report_fn.size()) plot_points(pl, report_fn);
 
 	return 0;
 }
 
-void plot_points(const Ring &pl, const char *fn) {
+void plot_points(const Ring &pl, const std::string &fn) {
 	Bbox bbox = pl.getBbox();
 	bbox.min_x -= (bbox.max_x - bbox.min_x) * .05;
 	bbox.max_x += (bbox.max_x - bbox.min_x) * .05;
