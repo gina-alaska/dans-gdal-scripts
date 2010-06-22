@@ -84,52 +84,52 @@ int main(int argc, char *argv[]) {
 
 	GDALAllRegister();
 
-	int argp = 1;
+	size_t argp = 1;
 	while(argp < argc) {
-		char *arg = argv[argp++];
+		const std::string &arg = arg_list[argp++];
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
 			if(!strcmp(arg, "-ndv")) {
-				if(argp == argc) usage(argv[0]);
+				if(argp == argc) usage(cmdname);
 				char *endptr;
-				ndv = (double)strtol(argv[argp++], &endptr, 10);
+				ndv = (double)strtol(arg_list[argp++], &endptr, 10);
 				use_ndv++;
-				if(*endptr) usage(argv[0]);
+				if(*endptr) usage(cmdname);
 				if(ndv < 0 || ndv > 255) fatal_error("no_data_val must be in the range 0-255");
 			} 
-			else if(!strcmp(arg, "-of" )) { if(argp == argc) usage(argv[0]); output_format = argv[argp++]; }
-			else if(!strcmp(arg, "-o"  )) { if(argp == argc) usage(argv[0]); dst_fn = argv[argp++]; }
-			else if(!strcmp(arg, "-pan")) { if(argp == argc) usage(argv[0]); pan_fn = argv[argp++]; }
+			else if(!strcmp(arg, "-of" )) { if(argp == argc) usage(cmdname); output_format = arg_list[argp++]; }
+			else if(!strcmp(arg, "-o"  )) { if(argp == argc) usage(cmdname); dst_fn = arg_list[argp++]; }
+			else if(!strcmp(arg, "-pan")) { if(argp == argc) usage(cmdname); pan_fn = arg_list[argp++]; }
 			else if(!strcmp(arg, "-rgb")) {
-				if(argp == argc) usage(argv[0]);
-				char *fn = argv[argp++];
+				if(argp == argc) usage(cmdname);
+				char *fn = arg_list[argp++];
 				GDALDatasetH ds = GDALOpen(fn, GA_ReadOnly);
 				if(!ds) fatal_error("open failed");
 				rgb_ds.push_back(ds); 
 			}
 			else if(!strcmp(arg, "-lum")) {
-				if(argp == argc) usage(argv[0]);
-				char *fn = argv[argp++];
+				if(argp == argc) usage(cmdname);
+				char *fn = arg_list[argp++];
 				GDALDatasetH ds = GDALOpen(fn, GA_ReadOnly);
 				if(!ds) fatal_error("open failed");
 				lum_ds.push_back(ds); 
 				int nb = GDALGetRasterCount(ds);
 				while(nb) {
-					if(argp == argc) usage(argv[0]);
+					if(argp == argc) usage(cmdname);
 					char *endptr;
-					double w = strtod(argv[argp++], &endptr);
-					if(*endptr) usage(argv[0]);
+					double w = strtod(arg_list[argp++], &endptr);
+					if(*endptr) usage(cmdname);
 					lum_weights.push_back(w);
 					nb--;
 				}
 			}
-			else usage(argv[0]);
+			else usage(cmdname);
 		} else {
-			usage(argv[0]);
+			usage(cmdname);
 		}
 	}
 
-	if(pan_fn.empty() || dst_fn.empty()) usage(argv[0]);
+	if(pan_fn.empty() || dst_fn.empty()) usage(cmdname);
 
 	if(output_format.empty()) output_format = "GTiff";
 
@@ -156,7 +156,7 @@ int main(int argc, char *argv[]) {
 		}
 	}
 	size_t rgb_band_count = rgb_bands.size();
-	if(!rgb_band_count) usage(argv[0]);
+	if(!rgb_band_count) usage(cmdname);
 
 	std::vector<scaled_band_t> lum_bands;
 	if(lum_ds.size()) {

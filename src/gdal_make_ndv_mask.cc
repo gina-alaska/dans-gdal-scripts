@@ -62,43 +62,43 @@ int main(int argc, char **argv) {
 	bool do_invert = 0;
 	std::vector<size_t> inspect_bandids;
 
-	if(argc == 1) usage(argv[0]);
+	if(argc == 1) usage(cmdname);
 
-	NdvDef ndv_def = NdvDef(&argc, &argv);
+	NdvDef ndv_def = NdvDef(arg_list);
 
-	int argp = 1;
+	size_t argp = 1;
 	while(argp < argc) {
-		char *arg = argv[argp++];
+		const std::string &arg = arg_list[argp++];
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
 			if(!strcmp(arg, "-v")) {
 				VERBOSE++;
 			} else if(!strcmp(arg, "-b")) {
-				if(argp == argc) usage(argv[0]);
+				if(argp == argc) usage(cmdname);
 				char *endptr;
-				int bandid = (int)strtol(argv[argp++], &endptr, 10);
-				if(*endptr) usage(argv[0]);
+				int bandid = (int)strtol(arg_list[argp++], &endptr, 10);
+				if(*endptr) usage(cmdname);
 				inspect_bandids.push_back(bandid);
 			} else if(!strcmp(arg, "-erosion")) {
 				do_erosion = 1;
 			} else if(!strcmp(arg, "-invert")) {
 				do_invert = 1;
 			} else if(!strcmp(arg, "-mask-out")) {
-				if(argp == argc) usage(argv[0]);
-				mask_out_fn = argv[argp++];
-			} else usage(argv[0]);
+				if(argp == argc) usage(cmdname);
+				mask_out_fn = arg_list[argp++];
+			} else usage(cmdname);
 		} else {
 			if(!input_raster_fn) {
 				input_raster_fn = arg;
 			} else if(!mask_out_fn) {
 				mask_out_fn = arg;
 			} else {
-				usage(argv[0]);
+				usage(cmdname);
 			}
 		}
 	}
 
-	if(!input_raster_fn || !mask_out_fn) usage(argv[0]);
+	if(!input_raster_fn || !mask_out_fn) usage(cmdname);
 
 	GDALAllRegister();
 

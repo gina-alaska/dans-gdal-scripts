@@ -81,49 +81,49 @@ int main(int argc, char *argv[]) {
 	double to_percentile = -1;
 	int out_ndv = 0, set_out_ndv = 0;
 
-	NdvDef ndv_def = NdvDef(&argc, &argv);
+	NdvDef ndv_def = NdvDef(arg_list);
 
-	int argp = 1;
+	size_t argp = 1;
 	while(argp < argc) {
-		char *arg = argv[argp++];
+		const std::string &arg = arg_list[argp++];
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
 			if(!strcmp(arg, "-of")) {
 				if(argp == argc) usage(cmdname);
-				output_format = argv[argp++];
+				output_format = arg_list[argp++];
 			} else if(!strcmp(arg, "-linear-stretch")) {
 				if(argp == argc) usage(cmdname);
 				char *endptr;
-				dst_avg = strtod(argv[argp++], &endptr);
+				dst_avg = strtod(arg_list[argp++], &endptr);
 				if(*endptr) usage(cmdname);
 
 				if(argp == argc) usage(cmdname);
-				dst_stddev = strtod(argv[argp++], &endptr);
+				dst_stddev = strtod(arg_list[argp++], &endptr);
 				if(*endptr) usage(cmdname);
 
 				mode_stddev = 1;
 			} else if(!strcmp(arg, "-percentile-range")) {
 				if(argp == argc) usage(cmdname);
 				char *endptr;
-				from_percentile = strtod(argv[argp++], &endptr);
+				from_percentile = strtod(arg_list[argp++], &endptr);
 				if(*endptr) usage(cmdname);
 
 				if(argp == argc) usage(cmdname);
-				to_percentile = strtod(argv[argp++], &endptr);
+				to_percentile = strtod(arg_list[argp++], &endptr);
 				if(*endptr) usage(cmdname);
 
 				mode_percentile = 1;
 			} else if(!strcmp(arg, "-histeq")) {
 				if(argp == argc) usage(cmdname);
 				char *endptr;
-				dst_stddev = strtod(argv[argp++], &endptr);
+				dst_stddev = strtod(arg_list[argp++], &endptr);
 				if(*endptr) usage(cmdname);
 
 				mode_histeq = 1;
 			} else if(!strcmp(arg, "-outndv")) {
  				if(argp == argc) usage(cmdname);
 				char *endptr;
-				long ndv_long = strtol(argv[argp++], &endptr, 10);
+				long ndv_long = strtol(arg_list[argp++], &endptr, 10);
 				out_ndv = (uint8_t)ndv_long;
 				if(ndv_long != (long)out_ndv) fatal_error("ndv must be in the range 0..255");
 				set_out_ndv++;

@@ -84,7 +84,7 @@ int main(int argc, char **argv) {
 	std::vector<size_t> inspect_bandids;
 	bool do_erosion = 0;
 
-	if(argc == 1) usage(argv[0]);
+	if(argc == 1) usage(cmdname);
 
 	// We will be sending YAML to stdout, so stuff that would normally
 	// go to stdout (such as debug messages or progress bars) should
@@ -94,12 +94,12 @@ int main(int argc, char **argv) {
 	close(1);
 	dup2(2, 1);
 
-	GeoOpts geo_opts = GeoOpts(&argc, &argv);
-	NdvDef ndv_def = NdvDef(&argc, &argv);
+	GeoOpts geo_opts = GeoOpts(arg_list);
+	NdvDef ndv_def = NdvDef(arg_list);
 
-	int argp = 1;
+	size_t argp = 1;
 	while(argp < argc) {
-		char *arg = argv[argp++];
+		const std::string &arg = arg_list[argp++];
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
 			if(!strcmp(arg, "-v")) {
@@ -109,22 +109,22 @@ int main(int argc, char **argv) {
 			} else if(!strcmp(arg, "-fuzzy-match")) {
 				fuzzy_match = 1;
 			} else if(!strcmp(arg, "-b")) {
-				if(argp == argc) usage(argv[0]);
+				if(argp == argc) usage(cmdname);
 				char *endptr;
-				int bandid = strtol(argv[argp++], &endptr, 10);
-				if(*endptr) usage(argv[0]);
+				int bandid = strtol(arg_list[argp++], &endptr, 10);
+				if(*endptr) usage(cmdname);
 				inspect_bandids.push_back(bandid);
 			} else if(!strcmp(arg, "-erosion")) {
 				do_erosion = 1;
 			} else if(!strcmp(arg, "-report")) {
-				if(argp == argc) usage(argv[0]);
-				debug_report = argv[argp++];
+				if(argp == argc) usage(cmdname);
+				debug_report = arg_list[argp++];
 			} else if(!strcmp(arg, "-mask-out")) {
-				if(argp == argc) usage(argv[0]);
-				mask_out_fn = argv[argp++];
-			} else usage(argv[0]);
+				if(argp == argc) usage(cmdname);
+				mask_out_fn = arg_list[argp++];
+			} else usage(cmdname);
 		} else {
-			if(input_raster_fn) usage(argv[0]);
+			if(input_raster_fn) usage(cmdname);
 			input_raster_fn = arg;
 		}
 	}

@@ -53,27 +53,27 @@ int main(int argc, char *argv[]) {
 
 	GDALAllRegister();
 
-	int argp = 1;
+	size_t argp = 1;
 	while(argp < argc) {
-		char *arg = argv[argp++];
+		const std::string &arg = arg_list[argp++];
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
-			if(!strcmp(arg, "-out")) { if(argp == argc) usage(argv[0]); dst_fn = argv[argp++]; }
-			else if(!strcmp(arg, "-of")) { if(argp == argc) usage(argv[0]); output_format = argv[argp++]; }
+			if(!strcmp(arg, "-out")) { if(argp == argc) usage(cmdname); dst_fn = arg_list[argp++]; }
+			else if(!strcmp(arg, "-of")) { if(argp == argc) usage(cmdname); output_format = arg_list[argp++]; }
 			else if(!strcmp(arg, "-in")) {
-				if(argp == argc) usage(argv[0]);
-				char *fn = argv[argp++];
+				if(argp == argc) usage(cmdname);
+				char *fn = arg_list[argp++];
 				GDALDatasetH ds = GDALOpen(fn, GA_ReadOnly);
 				if(!ds) fatal_error("open failed");
 				src_ds.push_back(ds); 
 			}
-			else usage(argv[0]);
+			else usage(cmdname);
 		} else {
-			usage(argv[0]);
+			usage(cmdname);
 		}
 	}
 
-	if(!dst_fn) usage(argv[0]);
+	if(!dst_fn) usage(cmdname);
 
 	if(!output_format) output_format = "GTiff";
 
@@ -101,7 +101,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	size_t band_count = src_bands.size();
-	if(!band_count) usage(argv[0]);
+	if(!band_count) usage(cmdname);
 
 	//////// open output ////////
 

@@ -114,28 +114,28 @@ int main(int argc, char **argv) {
 
 	if(argc == 1) usage(cmdname);
 
-	int argp = 1;
+	size_t argp = 1;
 	while(argp < argc) {
-		char *arg = argv[argp++];
+		const std::string &arg = arg_list[argp++];
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
 			if(!strcmp(arg, "-v")) {
 				VERBOSE++;
 			} else if(!strcmp(arg, "-s_wkt")) {
 				if(argp == argc) usage(cmdname);
-				src_wkt_fn = argv[argp++];
+				src_wkt_fn = arg_list[argp++];
 			} else if(!strcmp(arg, "-t_bounds_wkt")) {
 				if(argp == argc) usage(cmdname);
-				t_bounds_wkt_fn = argv[argp++];
+				t_bounds_wkt_fn = arg_list[argp++];
 			} else if(!strcmp(arg, "-s_srs")) {
 				if(argp == argc) usage(cmdname);
-				s_srs = argv[argp++];
+				s_srs = arg_list[argp++];
 			} else if(!strcmp(arg, "-t_srs")) {
 				if(argp == argc) usage(cmdname);
-				t_srs = argv[argp++];
+				t_srs = arg_list[argp++];
 			} else if(!strcmp(arg, "-report")) {
 				if(argp == argc) usage(cmdname);
-				report_fn = argv[argp++];
+				report_fn = arg_list[argp++];
 			} else usage(cmdname);
 		} else {
 			usage(cmdname);

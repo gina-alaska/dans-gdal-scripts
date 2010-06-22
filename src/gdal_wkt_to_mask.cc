@@ -61,33 +61,33 @@ int main(int argc, char **argv) {
 	char *mask_fn = NULL;
 	char *geo_fn = NULL;
 
-	if(argc == 1) usage(argv[0]);
+	if(argc == 1) usage(cmdname);
 
-	GeoOpts geo_opts = GeoOpts(&argc, &argv);
+	GeoOpts geo_opts = GeoOpts(arg_list);
 
-	int argp = 1;
+	size_t argp = 1;
 	while(argp < argc) {
-		char *arg = argv[argp++];
+		const std::string &arg = arg_list[argp++];
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
 			if(!strcmp(arg, "-v")) {
 				VERBOSE++;
 			} else if(!strcmp(arg, "-wkt")) {
-				if(argp == argc) usage(argv[0]);
-				wkt_fn = argv[argp++];
+				if(argp == argc) usage(cmdname);
+				wkt_fn = arg_list[argp++];
 			} else if(!strcmp(arg, "-mask-out")) {
-				if(argp == argc) usage(argv[0]);
-				mask_fn = argv[argp++];
+				if(argp == argc) usage(cmdname);
+				mask_fn = arg_list[argp++];
 			} else if(!strcmp(arg, "-geo-from")) {
-				if(argp == argc) usage(argv[0]);
-				geo_fn = argv[argp++];
-			} else usage(argv[0]);
+				if(argp == argc) usage(cmdname);
+				geo_fn = arg_list[argp++];
+			} else usage(cmdname);
 		} else {
-			usage(argv[0]);
+			usage(cmdname);
 		}
 	}
 
-	if(!wkt_fn || !mask_fn) usage(argv[0]);
+	if(!wkt_fn || !mask_fn) usage(cmdname);
 
 	GDALAllRegister();
 

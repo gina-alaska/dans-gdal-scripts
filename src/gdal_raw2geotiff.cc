@@ -61,67 +61,67 @@ int main(int argc, char *argv[]) {
 	bool got_affine=0;
 	char endian=0;
 
-	int argp = 1;
+	size_t argp = 1;
 	while(argp < argc) {
-		char *arg = argv[argp++];
+		const std::string &arg = arg_list[argp++];
 		// FIXME - check for duplicate values
 		if(arg[0] == '-' && arg[1]) {
 			if(!strcmp(arg, "-wh")) {
 				char *endptr;
 
-				if(argp == argc) usage(argv[0]);
-				w = (int)strtol(argv[argp++], &endptr, 10);
-				if(*endptr) usage(argv[0]);
+				if(argp == argc) usage(cmdname);
+				w = (int)strtol(arg_list[argp++], &endptr, 10);
+				if(*endptr) usage(cmdname);
 
-				if(argp == argc) usage(argv[0]);
-				h = (int)strtol(argv[argp++], &endptr, 10);
-				if(*endptr) usage(argv[0]);
+				if(argp == argc) usage(cmdname);
+				h = (int)strtol(arg_list[argp++], &endptr, 10);
+				if(*endptr) usage(cmdname);
 			} else if(!strcmp(arg, "-affine")) {
 				for(int i=0; i<6; i++) {
-					if(argp == argc) usage(argv[0]);
+					if(argp == argc) usage(cmdname);
 					char *endptr;
-					affine[i] = strtod(argv[argp++], &endptr);
-					if(*endptr) usage(argv[0]);
+					affine[i] = strtod(arg_list[argp++], &endptr);
+					if(*endptr) usage(cmdname);
 				}
 				got_affine = 1;
 			} else if(!strcmp(arg, "-res")) {
-				if(argp == argc) usage(argv[0]);
+				if(argp == argc) usage(cmdname);
 				char *endptr;
-				res = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
+				res = strtod(arg_list[argp++], &endptr);
+				if(*endptr) usage(cmdname);
 			} else if(!strcmp(arg, "-origin")) {
 				char *endptr;
 
-				if(argp == argc) usage(argv[0]);
-				origin_e = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
+				if(argp == argc) usage(cmdname);
+				origin_e = strtod(arg_list[argp++], &endptr);
+				if(*endptr) usage(cmdname);
 
-				if(argp == argc) usage(argv[0]);
-				origin_n = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
+				if(argp == argc) usage(cmdname);
+				origin_n = strtod(arg_list[argp++], &endptr);
+				if(*endptr) usage(cmdname);
 
 				got_en++;
 			} else if(!strcmp(arg, "-srs")) {
-				if(argp == argc) usage(argv[0]);
-				srs = argv[argp++];
+				if(argp == argc) usage(cmdname);
+				srs = arg_list[argp++];
 			} else if(!strcmp(arg, "-ndv")) {
-				if(argp == argc) usage(argv[0]);
+				if(argp == argc) usage(cmdname);
 				char *endptr;
-				ndv = strtod(argv[argp++], &endptr);
-				if(*endptr) usage(argv[0]);
+				ndv = strtod(arg_list[argp++], &endptr);
+				if(*endptr) usage(cmdname);
 
 				got_ndv = 1;
 			} else if(!strcmp(arg, "-datatype")) {
-				if(argp == argc) usage(argv[0]);
-				datatype = argv[argp++];
+				if(argp == argc) usage(cmdname);
+				datatype = arg_list[argp++];
 			} else if(!strcmp(arg, "-lsb")) {
 				endian = 'L';
 			} else if(!strcmp(arg, "-msb")) {
 				endian = 'M';
-			} else usage(argv[0]);
+			} else usage(cmdname);
 		} else {
 			if(src_fn && dst_fn) {
-				usage(argv[0]);
+				usage(cmdname);
 			} else if(src_fn) {
 				dst_fn = arg;
 			} else {
@@ -133,10 +133,10 @@ int main(int argc, char *argv[]) {
 	if(!(
 		src_fn && dst_fn &&
 		w && h && srs
-	)) usage(argv[0]);
+	)) usage(cmdname);
 
 	if(!got_affine) {
-		if(!(res && got_en)) usage(argv[0]);
+		if(!(res && got_en)) usage(cmdname);
 		affine[0] = origin_e;
 		affine[1] = res;
 		affine[2] = 0;

@@ -49,25 +49,25 @@ int main(int argc, char *argv[]) {
 
 	GDALAllRegister();
 
-	int argp = 1;
+	size_t argp = 1;
 	while(argp < argc) {
-		char *arg = argv[argp++];
+		const std::string &arg = arg_list[argp++];
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
-			if(!strcmp(arg, "-out")) { if(argp == argc) usage(argv[0]); dst_fn = argv[argp++]; }
+			if(!strcmp(arg, "-out")) { if(argp == argc) usage(cmdname); dst_fn = arg_list[argp++]; }
 			else if(!strcmp(arg, "-in")) {
-				if(argp == argc) usage(argv[0]);
-				char *fn = argv[argp++];
+				if(argp == argc) usage(cmdname);
+				char *fn = arg_list[argp++];
 				src_fn.push_back(fn); 
 			}
-			else usage(argv[0]);
+			else usage(cmdname);
 		} else {
-			usage(argv[0]);
+			usage(cmdname);
 		}
 	}
 
-	if(src_fn.empty()) usage(argv[0]);
-	if(!dst_fn) usage(argv[0]);
+	if(src_fn.empty()) usage(cmdname);
+	if(!dst_fn) usage(cmdname);
 
 	std::vector<GDALDatasetH> src_ds;
 
