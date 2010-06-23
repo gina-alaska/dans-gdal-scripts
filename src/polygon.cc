@@ -59,14 +59,14 @@ std::vector<Bbox> Mpoly::getRingBboxes() const {
 	return bboxes;
 }
 
-void Bbox::expand(const Bbox bb) {
+void Bbox::expand(const Bbox &bb) {
 	if(bb.empty) {
 		// no-op
 	} else if(empty) {
 		*this = bb;
 	} else {
-		expand(Vertex(min_x, min_y));
-		expand(Vertex(max_x, max_y));
+		expand(Vertex(bb.min_x, bb.min_y));
+		expand(Vertex(bb.max_x, bb.max_y));
 	}
 }
 

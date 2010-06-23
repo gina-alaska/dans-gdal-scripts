@@ -76,7 +76,7 @@ public:
 		}
 	}
 
-	void expand(const Bbox bb);
+	void expand(const Bbox &bb);
 
 	double min_x, max_x, min_y, max_y;
 	bool empty;
