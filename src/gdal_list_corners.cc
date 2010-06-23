@@ -26,6 +26,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 
+#include <boost/lexical_cast.hpp>
+
 #include "common.h"
 #include "polygon.h"
 #include "polygon-rasterizer.h"
@@ -100,28 +102,30 @@ int main(int argc, char **argv) {
 		const std::string &arg = arg_list[argp++];
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
-			if(arg == "-v") {
-				VERBOSE++;
-			} else if(arg == "-inspect-rect4") {
-				inspect_rect4 = 1;
-			} else if(arg == "-fuzzy-match") {
-				fuzzy_match = 1;
-			} else if(arg == "-b") {
-				if(argp == arg_list.size()) usage(cmdname);
-				char *endptr;
-				int bandid = strtol(arg_list[argp++].c_str(), &endptr, 10);
-				if(*endptr) usage(cmdname);
-				inspect_bandids.push_back(bandid);
-			} else if(arg == "-erosion") {
-				do_erosion = 1;
-			} else if(arg == "-report") {
-				if(argp == arg_list.size()) usage(cmdname);
-				debug_report = arg_list[argp++];
-			} else if(arg == "-mask-out") {
-				if(argp == arg_list.size()) usage(cmdname);
-				mask_out_fn = arg_list[argp++];
-			} else {
-				usage(cmdname);
+			try {
+				if(arg == "-v") {
+					VERBOSE++;
+				} else if(arg == "-inspect-rect4") {
+					inspect_rect4 = 1;
+				} else if(arg == "-fuzzy-match") {
+					fuzzy_match = 1;
+				} else if(arg == "-b") {
+					if(argp == arg_list.size()) usage(cmdname);
+					int bandid = boost::lexical_cast<int>(arg_list[argp++]);
+					inspect_bandids.push_back(bandid);
+				} else if(arg == "-erosion") {
+					do_erosion = 1;
+				} else if(arg == "-report") {
+					if(argp == arg_list.size()) usage(cmdname);
+					debug_report = arg_list[argp++];
+				} else if(arg == "-mask-out") {
+					if(argp == arg_list.size()) usage(cmdname);
+					mask_out_fn = arg_list[argp++];
+				} else {
+					usage(cmdname);
+				}
+			} catch(boost::bad_lexical_cast &e) {
+				fatal_error("cannot parse number given on command line");
 			}
 		} else {
 			if(input_raster_fn.size()) usage(cmdname);

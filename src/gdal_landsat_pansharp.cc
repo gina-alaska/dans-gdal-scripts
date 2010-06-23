@@ -28,6 +28,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 #include "common.h"
 
+#include <boost/lexical_cast.hpp>
+
 #include <vector>
 
 struct ScaledBand {
@@ -89,41 +91,41 @@ int main(int argc, char *argv[]) {
 		const std::string &arg = arg_list[argp++];
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
-			if(arg == "-ndv") {
-				if(argp == arg_list.size()) usage(cmdname);
-				char *endptr;
-				ndv = (double)strtol(arg_list[argp++].c_str(), &endptr, 10);
-				use_ndv++;
-				if(*endptr) usage(cmdname);
-				if(ndv < 0 || ndv > 255) fatal_error("no_data_val must be in the range 0-255");
-			} 
-			else if(arg == "-of" ) { if(argp == arg_list.size()) usage(cmdname); output_format = arg_list[argp++]; }
-			else if(arg == "-o"  ) { if(argp == arg_list.size()) usage(cmdname); dst_fn = arg_list[argp++]; }
-			else if(arg == "-pan") { if(argp == arg_list.size()) usage(cmdname); pan_fn = arg_list[argp++]; }
-			else if(arg == "-rgb") {
-				if(argp == arg_list.size()) usage(cmdname);
-				std::string fn = arg_list[argp++];
-				GDALDatasetH ds = GDALOpen(fn.c_str(), GA_ReadOnly);
-				if(!ds) fatal_error("open failed");
-				rgb_ds.push_back(ds); 
-			}
-			else if(arg == "-lum") {
-				if(argp == arg_list.size()) usage(cmdname);
-				std::string fn = arg_list[argp++];
-				GDALDatasetH ds = GDALOpen(fn.c_str(), GA_ReadOnly);
-				if(!ds) fatal_error("open failed");
-				lum_ds.push_back(ds); 
-				int nb = GDALGetRasterCount(ds);
-				while(nb) {
+			try {
+				if(arg == "-ndv") {
 					if(argp == arg_list.size()) usage(cmdname);
-					char *endptr;
-					double w = strtod(arg_list[argp++].c_str(), &endptr);
-					if(*endptr) usage(cmdname);
-					lum_weights.push_back(w);
-					nb--;
+					ndv = boost::lexical_cast<int>(arg_list[argp++].c_str());
+					use_ndv++;
+					if(ndv < 0 || ndv > 255) fatal_error("no_data_val must be in the range 0-255");
+				} 
+				else if(arg == "-of" ) { if(argp == arg_list.size()) usage(cmdname); output_format = arg_list[argp++]; }
+				else if(arg == "-o"  ) { if(argp == arg_list.size()) usage(cmdname); dst_fn = arg_list[argp++]; }
+				else if(arg == "-pan") { if(argp == arg_list.size()) usage(cmdname); pan_fn = arg_list[argp++]; }
+				else if(arg == "-rgb") {
+					if(argp == arg_list.size()) usage(cmdname);
+					std::string fn = arg_list[argp++];
+					GDALDatasetH ds = GDALOpen(fn.c_str(), GA_ReadOnly);
+					if(!ds) fatal_error("open failed");
+					rgb_ds.push_back(ds); 
 				}
-			} else {
-				usage(cmdname);
+				else if(arg == "-lum") {
+					if(argp == arg_list.size()) usage(cmdname);
+					std::string fn = arg_list[argp++];
+					GDALDatasetH ds = GDALOpen(fn.c_str(), GA_ReadOnly);
+					if(!ds) fatal_error("open failed");
+					lum_ds.push_back(ds); 
+					int nb = GDALGetRasterCount(ds);
+					while(nb) {
+						if(argp == arg_list.size()) usage(cmdname);
+						double w = boost::lexical_cast<double>(arg_list[argp++]);
+						lum_weights.push_back(w);
+						nb--;
+					}
+				} else {
+					usage(cmdname);
+				}
+			} catch(boost::bad_lexical_cast &e) {
+				fatal_error("cannot parse number given on command line");
 			}
 		} else {
 			usage(cmdname);

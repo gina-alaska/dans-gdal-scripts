@@ -28,7 +28,9 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 #include <algorithm>
 
+#include <boost/lexical_cast.hpp>
 #include <boost/tokenizer.hpp>
+
 #include "common.h"
 #include "ndv.h"
 
@@ -50,20 +52,20 @@ No-data values:\n\
 NdvInterval::NdvInterval(const std::string &s) {
 	if(VERBOSE >= 2) printf("minmax [%s]\n", s.c_str());
 
-	char *endptr;
 	double min, max;
 	size_t delim = s.find("..");
-	if(delim == std::string::npos) {
-		min = max = strtod(s.c_str(), &endptr);
-		if(*endptr) fatal_error("NDV value was not a number");
-	} else {
-		std::string s1 = s.substr(0, delim);
-		std::string s2 = s.substr(delim+2);
-		// FIXME - allow -Inf, Inf
-		min = strtod(s1.c_str(), &endptr);
-		if(*endptr) fatal_error("NDV value was not a number");
-		max = strtod(s2.c_str(), &endptr);
-		if(*endptr) fatal_error("NDV value was not a number");
+	try {
+		if(delim == std::string::npos) {
+			min = max = boost::lexical_cast<double>(s);
+		} else {
+			std::string s1 = s.substr(0, delim);
+			std::string s2 = s.substr(delim+2);
+			// FIXME - allow -Inf, Inf
+			min = boost::lexical_cast<double>(s1);
+			max = boost::lexical_cast<double>(s2);
+		}
+	} catch(boost::bad_lexical_cast &e) {
+		fatal_error("NDV value was not a number");
 	}
 
 	first = min;

@@ -28,6 +28,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 #include <vector>
 
+#include <boost/lexical_cast.hpp>
+
 #include "common.h"
 
 void usage(const std::string &cmdname) {
@@ -66,60 +68,50 @@ int main(int argc, char *argv[]) {
 		const std::string &arg = arg_list[argp++];
 		// FIXME - check for duplicate values
 		if(arg[0] == '-' && arg[1]) {
-			if(arg == "-wh") {
-				char *endptr;
-
-				if(argp == arg_list.size()) usage(cmdname);
-				w = (int)strtol(arg_list[argp++].c_str(), &endptr, 10);
-				if(*endptr) usage(cmdname);
-
-				if(argp == arg_list.size()) usage(cmdname);
-				h = (int)strtol(arg_list[argp++].c_str(), &endptr, 10);
-				if(*endptr) usage(cmdname);
-			} else if(arg == "-affine") {
-				for(int i=0; i<6; i++) {
+			try {
+				if(arg == "-wh") {
 					if(argp == arg_list.size()) usage(cmdname);
-					char *endptr;
-					affine[i] = strtod(arg_list[argp++].c_str(), &endptr);
-					if(*endptr) usage(cmdname);
+					w = boost::lexical_cast<int>(arg_list[argp++]);
+
+					if(argp == arg_list.size()) usage(cmdname);
+					h = boost::lexical_cast<int>(arg_list[argp++]);
+				} else if(arg == "-affine") {
+					for(int i=0; i<6; i++) {
+						if(argp == arg_list.size()) usage(cmdname);
+						affine[i] = boost::lexical_cast<double>(arg_list[argp++]);
+					}
+					got_affine = 1;
+				} else if(arg == "-res") {
+					if(argp == arg_list.size()) usage(cmdname);
+					res = boost::lexical_cast<double>(arg_list[argp++]);
+				} else if(arg == "-origin") {
+					if(argp == arg_list.size()) usage(cmdname);
+					origin_e = boost::lexical_cast<double>(arg_list[argp++]);
+
+					if(argp == arg_list.size()) usage(cmdname);
+					origin_n = boost::lexical_cast<double>(arg_list[argp++]);
+
+					got_en++;
+				} else if(arg == "-srs") {
+					if(argp == arg_list.size()) usage(cmdname);
+					srs = arg_list[argp++];
+				} else if(arg == "-ndv") {
+					if(argp == arg_list.size()) usage(cmdname);
+					ndv = boost::lexical_cast<double>(arg_list[argp++]);
+
+					got_ndv = 1;
+				} else if(arg == "-datatype") {
+					if(argp == arg_list.size()) usage(cmdname);
+					datatype = arg_list[argp++];
+				} else if(arg == "-lsb") {
+					endian = 'L';
+				} else if(arg == "-msb") {
+					endian = 'M';
+				} else {
+					usage(cmdname);
 				}
-				got_affine = 1;
-			} else if(arg == "-res") {
-				if(argp == arg_list.size()) usage(cmdname);
-				char *endptr;
-				res = strtod(arg_list[argp++].c_str(), &endptr);
-				if(*endptr) usage(cmdname);
-			} else if(arg == "-origin") {
-				char *endptr;
-
-				if(argp == arg_list.size()) usage(cmdname);
-				origin_e = strtod(arg_list[argp++].c_str(), &endptr);
-				if(*endptr) usage(cmdname);
-
-				if(argp == arg_list.size()) usage(cmdname);
-				origin_n = strtod(arg_list[argp++].c_str(), &endptr);
-				if(*endptr) usage(cmdname);
-
-				got_en++;
-			} else if(arg == "-srs") {
-				if(argp == arg_list.size()) usage(cmdname);
-				srs = arg_list[argp++];
-			} else if(arg == "-ndv") {
-				if(argp == arg_list.size()) usage(cmdname);
-				char *endptr;
-				ndv = strtod(arg_list[argp++].c_str(), &endptr);
-				if(*endptr) usage(cmdname);
-
-				got_ndv = 1;
-			} else if(arg == "-datatype") {
-				if(argp == arg_list.size()) usage(cmdname);
-				datatype = arg_list[argp++];
-			} else if(arg == "-lsb") {
-				endian = 'L';
-			} else if(arg == "-msb") {
-				endian = 'M';
-			} else {
-				usage(cmdname);
+			} catch(boost::bad_lexical_cast &e) {
+				fatal_error("cannot parse number given on command line");
 			}
 		} else {
 			if(src_fn.size() && dst_fn.size()) {

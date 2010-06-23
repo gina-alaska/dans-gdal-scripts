@@ -28,6 +28,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 #include <cassert>
 
+#include <boost/lexical_cast.hpp>
+
 #include "common.h"
 #include "georef.h"
 #include "ndv.h"
@@ -121,59 +123,51 @@ int main(int argc, char *argv[]) {
 		const std::string &arg = arg_list[argp++];
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
-			if(arg == "-b") {
-				if(argp == arg_list.size()) usage(cmdname);
-				char *endptr;
-				band_id = strtol(arg_list[argp++].c_str(), &endptr, 10);
-				if(*endptr) usage(cmdname);
-			} else if(arg == "-palette") {
-				if(argp == arg_list.size()) usage(cmdname);
-				palette_fn = arg_list[argp++];
-				if(palette_fn == "data24bit") {
-					data24bit = 1;
-					palette_fn.erase();
-				}
-			} else if(arg == "-default-palette") {
-				use_default_palette = 1;
-			} else if(arg == "-texture") {
-				if(argp == arg_list.size()) usage(cmdname);
-				tex_fn = arg_list[argp++];
-			} else if(arg == "-alpha-overlay") {
-				alpha_overlay = 1;
-			} else if(arg == "-of") {
-				if(argp == arg_list.size()) usage(cmdname);
-				output_format = arg_list[argp++];
-			} else if(arg == "-exag") {
-				if(argp == arg_list.size()) usage(cmdname);
-				char *endptr;
-				slope_exageration = strtod(arg_list[argp++].c_str(), &endptr);
-				if(*endptr) usage(cmdname);
-			} else if(arg == "-lightvec") {
-				for(int i=0; i<3; i++) {
+			try {
+				if(arg == "-b") {
 					if(argp == arg_list.size()) usage(cmdname);
-					char *endptr;
-					lightvec[i] = strtod(arg_list[argp++].c_str(), &endptr);
-					if(*endptr) usage(cmdname);
-				}
-			} else if(arg == "-shade") {
-				for(int i=0; i<4; i++) {
+					band_id = boost::lexical_cast<int>(arg_list[argp++]);
+				} else if(arg == "-palette") {
 					if(argp == arg_list.size()) usage(cmdname);
-					char *endptr;
-					shade_params[i] = strtod(arg_list[argp++].c_str(), &endptr);
-					if(*endptr) usage(cmdname);
+					palette_fn = arg_list[argp++];
+					if(palette_fn == "data24bit") {
+						data24bit = 1;
+						palette_fn.erase();
+					}
+				} else if(arg == "-default-palette") {
+					use_default_palette = 1;
+				} else if(arg == "-texture") {
+					if(argp == arg_list.size()) usage(cmdname);
+					tex_fn = arg_list[argp++];
+				} else if(arg == "-alpha-overlay") {
+					alpha_overlay = 1;
+				} else if(arg == "-of") {
+					if(argp == arg_list.size()) usage(cmdname);
+					output_format = arg_list[argp++];
+				} else if(arg == "-exag") {
+					if(argp == arg_list.size()) usage(cmdname);
+					slope_exageration = boost::lexical_cast<double>(arg_list[argp++]);
+				} else if(arg == "-lightvec") {
+					for(int i=0; i<3; i++) {
+						if(argp == arg_list.size()) usage(cmdname);
+						lightvec[i] = boost::lexical_cast<double>(arg_list[argp++]);
+					}
+				} else if(arg == "-shade") {
+					for(int i=0; i<4; i++) {
+						if(argp == arg_list.size()) usage(cmdname);
+						shade_params[i] = boost::lexical_cast<double>(arg_list[argp++]);
+					}
+				} else if(arg == "-offset") {
+					if(argp == arg_list.size()) usage(cmdname);
+					src_offset = boost::lexical_cast<double>(arg_list[argp++]);
+				} else if(arg == "-scale") {
+					if(argp == arg_list.size()) usage(cmdname);
+					src_scale = boost::lexical_cast<double>(arg_list[argp++]);
+				} else {
+					usage(cmdname);
 				}
-			} else if(arg == "-offset") {
-				if(argp == arg_list.size()) usage(cmdname);
-				char *endptr;
-				src_offset = strtod(arg_list[argp++].c_str(), &endptr);
-				if(*endptr) usage(cmdname);
-			} else if(arg == "-scale") {
-				if(argp == arg_list.size()) usage(cmdname);
-				char *endptr;
-				src_scale = strtod(arg_list[argp++].c_str(), &endptr);
-				if(*endptr) usage(cmdname);
-			} else {
-				usage(cmdname);
+			} catch(boost::bad_lexical_cast &e) {
+				fatal_error("cannot parse number given on command line");
 			}
 		} else {
 			if(src_fn.size() && dst_fn.size()) {

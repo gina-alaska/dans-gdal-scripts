@@ -28,6 +28,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 #include <string>
 
+#include <boost/lexical_cast.hpp>
+
 #include "common.h"
 #include "georef.h"
 
@@ -70,46 +72,38 @@ GeoOpts::GeoOpts(std::vector<std::string> &arg_list) :
 		const std::string arg = arg_list[argp++];
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
-			if(arg == "-s_srs") {
-				if(argp == arg_list.size()) usage(cmdname);
-				s_srs = arg_list[argp++];
-			} else if(arg == "-geo_srs") {
-				if(argp == arg_list.size()) usage(cmdname);
-				geo_srs = arg_list[argp++];
-			} else if(arg == "-ll_en") {
-				if(argp+2 > arg_list.size()) usage(cmdname);
-				char *endptr;
-				given_left_e = strtod(arg_list[argp++].c_str(), &endptr);
-				if(*endptr) usage(cmdname);
-				given_lower_n = strtod(arg_list[argp++].c_str(), &endptr);
-				if(*endptr) usage(cmdname);
-				got_ll_en++;
-			} else if(arg == "-ul_en") {
-				if(argp+2 > arg_list.size()) usage(cmdname);
-				char *endptr;
-				given_left_e = strtod(arg_list[argp++].c_str(), &endptr);
-				if(*endptr) usage(cmdname);
-				given_upper_n = strtod(arg_list[argp++].c_str(), &endptr);
-				if(*endptr) usage(cmdname);
-				got_ul_en++;
-			} else if(arg == "-wh") {
-				if(argp+2 > arg_list.size()) usage(cmdname);
-				char *endptr;
-				w = strtol(arg_list[argp++].c_str(), &endptr, 10);
-				if(*endptr) usage(cmdname);
-				h = strtol(arg_list[argp++].c_str(), &endptr, 10);
-				if(*endptr) usage(cmdname);
-			} else if(arg == "-res") {
-				char *endptr;
-				if(argp == arg_list.size()) usage(cmdname);
-				res_x = strtod(arg_list[argp++].c_str(), &endptr);
-				if(*endptr) usage(cmdname);
+			try {
+				if(arg == "-s_srs") {
+					if(argp == arg_list.size()) usage(cmdname);
+					s_srs = arg_list[argp++];
+				} else if(arg == "-geo_srs") {
+					if(argp == arg_list.size()) usage(cmdname);
+					geo_srs = arg_list[argp++];
+				} else if(arg == "-ll_en") {
+					if(argp+2 > arg_list.size()) usage(cmdname);
+					given_left_e = boost::lexical_cast<double>(arg_list[argp++]);
+					given_lower_n = boost::lexical_cast<double>(arg_list[argp++]);
+					got_ll_en++;
+				} else if(arg == "-ul_en") {
+					if(argp+2 > arg_list.size()) usage(cmdname);
+					given_left_e = boost::lexical_cast<double>(arg_list[argp++]);
+					given_upper_n = boost::lexical_cast<double>(arg_list[argp++]);
+					got_ul_en++;
+				} else if(arg == "-wh") {
+					if(argp+2 > arg_list.size()) usage(cmdname);
+					w = boost::lexical_cast<size_t>(arg_list[argp++]);
+					h = boost::lexical_cast<size_t>(arg_list[argp++]);
+				} else if(arg == "-res") {
+					if(argp == arg_list.size()) usage(cmdname);
+					res_x = boost::lexical_cast<double>(arg_list[argp++]);
 
-				if(argp == arg_list.size()) usage(cmdname);
-				res_y = strtod(arg_list[argp++].c_str(), &endptr);
-				if(*endptr) usage(cmdname);
-			} else {
-				args_out.push_back(arg);
+					if(argp == arg_list.size()) usage(cmdname);
+					res_y = boost::lexical_cast<double>(arg_list[argp++]);
+				} else {
+					args_out.push_back(arg);
+				}
+			} catch(boost::bad_lexical_cast &e) {
+				fatal_error("cannot parse number given on command line");
 			}
 		} else {
 			args_out.push_back(arg);

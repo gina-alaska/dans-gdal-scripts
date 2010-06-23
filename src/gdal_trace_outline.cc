@@ -26,6 +26,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 
+#include <boost/lexical_cast.hpp>
+
 #include "common.h"
 #include "polygon.h"
 #include "polygon-rasterizer.h"
@@ -190,86 +192,80 @@ int main(int argc, char **argv) {
 		const std::string &arg = arg_list[argp++];
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
-			if(arg == "-v") {
-				VERBOSE++;
-			} else if(arg == "-classify") {
-				classify = 1;
-			} else if(arg == "-report") {
-				if(argp == arg_list.size()) usage(cmdname);
-				debug_report = arg_list[argp++];
-			} else if(arg == "-b") {
-				if(argp == arg_list.size()) usage(cmdname);
-				char *endptr;
-				int bandid = strtol(arg_list[argp++].c_str(), &endptr, 10);
-				if(*endptr) usage(cmdname);
-				inspect_bandids.push_back(bandid);
-			} else if(arg == "-erosion") {
-				do_erosion = 1;
-			} else if(arg == "-invert") {
-				do_invert = 1;
-			} else if(arg == "-split-polys") {
-				split_polys = 1;
-			} else if(arg == "-wkt-out") {
-				if(argp == arg_list.size()) usage(cmdname);
-				GeomOutput go(cur_out_cs);
-				go.wkt_fn = arg_list[argp++];
-				geom_outputs.push_back(go);
-			} else if(arg == "-wkb-out") {
-				if(argp == arg_list.size()) usage(cmdname);
-				GeomOutput go(cur_out_cs);
-				go.wkb_fn = arg_list[argp++];
-				geom_outputs.push_back(go);
-			} else if(arg == "-ogr-out") {
-				if(argp == arg_list.size()) usage(cmdname);
-				GeomOutput go(cur_out_cs);
-				go.ogr_fmt = cur_ogr_fmt;
-				go.ogr_fn = arg_list[argp++];
-				geom_outputs.push_back(go);
-			} else if(arg == "-ogr-fmt") {
-				if(argp == arg_list.size()) usage(cmdname);
-				cur_ogr_fmt = arg_list[argp++];
-			} else if(arg == "-out-cs") {
-				if(argp == arg_list.size()) usage(cmdname);
-				std::string cs = arg_list[argp++];
-				if(cs == "xy") cur_out_cs = CS_XY;
-				else if(cs == "en") cur_out_cs = CS_EN;
-				else if(cs == "ll") cur_out_cs = CS_LL;
-				else fatal_error("unrecognized value for -out-cs option (%s)", cs.c_str());
-			} else if(arg == "-mask-out") {
-				if(argp == arg_list.size()) usage(cmdname);
-				mask_out_fn = arg_list[argp++];
-			} else if(arg == "-major-ring") {
-				major_ring_only = 1;
-			} else if(arg == "-no-donuts") {
-				no_donuts = 1;
-			} else if(arg == "-min-ring-area") {
-				if(argp == arg_list.size()) usage(cmdname);
-				char *endptr;
-				min_ring_area = strtol(arg_list[argp++].c_str(), &endptr, 10);
-				if(*endptr) usage(cmdname);
-			} else if(arg == "-dp-toler") {
-				if(argp == arg_list.size()) usage(cmdname);
-				char *endptr;
-				reduction_tolerance = strtod(arg_list[argp++].c_str(), &endptr);
-				if(*endptr) usage(cmdname);
-			} else if(arg == "-bevel-size") {
-				if(argp == arg_list.size()) usage(cmdname);
-				char *endptr;
-				bevel_size = strtod(arg_list[argp++].c_str(), &endptr);
-				if(*endptr) usage(cmdname);
-				if(bevel_size < 0 || bevel_size >= 1) fatal_error(
-					"-bevel-size must be in the range 0 <= bevel < 1");
-			} else if(arg == "-pinch-excursions") {
-				do_pinch_excursions = 1;
-			} else if(arg == "-llproj-toler") {
-				if(argp == arg_list.size()) usage(cmdname);
-				char *endptr;
-				llproj_toler = strtod(arg_list[argp++].c_str(), &endptr);
-				if(*endptr) usage(cmdname);
-			} else if(arg == "-h" || arg == "--help") {
-				usage(cmdname);
-			} else {
-				fatal_error("unrecognized option: %s", arg.c_str());
+			try {
+				if(arg == "-v") {
+					VERBOSE++;
+				} else if(arg == "-classify") {
+					classify = 1;
+				} else if(arg == "-report") {
+					if(argp == arg_list.size()) usage(cmdname);
+					debug_report = arg_list[argp++];
+				} else if(arg == "-b") {
+					if(argp == arg_list.size()) usage(cmdname);
+					int bandid = boost::lexical_cast<int>(arg_list[argp++]);
+					inspect_bandids.push_back(bandid);
+				} else if(arg == "-erosion") {
+					do_erosion = 1;
+				} else if(arg == "-invert") {
+					do_invert = 1;
+				} else if(arg == "-split-polys") {
+					split_polys = 1;
+				} else if(arg == "-wkt-out") {
+					if(argp == arg_list.size()) usage(cmdname);
+					GeomOutput go(cur_out_cs);
+					go.wkt_fn = arg_list[argp++];
+					geom_outputs.push_back(go);
+				} else if(arg == "-wkb-out") {
+					if(argp == arg_list.size()) usage(cmdname);
+					GeomOutput go(cur_out_cs);
+					go.wkb_fn = arg_list[argp++];
+					geom_outputs.push_back(go);
+				} else if(arg == "-ogr-out") {
+					if(argp == arg_list.size()) usage(cmdname);
+					GeomOutput go(cur_out_cs);
+					go.ogr_fmt = cur_ogr_fmt;
+					go.ogr_fn = arg_list[argp++];
+					geom_outputs.push_back(go);
+				} else if(arg == "-ogr-fmt") {
+					if(argp == arg_list.size()) usage(cmdname);
+					cur_ogr_fmt = arg_list[argp++];
+				} else if(arg == "-out-cs") {
+					if(argp == arg_list.size()) usage(cmdname);
+					std::string cs = arg_list[argp++];
+					if(cs == "xy") cur_out_cs = CS_XY;
+					else if(cs == "en") cur_out_cs = CS_EN;
+					else if(cs == "ll") cur_out_cs = CS_LL;
+					else fatal_error("unrecognized value for -out-cs option (%s)", cs.c_str());
+				} else if(arg == "-mask-out") {
+					if(argp == arg_list.size()) usage(cmdname);
+					mask_out_fn = arg_list[argp++];
+				} else if(arg == "-major-ring") {
+					major_ring_only = 1;
+				} else if(arg == "-no-donuts") {
+					no_donuts = 1;
+				} else if(arg == "-min-ring-area") {
+					if(argp == arg_list.size()) usage(cmdname);
+					min_ring_area = boost::lexical_cast<int64_t>(arg_list[argp++]);
+				} else if(arg == "-dp-toler") {
+					if(argp == arg_list.size()) usage(cmdname);
+					reduction_tolerance = boost::lexical_cast<double>(arg_list[argp++]);
+				} else if(arg == "-bevel-size") {
+					if(argp == arg_list.size()) usage(cmdname);
+					bevel_size = boost::lexical_cast<double>(arg_list[argp++]);
+					if(bevel_size < 0 || bevel_size >= 1) fatal_error(
+						"-bevel-size must be in the range 0 <= bevel < 1");
+				} else if(arg == "-pinch-excursions") {
+					do_pinch_excursions = 1;
+				} else if(arg == "-llproj-toler") {
+					if(argp == arg_list.size()) usage(cmdname);
+					llproj_toler = boost::lexical_cast<double>(arg_list[argp++]);
+				} else if(arg == "-h" || arg == "--help") {
+					usage(cmdname);
+				} else {
+					fatal_error("unrecognized option: %s", arg.c_str());
+				}
+			} catch(boost::bad_lexical_cast &e) {
+				fatal_error("cannot parse number given on command line");
 			}
 		} else {
 			if(input_raster_fn.size()) usage(cmdname);

@@ -28,6 +28,9 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 #include <cassert>
 
+#include <boost/lexical_cast.hpp>
+#include <boost/numeric/conversion/cast.hpp>
+
 #include "common.h"
 #include "ndv.h"
 
@@ -87,48 +90,44 @@ int main(int argc, char *argv[]) {
 		const std::string &arg = arg_list[argp++];
 		// FIXME - check duplicate values
 		if(arg[0] == '-') {
-			if(arg == "-of") {
-				if(argp == arg_list.size()) usage(cmdname);
-				output_format = arg_list[argp++];
-			} else if(arg == "-linear-stretch") {
-				if(argp == arg_list.size()) usage(cmdname);
-				char *endptr;
-				dst_avg = strtod(arg_list[argp++].c_str(), &endptr);
-				if(*endptr) usage(cmdname);
+			try {
+				if(arg == "-of") {
+					if(argp == arg_list.size()) usage(cmdname);
+					output_format = arg_list[argp++];
+				} else if(arg == "-linear-stretch") {
+					if(argp == arg_list.size()) usage(cmdname);
+					dst_avg = boost::lexical_cast<double>(arg_list[argp++]);
 
-				if(argp == arg_list.size()) usage(cmdname);
-				dst_stddev = strtod(arg_list[argp++].c_str(), &endptr);
-				if(*endptr) usage(cmdname);
+					if(argp == arg_list.size()) usage(cmdname);
+					dst_stddev = boost::lexical_cast<double>(arg_list[argp++]);
 
-				mode_stddev = 1;
-			} else if(arg == "-percentile-range") {
-				if(argp == arg_list.size()) usage(cmdname);
-				char *endptr;
-				from_percentile = strtod(arg_list[argp++].c_str(), &endptr);
-				if(*endptr) usage(cmdname);
+					mode_stddev = 1;
+				} else if(arg == "-percentile-range") {
+					if(argp == arg_list.size()) usage(cmdname);
+					from_percentile = boost::lexical_cast<double>(arg_list[argp++]);
 
-				if(argp == arg_list.size()) usage(cmdname);
-				to_percentile = strtod(arg_list[argp++].c_str(), &endptr);
-				if(*endptr) usage(cmdname);
+					if(argp == arg_list.size()) usage(cmdname);
+					to_percentile = boost::lexical_cast<double>(arg_list[argp++]);
 
-				mode_percentile = 1;
-			} else if(arg == "-histeq") {
-				if(argp == arg_list.size()) usage(cmdname);
-				char *endptr;
-				dst_stddev = strtod(arg_list[argp++].c_str(), &endptr);
-				if(*endptr) usage(cmdname);
+					mode_percentile = 1;
+				} else if(arg == "-histeq") {
+					if(argp == arg_list.size()) usage(cmdname);
+					dst_stddev = boost::lexical_cast<double>(arg_list[argp++]);
 
-				mode_histeq = 1;
-			} else if(arg == "-outndv") {
- 				if(argp == arg_list.size()) usage(cmdname);
-				char *endptr;
-				long ndv_long = strtol(arg_list[argp++].c_str(), &endptr, 10);
-				out_ndv = (uint8_t)ndv_long;
-				if(ndv_long != (long)out_ndv) fatal_error("ndv must be in the range 0..255");
-				set_out_ndv++;
-				if(*endptr) usage(cmdname);
-			} else {
-				usage(cmdname);
+					mode_histeq = 1;
+				} else if(arg == "-outndv") {
+					if(argp == arg_list.size()) usage(cmdname);
+					int64_t ndv_long = boost::lexical_cast<int64_t>(arg_list[argp++]);
+					if(ndv_long < 0 || ndv_long > 255) fatal_error("ndv must be in the range 0..255");
+					out_ndv = boost::numeric_cast<uint8_t>(ndv_long);
+					set_out_ndv++;
+				} else {
+					usage(cmdname);
+				}
+			} catch(boost::bad_lexical_cast &e) {
+				fatal_error("cannot parse number given on command line");
+			} catch(boost::bad_numeric_cast &e) {
+				fatal_error("number given on command line out of range: %s", e.what());
 			}
 		} else {
 			if(src_fn.empty()) {
