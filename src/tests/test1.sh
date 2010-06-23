@@ -18,6 +18,8 @@ rm -f out_*
 
 ../gdal_wkt_to_mask -wkt good_1_en.wkt -geo-from testcase_1.tif -mask-out out_1_mask.ppm
 
+../gdal_get_projected_bounds -s_wkt good_1_en.wkt -s_srs '+proj=utm +zone=6 +ellps=WGS84 +units=m +no_defs ' -t_srs '+proj=stere +lat_ts=80 +lat_0=90 +lon_0=0 +ellps=WGS84' -report out_projbounds_report.ppm > out_projbounds.yml
+
 echo '####################'
 
 #for i in 1 2 3 4 5 ; do md5sum good-tc$i.wkt test-tc$i.wkt ; done
@@ -29,14 +31,10 @@ for i in 1 1_en 2 3 3_classify 3_classify_pal 4 5 maze noise noise_dp3 ; do
 	fi
 done
 
-if diff --brief good_4-rect.wkt out_4-rect.wkt ; then
-	echo "GOOD rect"
-else
-	echo "BAD rect"
-fi
-
-if diff --brief good_1_mask.ppm out_1_mask.ppm ; then
-	echo "GOOD wkt2mask"
-else
-	echo "BAD wkt2mask"
-fi
+for i in 4-rect.wkt 1_mask.ppm projbounds_report.ppm projbounds.yml ; do
+	if diff --brief good_$i out_$i ; then
+		echo "GOOD $i"
+	else
+		echo "BAD $i"
+	fi
+done
