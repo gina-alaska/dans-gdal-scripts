@@ -69,4 +69,4 @@ lint:
 	| grep -v 'Done processing '
 
 noinst_HEADERS = common.h debugplot.h default_palette.h dp.h excursion_pincher.h georef.h mask-tracer.h mask.h ndv.h polygon-rasterizer.h polygon.h rectangle_finder.h
-EXTRA_DIST = default_palette.pal tests/good-tc1.wkt tests/good-tc2.wkt tests/good-tc3.wkt tests/good-tc4.wkt tests/good-tc5.wkt tests/pal.tif tests/test1.sh tests/test2.sh tests/testcase.tif tests/testcase2.tif tests/testcase3.tif tests/testcase4.png tests/testcase5.png attic/excursion_pincher.cc attic/excursion_pincher3.cc attic/hough.cc attic/hough.h
+EXTRA_DIST = default_palette.pal
