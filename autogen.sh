@@ -4,6 +4,6 @@
 # a fresh checkout of the code from the git repository
 
 autoheader
-aclocal
+aclocal -I m4
 autoconf
 automake --add-missing

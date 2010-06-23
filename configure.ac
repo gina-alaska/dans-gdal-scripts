@@ -62,6 +62,9 @@ GDALLIBS=`${GDALCONFIG} --libs`
 
 # Checks for libraries.
 
+# hopefully this is the right minimum version, I haven't really tested it
+BOOST_REQUIRE([1.37])
+
 # Checks for header files.
 AC_HEADER_STDC
 AC_CHECK_HEADERS([math.h stdio.h])
