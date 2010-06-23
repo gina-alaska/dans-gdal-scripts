@@ -1,0 +1,85 @@
+---
+width: 256
+height: 256
+num_bands: 3
+datatype: Byte,Byte,Byte
+metadata:
+  - 'TIFFTAG_DOCUMENTNAME=/mnt/scratch2/SDMI-test/testcase.tif'
+  - 'TIFFTAG_IMAGEDESCRIPTION=Created with The GIMP'
+  - 'TIFFTAG_XRESOLUTION=72'
+  - 'TIFFTAG_YRESOLUTION=72'
+  - 'TIFFTAG_RESOLUTIONUNIT=2 (pixels/inch)'
+  - 'AREA_OR_POINT=Area'
+s_srs: '+proj=utm +zone=6 +ellps=WGS84 +units=m +no_defs '
+units_name: 'metre'
+units_val: 1.000000
+res: 10.000000000000000 10.000000000000000
+res_meters: 10.000000000000000 10.000000000000000
+affine:
+  - 299995.000000000000000
+  - 10.000000000000000
+  - 0.000000000000000
+  - 400005.000000000000000
+  - 0.000000000000000
+  - -10.000000000000000
+center:
+  lon: -148.789119233371508
+  lat: 3.605576638579382
+  east: 301275.000000000000000
+  north: 398725.000000000000000
+  x: 128.000000000000000
+  y: 128.000000000000000
+geometry_ll:
+  type: rectangle8
+  upper_left_lon: -148.800662050954315
+  upper_left_lat: 3.617128172598552
+  mid_left_lon: -148.800639238866012
+  mid_left_lat: 3.605553828887159
+  lower_left_lon: -148.800616500369102
+  lower_left_lat: 3.593979482084867
+  upper_mid_lon: -148.789141899704617
+  upper_mid_lat: 3.617151055699974
+  lower_mid_lon: -148.789096640159613
+  lower_mid_lat: 3.594002218369666
+  upper_right_lon: -148.777621675329129
+  upper_right_lat: 3.617173792120983
+  mid_right_lon: -148.777599154755848
+  mid_right_lat: 3.605599302061742
+  lower_right_lon: -148.777576706833514
+  lower_right_lat: 3.594024808915140
+geometry_en:
+  type: rectangle8
+  upper_left_east: 299995.000000000000000
+  upper_left_north: 400005.000000000000000
+  mid_left_east: 299995.000000000000000
+  mid_left_north: 398725.000000000000000
+  lower_left_east: 299995.000000000000000
+  lower_left_north: 397445.000000000000000
+  upper_mid_east: 301275.000000000000000
+  upper_mid_north: 400005.000000000000000
+  lower_mid_east: 301275.000000000000000
+  lower_mid_north: 397445.000000000000000
+  upper_right_east: 302555.000000000000000
+  upper_right_north: 400005.000000000000000
+  mid_right_east: 302555.000000000000000
+  mid_right_north: 398725.000000000000000
+  lower_right_east: 302555.000000000000000
+  lower_right_north: 397445.000000000000000
+geometry_xy:
+  type: rectangle8
+  upper_left_x: 0.000000000000000
+  upper_left_y: 0.000000000000000
+  mid_left_x: 0.000000000000000
+  mid_left_y: 128.000000000000000
+  lower_left_x: 0.000000000000000
+  lower_left_y: 256.000000000000000
+  upper_mid_x: 128.000000000000000
+  upper_mid_y: 0.000000000000000
+  lower_mid_x: 128.000000000000000
+  lower_mid_y: 256.000000000000000
+  upper_right_x: 256.000000000000000
+  upper_right_y: 0.000000000000000
+  mid_right_x: 256.000000000000000
+  mid_right_y: 128.000000000000000
+  lower_right_x: 256.000000000000000
+  lower_right_y: 256.000000000000000

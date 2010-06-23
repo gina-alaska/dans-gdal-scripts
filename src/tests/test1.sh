@@ -22,6 +22,11 @@ $BINDIR/gdal_wkt_to_mask -wkt good_1_en.wkt -geo-from testcase_1.tif -mask-out o
 
 $BINDIR/gdal_get_projected_bounds -s_wkt good_1_en.wkt -s_srs '+proj=utm +zone=6 +ellps=WGS84 +units=m +no_defs ' -t_srs '+proj=stere +lat_ts=80 +lat_0=90 +lon_0=0 +ellps=WGS84' -report out_projbounds_report.ppm > out_projbounds.yml
 
+$BINDIR/gdal_list_corners testcase_1.tif > out_1_metdata.yml
+
+$BINDIR/gdal_make_ndv_mask -ndv '155 52 52' -ndv '24 173 79'     testcase_3.tif out_3_ndvmask.pbm
+$BINDIR/gdal_make_ndv_mask -ndv '155 52 52' -ndv '24 173 79..81' testcase_3.tif out_3_ndvmask2.pbm
+
 echo '####################'
 
 #for i in 1 2 3 4 5 ; do md5sum good-tc$i.wkt test-tc$i.wkt ; done
@@ -33,7 +38,15 @@ for i in 1 1_en 2 3 3_classify 3_classify_pal 4 5 maze noise noise_dp3 ; do
 	fi
 done
 
-for i in 4-rect.wkt 1_mask.ppm projbounds_report.ppm projbounds.yml ; do
+for i in \
+	4-rect.wkt \
+	1_mask.ppm \
+	projbounds_report.ppm \
+	projbounds.yml \
+	1_metdata.yml \
+	3_ndvmask.pbm \
+	3_ndvmask2.pbm ;
+do
 	if diff --brief good_$i out_$i ; then
 		echo "GOOD $i"
 	else
