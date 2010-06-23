@@ -38,7 +38,7 @@ default_palette.h: default_palette.pal
 
 gdal_raw2geotiff_SOURCES = gdal_raw2geotiff.cc common.cc
 
-gdal_dem2rgb.o: default_palette.h
+palette.o: default_palette.h
 gdal_dem2rgb_SOURCES = gdal_dem2rgb.cc common.cc georef.cc ndv.cc palette.cc
 
 gdal_list_corners_SOURCES = gdal_list_corners.cc common.cc polygon.cc polygon-rasterizer.cc debugplot.cc georef.cc mask.cc rectangle_finder.cc ndv.cc
@@ -68,5 +68,5 @@ lint:
 	| grep -v 'Using deprecated casting style.  Use static_cast' \
 	| grep -v 'Done processing '
 
-noinst_HEADERS = common.h debugplot.h default_palette.h dp.h excursion_pincher.h georef.h mask-tracer.h mask.h ndv.h polygon-rasterizer.h polygon.h rectangle_finder.h
+noinst_HEADERS = beveler.h common.h debugplot.h default_palette.h dp.h excursion_pincher.h georef.h mask-tracer.h mask.h ndv.h palette.h polygon-rasterizer.h polygon.h rectangle_finder.h
 EXTRA_DIST = default_palette.pal
