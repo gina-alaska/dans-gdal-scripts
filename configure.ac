@@ -30,8 +30,6 @@ AC_CONFIG_HEADER([config.h])
 
 AM_INIT_AUTOMAKE
 
-# The OGR header files require a C++ compiler, so we set the
-# language to C++ even though our code is really just C.
 AC_PROG_CXX
 AC_LANG_CPLUSPLUS
 
