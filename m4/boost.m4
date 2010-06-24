@@ -56,8 +56,7 @@ m4_pattern_forbid([^_?BOOST_])
 # to turn this into a macro which extracts the value of any macro.
 m4_define([_BOOST_SED_CPP],
 [AC_LANG_PREPROC_REQUIRE()dnl
-dnl dstahlke mod: AC_PROG_SED is not in autoconf 2.59
-dnl AC_REQUIRE([AC_PROG_SED])dnl
+AC_REQUIRE([AC_PROG_SED])dnl
 AC_LANG_CONFTEST([AC_LANG_SOURCE([[$2]])])
 AS_IF([dnl eval is necessary to expand ac_cpp.
 dnl Ultrix and Pyramid sh refuse to redirect output of eval, so use subshell.
@@ -90,8 +89,7 @@ rm -rf conftest*
 # Otherwise aborts with an error message.
 AC_DEFUN([BOOST_REQUIRE],
 [AC_REQUIRE([AC_PROG_CXX])dnl
-dnl dstahlke mod: AC_PROG_GREP is not in autoconf 2.59
-dnl AC_REQUIRE([AC_PROG_GREP])dnl
+AC_REQUIRE([AC_PROG_GREP])dnl
 echo "$as_me: this is boost.m4[]_BOOST_SERIAL" >&AS_MESSAGE_LOG_FD
 boost_save_IFS=$IFS
 boost_version_req=$1

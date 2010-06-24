@@ -23,7 +23,7 @@
 
 
 
-AC_PREREQ(2.59)
+AC_PREREQ(2.60)
 AC_INIT([dans-gdal-scripts], [0.18], [dan@gina.alaska.edu])
 AC_CONFIG_SRCDIR([src/common.h])
 AC_CONFIG_HEADER([config.h])
