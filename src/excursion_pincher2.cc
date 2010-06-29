@@ -556,7 +556,9 @@ Mpoly pinch_excursions2(const Mpoly &mp_in, DebugPlot *dbuf) {
 	Mpoly mp_out;
 	mp_out.rings.resize(mp_in.rings.size());
 	for(size_t r_idx=0; r_idx<mp_in.rings.size(); r_idx++) {
-		// FIXME - put a test for this into usage()
+		// Some extra logic would be needed to support holes.  There is a test
+		// in gdal_trace_outline that ensures that the -no-donuts option is
+		// given.  This should have prevented holes.
 		if(mp_in.rings[r_idx].is_hole) fatal_error("pincher cannot be used on holes");
 		mp_out.rings[r_idx] = pinch_ring_excursions(mp_in.rings[r_idx]);
 	}
