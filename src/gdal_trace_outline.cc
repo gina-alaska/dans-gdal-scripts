@@ -282,10 +282,10 @@ int main(int argc, char **argv) {
 	if(major_ring_only && no_donuts) fatal_error(
 		"-major-ring and -no-donuts options cannot both be used at the same time");
 
-	if(do_pinch_excursions && !no_donuts) {
+	if(do_pinch_excursions && !(no_donuts || major_ring_only)) {
 		// some extra logic would be needed in pinch_excursions2 in order to
 		// support holes
-		fatal_error("the -pinch-excursions option requires the -no-donuts option");
+		fatal_error("the -pinch-excursions option requires the -no-donuts or -major-ring options");
 	}
 
 	if(classify) {
