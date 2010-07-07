@@ -87,7 +87,7 @@ Behavior:\n\
                                (in pixels, default is 2.0)\n\
   -bevel-size                  How much to shave off corners at\n\
                                self-intersection points\n\
-                               (in pixels, default it 0.1)\n\
+                               (in pixels, default is 0.1)\n\
                                (this is done to make geometries that\n\
                                PostGIS/GEOS/Jump can handle)\n\
   -pinch-excursions            Remove all the complicated 'mouse bites' that\n\
