@@ -41,4 +41,4 @@ Generate a bitmap of the area covered by a polygon
 ## Credits
 
 These programs were written by Dan Stahlke of the Geographic Information Network of Alaska.
-Send questions or comments to our [contact us](http://www.gina.alaska.edu/page.xml?group=info&page=contact) page.
+Send questions or comments to our [contact us](http://www.gina.alaska.edu/information/contact-us) page.
