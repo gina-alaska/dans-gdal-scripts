@@ -1,0 +1,13 @@
+gdal_list_corners fails on venus gtdr.tif (lat>90)
+dem2rgb and others: maybe NDV should be independent of band selection
+dem2rgb: prominant warning if resolution not known
+dem2rgb: should be operable with resolution in absence of origin
+run erosion several times for outline tracer
+gdal_merge_simple: usage text wrong?
+beveller is inefficient (maybe O(N^2))
+don't use %f, use %g with the right number of digits
+several inputs for contrast stretch
+manual min/max for contrast stretch
+better error message for NDV>255 in contrast stretch
+support more datatypes in contrast stretch
+expose options for fuzzy rectangle bounds finder
