@@ -79,7 +79,7 @@ void get_scale_from_percentile(
 	double from_percentile, double to_percentile,
 	double *scale_out, double *offset_out
 );
-std::vector<size_t> invert_histogram_to_gaussian(const Histogram &histogram_in, double variance, 
+std::vector<uint8_t> invert_histogram_to_gaussian(const Histogram &histogram_in, double variance, 
 	int output_range, double max_rel_freq);
 void copyGeoCode(GDALDatasetH dst_ds, GDALDatasetH src_ds);
 
@@ -283,7 +283,7 @@ int main(int argc, char *argv[]) {
 					}
 					double min = minmax[band_idx].first;
 					double max = minmax[band_idx].second;
-					binning.nbins = 10000000;
+					binning.nbins = 100; // FIXME
 					binning.offset = min;
 					binning.scale = (max - min) / double(binning.nbins);
 			}
@@ -305,7 +305,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	bool use_table; // otherwise, use linear
-	std::vector<std::vector<size_t> > xform_table(dst_band_count);
+	std::vector<std::vector<uint8_t> > xform_table(dst_band_count);
 	std::vector<double> lin_scales(dst_band_count);
 	std::vector<double> lin_offsets(dst_band_count);
 
@@ -351,7 +351,7 @@ int main(int argc, char *argv[]) {
 		if(use_ndv) {
 			for(size_t band_idx=0; band_idx<dst_band_count; band_idx++) {
 				for(size_t i=0; i<xform_table[band_idx].size(); i++) {
-					int v = xform_table[band_idx][i];
+					uint8_t v = xform_table[band_idx][i];
 					if(v == out_ndv) {
 						if(out_ndv < output_range/2) v++;
 						else v--;
@@ -413,14 +413,14 @@ int main(int argc, char *argv[]) {
 				uint8_t *p_out = &buf_out[band_idx][0];
 				uint8_t *p_ndv = &ndv_mask[0];
 				if(use_table) {
-					size_t *xform = &xform_table[band_idx][0];
+					uint8_t *xform = &xform_table[band_idx][0];
 					Binning binning = binnings[band_idx];
 
 					for(size_t i=0; i<block_len; i++) {
 						if(*p_ndv) {
 							*p_out = out_ndv;
 						} else {
-							*p_out = (uint8_t)xform[binning.to_bin(*p_in)];
+							*p_out = xform[binning.to_bin(*p_in)];
 						}
 						p_in++; p_out++; p_ndv++;
 					}
@@ -677,7 +677,7 @@ std::vector<double> gen_gaussian(double variance, int bin_count) {
 	return arr;
 }
 
-std::vector<size_t> invert_histogram(
+std::vector<uint8_t> invert_histogram(
 	const Histogram &src_h_in,
 	const std::vector<double> dst_h,
 	size_t output_range, double max_rel_freq
@@ -696,10 +696,10 @@ std::vector<size_t> invert_histogram(
 		}
 	}
 
-	std::vector<size_t> out_h(src_h.size());
+	std::vector<uint8_t> out_h(src_h.size());
 	double src_total = 0;
 	double dst_total = 0;
-	size_t j = 0;
+	uint8_t j = 0;
 	for(size_t i=0; i<src_h.size(); i++) {
 		out_h[i] = j;
 		src_total += src_h[i];
@@ -711,7 +711,7 @@ std::vector<size_t> invert_histogram(
 	return out_h;
 }
 
-std::vector<size_t> invert_histogram_to_gaussian(
+std::vector<uint8_t> invert_histogram_to_gaussian(
 	const Histogram &histogram_in, double variance, 
 	int output_range, double max_rel_freq
 ) {
