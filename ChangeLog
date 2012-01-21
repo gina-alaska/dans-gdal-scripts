@@ -1,3 +1,6 @@
+=== Version 0.19
+	gdal_contrast_stretch supports all datatypes except for complex
+
 === Version 0.18
 	Converted to C++
 	More test cases
