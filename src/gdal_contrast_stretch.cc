@@ -44,7 +44,7 @@ struct Binning {
 	int to_bin(double v) const {
 		if(isinf(v) == -1) return 0;
 		if(isinf(v) ==  1) return nbins-1;
-		double bin_dbl = (v-offset)/scale;
+		double bin_dbl = round((v-offset)/scale);
 		if(isnan(bin_dbl)) fatal_error("nan in to_bin");
 		if(bin_dbl < 0) return 0;
 		if(bin_dbl > nbins-1) return nbins-1;
@@ -80,7 +80,7 @@ void get_scale_from_percentile(
 	double *scale_out, double *offset_out
 );
 std::vector<uint8_t> invert_histogram_to_gaussian(const Histogram &histogram_in, double variance, 
-	int output_range, double max_rel_freq);
+	int output_range);
 void copyGeoCode(GDALDatasetH dst_ds, GDALDatasetH src_ds);
 
 void usage(const std::string &cmdname) {
@@ -122,7 +122,7 @@ int main(int argc, char *argv[]) {
 	size_t argp = 1;
 	while(argp < arg_list.size()) {
 		const std::string &arg = arg_list[argp++];
-		// FIXME - check duplicate values
+		// FIXME - check for duplicate values
 		if(arg[0] == '-') {
 			try {
 				if(arg == "-of") {
@@ -283,9 +283,10 @@ int main(int argc, char *argv[]) {
 					}
 					double min = minmax[band_idx].first;
 					double max = minmax[band_idx].second;
-					binning.nbins = 100; // FIXME
+					// a compromise between memory usage and datavalue resolution
+					binning.nbins = 10000000;
 					binning.offset = min;
-					binning.scale = (max - min) / double(binning.nbins);
+					binning.scale = (max - min) / double(binning.nbins-1);
 			}
 		}
 	}
@@ -313,7 +314,7 @@ int main(int argc, char *argv[]) {
 		use_table = true;
 		for(size_t band_idx=0; band_idx<dst_band_count; band_idx++) {
 			xform_table[band_idx] = invert_histogram_to_gaussian(
-				histograms[band_idx], dst_stddev, output_range, 5.0);
+				histograms[band_idx], dst_stddev, output_range);
 		}
 	} else{
 		use_table = false;
@@ -421,6 +422,7 @@ int main(int argc, char *argv[]) {
 							*p_out = out_ndv;
 						} else {
 							*p_out = xform[binning.to_bin(*p_in)];
+							//printf("%g %d %d\n", *p_in, binning.to_bin(*p_in), *p_out);
 						}
 						p_in++; p_out++; p_ndv++;
 					}
@@ -646,7 +648,7 @@ void get_scale_from_percentile(
 		else break;
 	}
 	if(from_idx<0 || to_idx<0) fatal_error("impossible: could not find window");
-	if(from_idx == to_idx) { from_idx=0; to_idx=histogram.binning.nbins-1; } // FIXME
+	if(from_idx == to_idx) { from_idx=0; to_idx=histogram.binning.nbins-1; }
 
 	double from_val = histogram.binning.from_bin(from_idx);
 	double to_val = histogram.binning.from_bin(to_idx);
@@ -680,21 +682,11 @@ std::vector<double> gen_gaussian(double variance, int bin_count) {
 std::vector<uint8_t> invert_histogram(
 	const Histogram &src_h_in,
 	const std::vector<double> dst_h,
-	size_t output_range, double max_rel_freq
+	size_t output_range
 ) {
 	std::vector<size_t> src_h(src_h_in.counts);
 	size_t pixel_count = 0;
 	for(size_t i=0; i<src_h.size(); i++) pixel_count += src_h[i];
-
-	if(max_rel_freq) {
-		size_t bin_max = size_t(max_rel_freq * pixel_count / src_h.size());
-		for(size_t i=0; i<src_h.size(); i++) {
-			if(src_h[i] > bin_max) {
-				pixel_count -= src_h[i] - bin_max;
-				src_h[i] = bin_max;
-			}
-		}
-	}
 
 	std::vector<uint8_t> out_h(src_h.size());
 	double src_total = 0;
@@ -713,10 +705,10 @@ std::vector<uint8_t> invert_histogram(
 
 std::vector<uint8_t> invert_histogram_to_gaussian(
 	const Histogram &histogram_in, double variance, 
-	int output_range, double max_rel_freq
+	int output_range
 ) {
 	std::vector<double> gaussian = gen_gaussian(variance, output_range);
-	return invert_histogram(histogram_in, gaussian, output_range, max_rel_freq);
+	return invert_histogram(histogram_in, gaussian, output_range);
 }
 
 void copyGeoCode(GDALDatasetH dst_ds, GDALDatasetH src_ds) {
