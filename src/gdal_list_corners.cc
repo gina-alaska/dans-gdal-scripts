@@ -335,6 +335,8 @@ int main(int argc, char **argv) {
 	}
 
 	if(dbuf) dbuf->writePlot(debug_report);
+	
+	GDALClose(ds);
 
 	CPLPopErrorHandler();
 

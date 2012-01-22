@@ -100,6 +100,8 @@ int main(int argc, char **argv) {
 	CPLPushErrorHandler(CPLQuietErrorHandler);
 
 	GeoRef georef = GeoRef(geo_opts, ds);
+	GDALClose(ds);
+
 	if(!georef.hasAffine()) fatal_error("missing affine transform");
 
 	Mpoly mp = mpoly_from_wktfile(wkt_fn);

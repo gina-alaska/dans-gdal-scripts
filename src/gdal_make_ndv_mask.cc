@@ -127,6 +127,8 @@ int main(int argc, char **argv) {
 
 	BitGrid mask = get_bitgrid_for_dataset(ds, inspect_bandids, ndv_def, NULL);
 
+	GDALClose(ds);
+
 	if(do_invert) {
 		mask.invert();
 	}

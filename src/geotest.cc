@@ -49,6 +49,7 @@ int main(int argc, char **argv) {
 	if(!ds) fatal_error("open failed");
 
 	GeoRef georef = GeoRef(geo_opts, ds);
+	GDALClose(ds);
 	
 	double x=1000, y=10;
 	double east, north;
