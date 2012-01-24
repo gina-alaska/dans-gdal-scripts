@@ -9,7 +9,7 @@ corresponding Makefiles.
 ## Programs
 
 ### gdal_contrast_stretch      
-Contrast stretch and conversion from 16-bit to 8-bit
+Contrast stretch and conversion from 8,16-bit or floating point to 8-bit
 
 ### gdal_dem2rgb               
 Generate hillshaded images from DEMs

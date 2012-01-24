@@ -9,6 +9,5 @@ don't use %f, use %g with the right number of digits
 several inputs for contrast stretch
 manual min/max for contrast stretch
 better error message for NDV>255 in contrast stretch
-support more datatypes in contrast stretch
 expose options for fuzzy rectangle bounds finder
 outline tracer should call OGR_G_IsValid on result
