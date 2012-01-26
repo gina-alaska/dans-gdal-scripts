@@ -89,10 +89,11 @@ void usage(const std::string &cmdname) {
 	printf("\
   -outndv <output_nodata_val>        Output no-data value\n\
 \n\
-Stretch mode:\n\
+Operation:\n\
   -linear-stretch <target_avg> <target_stddev>      Linear stretch to a target range\n\
   -percentile-range <from: 0.0-1.0> <to: 0.0-1.0>   Linear stretch using a percentile range of input\n\
   -histeq <target_stddev>                           Histogram normalize to a target bell curve\n\
+  -dump-histogram                                   Just print the histogram to console\n\
 \n\
 Input can be any integer or floating type (but not complex).  Output is 8-bit.\n\
 ");
@@ -108,11 +109,12 @@ int main(int argc, char *argv[]) {
 	std::string dst_fn;
 	std::string output_format;
 
-	char mode_histeq = 0;
-	char mode_stddev = 0;
+	int mode_histeq = 0;
+	int mode_stddev = 0;
 	double dst_avg = -1;
 	double dst_stddev = -1;
-	char mode_percentile = 0;
+	int mode_percentile = 0;
+	int mode_dump_histogram = 0;
 	double from_percentile = -1;
 	double to_percentile = -1;
 	int out_ndv = 0, set_out_ndv = 0;
@@ -149,6 +151,8 @@ int main(int argc, char *argv[]) {
 					dst_stddev = boost::lexical_cast<double>(arg_list[argp++]);
 
 					mode_histeq = 1;
+				} else if(arg == "-dump-histogram") {
+					mode_dump_histogram = 1;
 				} else if(arg == "-outndv") {
 					if(argp == arg_list.size()) usage(cmdname);
 					int64_t ndv_long = boost::lexical_cast<int64_t>(arg_list[argp++]);
@@ -174,8 +178,9 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	if(src_fn.empty() || dst_fn.empty()) usage(cmdname);
-	if(mode_percentile + mode_stddev + mode_histeq > 1) usage(cmdname);
+	if(src_fn.empty()) usage(cmdname);
+	if(dst_fn.empty() != (mode_dump_histogram > 0)) usage(cmdname);
+	if(mode_percentile + mode_stddev + mode_histeq + mode_dump_histogram > 1) usage(cmdname);
 	if(mode_stddev && (dst_avg < 0 || dst_stddev < 0)) usage(cmdname);
 	if(mode_percentile && !(
 		0 <= from_percentile && 
@@ -236,9 +241,6 @@ int main(int argc, char *argv[]) {
 
 	GDALDriverH dst_driver = GDALGetDriverByName(output_format.c_str());
 	if(!dst_driver) fatal_error("unrecognized output format (%s)", output_format.c_str());
-	GDALDatasetH dst_ds = GDALCreate(dst_driver, dst_fn.c_str(), w, h, dst_band_count, GDT_Byte, NULL);
-	if(!dst_ds) fatal_error("couldn't create output");
-	copyGeoCode(dst_ds, src_ds);
 
 	//////// open bands ////////
 
@@ -247,7 +249,6 @@ int main(int argc, char *argv[]) {
 
 	for(size_t band_idx=0; band_idx<dst_band_count; band_idx++) {
 		src_bands.push_back(GDALGetRasterBand(src_ds, bandlist[band_idx]));
-		dst_bands.push_back(GDALGetRasterBand(dst_ds, band_idx+1));
 	}
 
 	//////// find optimal binning ////////
@@ -293,18 +294,38 @@ int main(int argc, char *argv[]) {
 
 	//////// compute lookup table ////////
 
-	int output_range = 256;
-
 	printf("\nComputing histogram...\n");
 	std::vector<Histogram> histograms =
 		compute_histogram(src_bands, ndv_def, w, h, binnings);
 
 	for(size_t band_idx=0; band_idx<dst_band_count; band_idx++) {
 		Histogram &hg = histograms[band_idx];
-		printf("band %zd: min=%g, max=%g, mean=%g, stddev=%g, ndv_count=%zd\n",
-			band_idx, hg.min, hg.max, hg.mean, hg.stddev, hg.ndv_count);
+		printf("band %zd: min=%g, max=%g, mean=%g, stddev=%g, valid_count=%zd, ndv_count=%zd\n",
+			band_idx, hg.min, hg.max, hg.mean, hg.stddev, hg.data_count, hg.ndv_count);
+		if(mode_dump_histogram) {
+			for(int i=0; i<hg.binning.nbins; i++) {
+				printf("bin %d: val=%g cnt=%zd\n",
+					i, hg.binning.from_bin(i), hg.counts[i]);
+			}
+		}
+	}
+	if(mode_dump_histogram) {
+		return 0;
 	}
 
+	//////// open output ////////
+
+	GDALDatasetH dst_ds = GDALCreate(dst_driver, dst_fn.c_str(), w, h, dst_band_count, GDT_Byte, NULL);
+	if(!dst_ds) fatal_error("couldn't create output");
+	copyGeoCode(dst_ds, src_ds);
+
+	for(size_t band_idx=0; band_idx<dst_band_count; band_idx++) {
+		dst_bands.push_back(GDALGetRasterBand(dst_ds, band_idx+1));
+	}
+
+	//////// compute tranformation parameters ////////
+
+	const int output_range = 256;
 	bool use_table; // otherwise, use linear
 	std::vector<std::vector<uint8_t> > xform_table(dst_band_count);
 	std::vector<double> lin_scales(dst_band_count);
@@ -559,6 +580,8 @@ std::vector<Histogram> compute_histogram(
 	std::vector<uint8_t> ndv_mask(block_len);
 	std::vector<uint8_t> band_mask(block_len);
 
+	bool first_valid_pixel = true;
+
 	for(size_t boff_y=0; boff_y<h; boff_y+=blocksize_y) {
 		size_t bsize_y = blocksize_y;
 		if(bsize_y + boff_y > h) bsize_y = h - boff_y;
@@ -593,7 +616,14 @@ std::vector<Histogram> compute_histogram(
 					if(ndv_mask[i]) {
 						hg.ndv_count++;
 					} else {
-						hg.counts[hg.binning.to_bin(p[i])]++;
+						double v = p[i];
+						hg.counts[hg.binning.to_bin(v)]++;
+						if(first_valid_pixel) {
+							hg.min = hg.max = v;
+							first_valid_pixel = false;
+						}
+						if(v < hg.min) hg.min = v;
+						if(v > hg.max) hg.max = v;
 					}
 				}
 			}
@@ -603,16 +633,10 @@ std::vector<Histogram> compute_histogram(
 
 	for(size_t band_idx=0; band_idx<band_count; band_idx++) {
 		Histogram &hg = histograms[band_idx];
-		bool got_nonzero = false;
 		double accum = 0;
 		for(int i=0; i<hg.binning.nbins; i++) {
 			size_t cnt = hg.counts[i];
 			double v = hg.binning.from_bin(i);
-			if(!got_nonzero && cnt) {
-				hg.min = v;
-				got_nonzero = true;
-			}
-			hg.max = v;
 			hg.data_count += cnt;
 			accum += v * cnt;
 		}
