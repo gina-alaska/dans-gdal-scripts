@@ -349,7 +349,7 @@ int main(int argc, char *argv[]) {
 			for(size_t band_idx=0; band_idx<dst_band_count; band_idx++) {
 				Histogram &hg = histograms[band_idx];
 				lin_scales[band_idx] = hg.stddev ? dst_stddev / hg.stddev : 0;
-				lin_offsets[band_idx] = dst_avg - hg.mean * lin_scales[band_idx];
+				lin_offsets[band_idx] = hg.mean - dst_avg / lin_scales[band_idx];
 			}
 		} else { // no transformation
 			for(size_t band_idx=0; band_idx<dst_band_count; band_idx++) {
@@ -678,7 +678,7 @@ void get_scale_from_percentile(
 	double to_val = histogram.binning.from_bin(to_idx);
 
 	*scale_out = (double)(output_range-1) / (double)(to_val-from_val);
-	*offset_out = -(double)from_val * (*scale_out);
+	*offset_out = from_val;
 }
 
 std::vector<double> gen_gaussian(double variance, int bin_count) {
