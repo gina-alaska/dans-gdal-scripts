@@ -46,7 +46,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 #include "config.h"
 
-#include <math.h>
+#include <cmath>
 #include <stdio.h>
 
 #if HAVE_STDINT_H

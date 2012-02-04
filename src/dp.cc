@@ -143,7 +143,7 @@ ReducedRing compute_reduced_ring(const Ring &orig_string, double res) {
 				double dist_to_seg = get_dist_to_seg(seg_vec_x, seg_vec_y,
 					pts_in[seg_begin], pts_in[seg_end], pts_in[i]);
 				if(dist_to_seg < 0.0) fatal_error("dist_to_seg < 0.0");
-				if(isnan(dist_to_seg)) fatal_error("dist_to_seg == NaN");
+				if(std::isnan(dist_to_seg)) fatal_error("dist_to_seg == NaN");
 
 				if(dist_to_seg > max_dist) {
 					max_dist = dist_to_seg;

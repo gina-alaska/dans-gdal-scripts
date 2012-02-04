@@ -57,7 +57,7 @@ Palette Palette::fromLines(const std::vector<std::string> &lines) {
 		) {
 			fatal_error("cannot parse line in palette file: [%s]", line.c_str());
 		}
-		if(isnan(val)) {
+		if(std::isnan(val)) {
 			p.nan_color = rgb;
 		} else {
 			p.vals.push_back(val);

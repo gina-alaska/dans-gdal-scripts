@@ -42,10 +42,10 @@ struct Binning {
 	double scale;
 
 	int to_bin(double v) const {
-		if(isinf(v) == -1) return 0;
-		if(isinf(v) ==  1) return nbins-1;
+		if(std::isinf(v) == -1) return 0;
+		if(std::isinf(v) ==  1) return nbins-1;
 		double bin_dbl = round((v-offset)/scale);
-		if(isnan(bin_dbl)) fatal_error("nan in to_bin");
+		if(std::isnan(bin_dbl)) fatal_error("nan in to_bin");
 		if(bin_dbl < 0) return 0;
 		if(bin_dbl > nbins-1) return nbins-1;
 		int bin_int = int(bin_dbl);
@@ -535,7 +535,7 @@ std::vector<std::pair<double, double> > compute_minmax(
 				for(size_t i=0; i<block_len; i++) {
 					if(ndv_mask[i]) continue;
 					double v = buf_in[band_idx][i];
-					if(isnan(v) || isinf(v)) continue;
+					if(std::isnan(v) || std::isinf(v)) continue;
 
 					double &min = minmax[band_idx].first;
 					double &max = minmax[band_idx].second;

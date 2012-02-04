@@ -1,6 +1,7 @@
 === Version 0.20
 	gdal_contrast_stretch has histogram dump mode
 	bug fix in gdal_contrast_stretch
+	changes to satisfy cpplint
 
 === Version 0.19
 	gdal_contrast_stretch supports all datatypes except for complex

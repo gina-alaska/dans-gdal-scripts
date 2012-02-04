@@ -203,7 +203,7 @@ void flagNaN(
 	size_t nsamps
 ) {
 	for(size_t i=0; i<nsamps; i++) {
-		if(isnan(in_data[i])) mask_out[i] = 1;
+		if(std::isnan(in_data[i])) mask_out[i] = 1;
 	}
 }
 
