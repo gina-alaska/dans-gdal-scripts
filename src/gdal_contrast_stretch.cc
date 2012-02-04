@@ -86,17 +86,17 @@ void copyGeoCode(GDALDatasetH dst_ds, GDALDatasetH src_ds);
 void usage(const std::string &cmdname) {
 	printf("Usage: %s <options> src.tif dst.tif\n\n", cmdname.c_str());
 	NdvDef::printUsage();
-	printf("\
-  -outndv <output_nodata_val>        Output no-data value\n\
-\n\
-Operation:\n\
-  -linear-stretch <target_avg> <target_stddev>      Linear stretch to a target range\n\
-  -percentile-range <from: 0.0-1.0> <to: 0.0-1.0>   Linear stretch using a percentile range of input\n\
-  -histeq <target_stddev>                           Histogram normalize to a target bell curve\n\
-  -dump-histogram                                   Just print the histogram to console\n\
-\n\
-Input can be any integer or floating type (but not complex).  Output is 8-bit.\n\
-");
+	printf(
+"  -outndv <output_nodata_val>        Output no-data value\n"
+"\n"
+"Operation:\n"
+"  -linear-stretch <target_avg> <target_stddev>      Linear stretch to a target range\n"
+"  -percentile-range <from: 0.0-1.0> <to: 0.0-1.0>   Linear stretch using a percentile range of input\n"
+"  -histeq <target_stddev>                           Histogram normalize to a target bell curve\n"
+"  -dump-histogram                                   Just print the histogram to console\n"
+"\n"
+"Input can be any integer or floating type (but not complex).  Output is 8-bit.\n"
+);
 	exit(1);
 }
 

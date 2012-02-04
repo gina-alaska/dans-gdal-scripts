@@ -47,28 +47,28 @@ void usage(const std::string &cmdname) {
 	printf("\n");
 	NdvDef::printUsage();
 
-	printf("\
-\n\
-Inspection:\n\
-  -inspect-rect4              Attempt to find 4-sided bounding polygon\n\
-  -fuzzy-match                Try to exclude logos and other extraneous\n\
-                              pixels from bounding polygon\n\
-  -b band_id -b band_id ...   Bands to inspect (default is all bands)\n\
-  -erosion                    Erode pixels that don't have two consecutive\n\
-                              neighbors\n\
-  -report fn.ppm              Output graphical report of bounds found\n\
-  -mask-out fn.pbm            Output mask of bounding polygon in PBM format\n\
-\n\
-Misc:\n\
-  -v                          Verbose\n\
-\n\
-Examples:\n\
-  Output basic geocoding info:\n\
-    gdal_list_corners raster.tif > geocode.yaml\n\
-  Inspect image to find corners of actual data (arbitrary four-sided region):\n\
-    gdal_list_corners raster.tif -inspect-rect4 -nodataval 0 > geocode.yaml\n\
-\n\
-");
+	printf(
+"\n"
+"Inspection:\n"
+"  -inspect-rect4              Attempt to find 4-sided bounding polygon\n"
+"  -fuzzy-match                Try to exclude logos and other extraneous\n"
+"                              pixels from bounding polygon\n"
+"  -b band_id -b band_id ...   Bands to inspect (default is all bands)\n"
+"  -erosion                    Erode pixels that don't have two consecutive\n"
+"                              neighbors\n"
+"  -report fn.ppm              Output graphical report of bounds found\n"
+"  -mask-out fn.pbm            Output mask of bounding polygon in PBM format\n"
+"\n"
+"Misc:\n"
+"  -v                          Verbose\n"
+"\n"
+"Examples:\n"
+"  Output basic geocoding info:\n"
+"    gdal_list_corners raster.tif > geocode.yaml\n"
+"  Inspect image to find corners of actual data (arbitrary four-sided region):\n"
+"    gdal_list_corners raster.tif -inspect-rect4 -nodataval 0 > geocode.yaml\n"
+"\n"
+);
 	exit(1);
 }
 

@@ -39,14 +39,14 @@ void usage(const std::string &cmdname); // externally defined
 namespace dangdal {
 
 void NdvDef::printUsage() {
-	printf("\
-No-data values:\n\
-  -ndv val                           Set a no-data value\n\
-  -ndv 'val val ...'                 Set a no-data value using all input bands\n\
-  -ndv 'min..max min..max ...'       Set a range of no-data values\n\
-                                     (-Inf and Inf are allowed)\n\
-  -valid-range 'min..max min..max ...'  Set a range of valid data values\n\
-");
+	printf(
+"No-data values:\n"
+"  -ndv val                           Set a no-data value\n"
+"  -ndv 'val val ...'                 Set a no-data value using all input bands\n"
+"  -ndv 'min..max min..max ...'       Set a range of no-data values\n"
+"                                     (-Inf and Inf are allowed)\n"
+"  -valid-range 'min..max min..max ...'  Set a range of valid data values\n"
+);
 }
 
 NdvInterval::NdvInterval(const std::string &s) {

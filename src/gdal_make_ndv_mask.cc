@@ -40,15 +40,15 @@ void usage(const std::string &cmdname) {
 	
 	NdvDef::printUsage();
 
-	printf("\
-\n\
-Misc:\n\
-  -b band_id -b band_id ...   Bands to inspect (default is all bands)\n\
-  -invert              Make mask cover no-data pixels instead of data pixels\n\
-  -erosion             Erode pixels that don't have two consecutive neighbors\n\
-  -v                   Verbose\n\
-\n\
-");
+	printf(
+"\n"
+"Misc:\n"
+"  -b band_id -b band_id ...   Bands to inspect (default is all bands)\n"
+"  -invert              Make mask cover no-data pixels instead of data pixels\n"
+"  -erosion             Erode pixels that don't have two consecutive neighbors\n"
+"  -v                   Verbose\n"
+"\n"
+	);
 	exit(1);
 }
 

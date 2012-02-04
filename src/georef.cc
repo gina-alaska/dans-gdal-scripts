@@ -40,16 +40,16 @@ void usage(const std::string &cmdname); // externally defined
 namespace dangdal {
 
 void GeoOpts::printUsage() {
-	printf("\
-Geocoding:\n\
-  -s_srs 'proj4 def'              Set or override source SRS\n\
-  -geo_srs 'proj4 def'            Set or override geographic SRS (datum, etc.) used for output\n\
-  -ll_en left_east lower_north    Set or override lower-left coordinate\n\
-  -ul_en left_east lower_north    Set or override upper-left coordinate\n\
-                                  (don't use both ll_en and ul_en)\n\
-  -wh width height                Set or override image size\n\
-  -res res_x res_y                Set or override resolution\n\
-");
+	printf(
+"Geocoding:\n"
+"  -s_srs 'proj4 def'              Set or override source SRS\n"
+"  -geo_srs 'proj4 def'            Set or override geographic SRS (datum, etc.) used for output\n"
+"  -ll_en left_east lower_north    Set or override lower-left coordinate\n"
+"  -ul_en left_east lower_north    Set or override upper-left coordinate\n"
+"                                  (don't use both ll_en and ul_en)\n"
+"  -wh width height                Set or override image size\n"
+"  -res res_x res_y                Set or override resolution\n"
+	);
 }
 
 GeoOpts::GeoOpts(std::vector<std::string> &arg_list) :

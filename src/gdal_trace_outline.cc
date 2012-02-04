@@ -68,66 +68,66 @@ void usage(const std::string &cmdname) {
 	printf("\n");
 	NdvDef::printUsage();
 
-	printf("\
-\n\
-Behavior:\n\
-  -classify                    Output a polygon for each value of an 8-bit band\n\
-                               (default is to generate a single polygon that\n\
-                               surrounds all pixels that don't match\n\
-                               the no-data-value)\n\
-  -b band_id -b band_id ...    Bands to inspect (default is all bands)\n\
-  -invert                      Trace no-data pixels rather than data pixels\n\
-  -erosion                     Erode pixels that don't have two consecutive\n\
-                               neighbors\n\
-  -major-ring                  Take only the biggest outer ring\n\
-  -no-donuts                   Take only top-level rings\n\
-  -min-ring-area val           Drop rings with less than this area\n\
-                               (in square pixels)\n\
-  -dp-toler val                Tolerance for polygon simplification\n\
-                               (in pixels, default is 2.0)\n\
-  -bevel-size                  How much to shave off corners at\n\
-                               self-intersection points\n\
-                               (in pixels, default is 0.1)\n\
-                               (this is done to make geometries that\n\
-                               PostGIS/GEOS/Jump can handle)\n\
-  -pinch-excursions            Remove all the complicated 'mouse bites' that\n\
-                               occur in the outline when lossy compression\n\
-                               has been used (experimental)\n\
-\n\
-Output:\n\
-  -report fn.ppm               Output graphical report of polygons found\n\
-  -mask-out fn.pbm             Output mask of bounding polygon in PBM format\n\
-  -out-cs [xy | en | ll]       Set coordinate system for following outputs\n\
-                               (pixel coords, easting/northing, or lon/lat)\n\
-                               Must be specified before -{wkt,wkb,ogr}-out options\n\
-  -llproj-toler val            Error tolerance for curved lines when\n\
-                               using '-out-cs ll' (in pixels, default is 1.0)\n\
-  -wkt-out fn.wkt              Output polygons in WKT format\n\
-  -wkb-out fn.wkb              Output polygons in WKB format\n\
-  -ogr-out fn.shp              Output polygons using an OGR format\n\
-  -ogr-fmt                     OGR format to use (default is 'ESRI Shapefile')\n\
-                               Must be specified before -ogr-out option\n\
-  -split-polys                 Output several polygons rather than one\n\
-                               multipolygon\n\
-\n\
-Misc:\n\
-  -v                           Verbose\n\
-\n\
-Examples:\n\
-\n\
-Inspect image and output contour of data region:\n\
-gdal_trace_outline raster.tif -nodataval 0 -erosion -out-cs ll -wkt-out outline.wkt\n\
-\n\
-Same as above but polygon actually follows border pixel-by-pixel:\n\
-gdal_trace_outline raster.tif -nodataval 0 -dp-toler 0 -out-cs ll -wkt-out outline.wkt\n\
-\n\
-Output ESRI Shapefile in projection of input image:\n\
-gdal_trace_outline raster.tif -nodataval 0 -erosion -out-cs en -ogr-out outline.shp\n\
-\n\
-Generate one shape for each value in input image:\n\
-gdal_trace_outline raster.tif -classify -out-cs en -ogr-out outline.shp\n\
-\n\
-");
+	printf(
+"\n"
+"Behavior:\n"
+"  -classify                    Output a polygon for each value of an 8-bit band\n"
+"                               (default is to generate a single polygon that\n"
+"                               surrounds all pixels that don't match\n"
+"                               the no-data-value)\n"
+"  -b band_id -b band_id ...    Bands to inspect (default is all bands)\n"
+"  -invert                      Trace no-data pixels rather than data pixels\n"
+"  -erosion                     Erode pixels that don't have two consecutive\n"
+"                               neighbors\n"
+"  -major-ring                  Take only the biggest outer ring\n"
+"  -no-donuts                   Take only top-level rings\n"
+"  -min-ring-area val           Drop rings with less than this area\n"
+"                               (in square pixels)\n"
+"  -dp-toler val                Tolerance for polygon simplification\n"
+"                               (in pixels, default is 2.0)\n"
+"  -bevel-size                  How much to shave off corners at\n"
+"                               self-intersection points\n"
+"                               (in pixels, default is 0.1)\n"
+"                               (this is done to make geometries that\n"
+"                               PostGIS/GEOS/Jump can handle)\n"
+"  -pinch-excursions            Remove all the complicated 'mouse bites' that\n"
+"                               occur in the outline when lossy compression\n"
+"                               has been used (experimental)\n"
+"\n"
+"Output:\n"
+"  -report fn.ppm               Output graphical report of polygons found\n"
+"  -mask-out fn.pbm             Output mask of bounding polygon in PBM format\n"
+"  -out-cs [xy | en | ll]       Set coordinate system for following outputs\n"
+"                               (pixel coords, easting/northing, or lon/lat)\n"
+"                               Must be specified before -{wkt,wkb,ogr}-out options\n"
+"  -llproj-toler val            Error tolerance for curved lines when\n"
+"                               using '-out-cs ll' (in pixels, default is 1.0)\n"
+"  -wkt-out fn.wkt              Output polygons in WKT format\n"
+"  -wkb-out fn.wkb              Output polygons in WKB format\n"
+"  -ogr-out fn.shp              Output polygons using an OGR format\n"
+"  -ogr-fmt                     OGR format to use (default is 'ESRI Shapefile')\n"
+"                               Must be specified before -ogr-out option\n"
+"  -split-polys                 Output several polygons rather than one\n"
+"                               multipolygon\n"
+"\n"
+"Misc:\n"
+"  -v                           Verbose\n"
+"\n"
+"Examples:\n"
+"\n"
+"Inspect image and output contour of data region:\n"
+"gdal_trace_outline raster.tif -nodataval 0 -erosion -out-cs ll -wkt-out outline.wkt\n"
+"\n"
+"Same as above but polygon actually follows border pixel-by-pixel:\n"
+"gdal_trace_outline raster.tif -nodataval 0 -dp-toler 0 -out-cs ll -wkt-out outline.wkt\n"
+"\n"
+"Output ESRI Shapefile in projection of input image:\n"
+"gdal_trace_outline raster.tif -nodataval 0 -erosion -out-cs en -ogr-out outline.shp\n"
+"\n"
+"Generate one shape for each value in input image:\n"
+"gdal_trace_outline raster.tif -classify -out-cs en -ogr-out outline.shp\n"
+"\n"
+	);
 	exit(1);
 }
 
