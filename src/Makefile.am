@@ -33,8 +33,8 @@ LIBS = @GDALLIBS@
 
 bin_PROGRAMS = gdal_raw2geotiff gdal_dem2rgb gdal_list_corners gdal_trace_outline gdal_contrast_stretch gdal_landsat_pansharp gdal_wkt_to_mask gdal_merge_simple gdal_merge_vrt gdal_get_projected_bounds gdal_make_ndv_mask
 
-default_palette.h: default_palette.pal
-	(echo "const char *DEFAULT_PALETTE[] = {"; sed 's/^/\t\"/;s/$$/",/' < default_palette.pal; echo "	NULL };") > default_palette.h
+#default_palette.h: default_palette.pal
+#	(echo "const char *DEFAULT_PALETTE[] = {"; sed 's/^/\t\"/;s/$$/",/' < default_palette.pal; echo "	NULL };") > default_palette.h
 
 gdal_raw2geotiff_SOURCES = gdal_raw2geotiff.cc common.cc
 
