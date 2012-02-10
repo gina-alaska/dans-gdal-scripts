@@ -6,6 +6,7 @@
 	make doesn't require awk; default_palette.h prebuilt
 	fixed uninitialized class members
 	fixes for cppcheck
+	fixed src_range display
 
 === Version 0.19
 	gdal_contrast_stretch supports all datatypes except for complex

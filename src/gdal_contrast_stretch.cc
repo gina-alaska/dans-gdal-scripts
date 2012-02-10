@@ -373,7 +373,7 @@ int main(int argc, char *argv[]) {
 			double scale = lin_scales[band_idx];
 			double offset = lin_offsets[band_idx];
 			printf("band %zd: scale=%f, offset=%f, src_range=[%f, %f]\n",
-				band_idx, scale, offset, -offset/scale, ((double)(output_range-1)-offset)/scale);
+				band_idx, scale, offset, offset, ((double)(output_range-1)/scale)+offset);
 		}
 	}
 
