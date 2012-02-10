@@ -68,5 +68,8 @@ lint:
 	| grep -v 'Use static_cast' \
 	| grep -v 'Done processing '
 
+cppcheck:
+	cppcheck $(DEFAULT_INCLUDES) $(INCLUDES) --template gcc --enable=all -q -i attic/ .
+
 noinst_HEADERS = beveler.h common.h debugplot.h default_palette.h dp.h excursion_pincher.h georef.h mask-tracer.h mask.h ndv.h palette.h polygon-rasterizer.h polygon.h rectangle_finder.h
 EXTRA_DIST = default_palette.pal

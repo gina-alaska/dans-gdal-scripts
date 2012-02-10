@@ -70,7 +70,7 @@ void Bbox::expand(const Bbox &bb) {
 	}
 }
 
-Bbox box_union(const Bbox bb1, const Bbox bb2) {
+Bbox box_union(const Bbox &bb1, const Bbox &bb2) {
 	Bbox u = bb1;
 	u.expand(bb2);
 	return u;
@@ -103,7 +103,7 @@ Ring ogr_to_ring(OGRGeometryH ogr) {
 	return ring;
 }
 
-OGRGeometryH mpoly_to_ogr(const Mpoly mpoly_in) {
+OGRGeometryH mpoly_to_ogr(const Mpoly &mpoly_in) {
 	size_t num_rings_in = mpoly_in.rings.size();
 
 	std::vector<std::vector<int> > holes;
@@ -814,6 +814,7 @@ Mpoly mpoly_from_wktfile(const std::string &fn) {
 	FILE *fh = fopen(fn.c_str(), "r");
 	if(!fh) fatal_error("cannot read file [%s]", fn.c_str());
 	std::string wkt = read_whole_file(fh);
+	fclose(fh);
 	for(size_t i=0; i<wkt.size(); i++) {
 		if(wkt[i] == '\r') wkt[i] = ' ';
 		if(wkt[i] == '\n') wkt[i] = ' ';

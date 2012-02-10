@@ -108,9 +108,9 @@ std::vector<row_crossings_t> get_row_crossings(
 		if(top.size() && bot.size()) {
 			row_crossings_t c = crossings_intersection(top, bot);
 			std::swap(rows_out[row], c);
-		} else if(top.size()) {
+		} else if(!top.empty()) {
 			std::swap(rows_out[row], top);
-		} else if(bot.size()) {
+		} else if(!bot.empty()) {
 			std::swap(rows_out[row], bot);
 		} else {
 			// no-op: leave rows_out[row] empty
@@ -120,7 +120,7 @@ std::vector<row_crossings_t> get_row_crossings(
 	return rows_out;
 }
 
-void mask_from_mpoly(const Mpoly &mpoly, size_t w, size_t h, const std::string fn) {
+void mask_from_mpoly(const Mpoly &mpoly, size_t w, size_t h, const std::string &fn) {
 	printf("mask draw: begin\n");
 
 	std::vector<row_crossings_t> rows = get_row_crossings(mpoly, 0, h);

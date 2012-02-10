@@ -27,6 +27,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 #include <string>
+#include <cassert>
 
 #include <boost/lexical_cast.hpp>
 
@@ -135,6 +136,7 @@ GeoRef::GeoRef(GeoOpts opt, const GDALDatasetH ds) {
 	if(spatial_ref) {
 		char *s_srs_str = NULL;
 		OSRExportToProj4(spatial_ref, &s_srs_str);
+		assert(s_srs_str);
 		s_srs = s_srs_str;
 
 		if(opt.geo_srs.size()) {
@@ -149,6 +151,7 @@ GeoRef::GeoRef(GeoOpts opt, const GDALDatasetH ds) {
 
 		char *geo_srs_str = NULL;
 		OSRExportToProj4(geo_sref, &geo_srs_str);
+		assert(geo_srs_str);
 		geo_srs = geo_srs_str;
 
 		fwd_xform = OCTNewCoordinateTransformation(spatial_ref, geo_sref);

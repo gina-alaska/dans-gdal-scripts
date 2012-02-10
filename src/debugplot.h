@@ -38,6 +38,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 namespace dangdal {
 
 enum DebugPlotMode {
+	PLOT_NORMAL,
 	PLOT_RECT4,
 	PLOT_CONTOURS,
 	PLOT_PINCH
@@ -45,9 +46,9 @@ enum DebugPlotMode {
 
 class DebugPlot {
 public:
-	DebugPlot(double w, double h);
+	DebugPlot(double w, double h, DebugPlotMode _mode);
 
-	void writePlot(const std::string fn);
+	void writePlot(const std::string &fn);
 	void plotPointBig(double x, double y, uint8_t r, uint8_t g, uint8_t b);
 	void plotPoint(double x, double y, uint8_t r, uint8_t g, uint8_t b);
 	void plotLine(Vertex p0, Vertex p1, uint8_t r, uint8_t g, uint8_t b);

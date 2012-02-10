@@ -52,7 +52,7 @@ Palette Palette::fromLines(const std::vector<std::string> &lines) {
 		RGB rgb;
 		double val;
 		if(
-			4 != sscanf(line.c_str(), "%lf %hhd %hhd %hhd\n",
+			4 != sscanf(line.c_str(), "%100lf %100hhd %100hhd %100hhd\n",
 				&val, &rgb.r, &rgb.g, &rgb.b)
 		) {
 			fatal_error("cannot parse line in palette file: [%s]", line.c_str());

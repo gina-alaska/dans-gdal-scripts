@@ -41,7 +41,7 @@ typedef std::vector<int> row_crossings_t;
 
 std::vector<row_crossings_t> get_row_crossings(const Mpoly &mpoly, int min_y, int num_rows);
 
-void mask_from_mpoly(const Mpoly &mpoly, size_t w, size_t h, const std::string fn);
+void mask_from_mpoly(const Mpoly &mpoly, size_t w, size_t h, const std::string &fn);
 
 row_crossings_t crossings_intersection(
 	const row_crossings_t &in1, const row_crossings_t &in2

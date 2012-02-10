@@ -411,7 +411,7 @@ int main(int argc, char *argv[]) {
 			ndv_def.arrayCheckNdv(0, &inbuf_next[0], &inbuf_ndv_next[0], w);
 			scale_values(&inbuf_next[0], w, src_scale, src_offset);
 		}
-		if(tex_bands.size()) {
+		if(!tex_bands.empty()) {
 			for(int i=0; i<out_numbands; i++) {
 				GDALRasterIO(tex_bands[i], GF_Read, 0, row, w, 1, &outbuf[i][0], w, 1, GDT_Byte, 0, 0);
 			}

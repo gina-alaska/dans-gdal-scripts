@@ -63,7 +63,7 @@ public:
 		empty(true)
 	{ }
 
-	void expand(const Vertex v) {
+	void expand(const Vertex &v) {
 		if(empty) {
 			empty = false;
 			min_x = max_x = v.x;
@@ -82,9 +82,9 @@ public:
 	bool empty;
 };
 
-Bbox box_union(const Bbox bb1, const Bbox bb2);
+Bbox box_union(const Bbox &bb1, const Bbox &bb2);
 
-static inline bool is_disjoint(const Bbox bb1, const Bbox bb2) {
+static inline bool is_disjoint(const Bbox &bb1, const Bbox &bb2) {
 	return
 		bb1.empty || bb2.empty ||
 		bb1.min_x >  bb2.max_x ||
@@ -133,7 +133,7 @@ public:
 
 OGRGeometryH ring_to_ogr(const Ring &ring);
 Ring ogr_to_ring(OGRGeometryH ogr);
-OGRGeometryH mpoly_to_ogr(const Mpoly mpoly_in);
+OGRGeometryH mpoly_to_ogr(const Mpoly &mpoly_in);
 Mpoly ogr_to_mpoly(OGRGeometryH geom_in);
 std::vector<Mpoly> split_mpoly_to_polys(const Mpoly &mpoly);
 bool line_intersects_line(

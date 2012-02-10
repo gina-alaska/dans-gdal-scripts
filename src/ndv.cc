@@ -169,7 +169,7 @@ void NdvDef::debugPrint() const {
 
 template<class T>
 void flagMatches(
-	const NdvInterval range,
+	const NdvInterval &range,
 	const T *in_data,
 	uint8_t *mask_out,
 	size_t nsamps
@@ -182,7 +182,7 @@ void flagMatches(
 
 template<>
 void flagMatches<uint8_t>(
-	const NdvInterval range,
+	const NdvInterval &range,
 	const uint8_t *in_data,
 	uint8_t *mask_out,
 	size_t nsamps

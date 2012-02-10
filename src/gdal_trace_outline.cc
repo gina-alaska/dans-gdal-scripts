@@ -141,8 +141,11 @@ struct GeomOutput {
 		wkt_fh(NULL),
 		wkb_fh(NULL),
 		ogr_ds(NULL),
-		ogr_layer(NULL)
-	{ }
+		ogr_layer(NULL),
+		class_fld_idx(-1)
+	{
+		for(int i=0; i<4; i++) color_fld_idx[i] = -1;
+	}
 
 	CoordSystem out_cs;
 
@@ -327,8 +330,8 @@ int main(int argc, char **argv) {
 
 	DebugPlot *dbuf = NULL;
 	if(debug_report.size()) {
-		dbuf = new DebugPlot(georef.w, georef.h);
-		dbuf->mode = do_pinch_excursions ? PLOT_PINCH : PLOT_CONTOURS;
+		dbuf = new DebugPlot(georef.w, georef.h,
+			do_pinch_excursions ? PLOT_PINCH : PLOT_CONTOURS);
 	}
 
 	std::vector<uint8_t> raster;
@@ -386,8 +389,6 @@ int main(int argc, char **argv) {
 				(split_polys ? wkbPolygon : wkbMultiPolygon), NULL);
 			if(!go.ogr_layer) fatal_error("cannot create OGR layer");
 
-			go.class_fld_idx = -1;
-			for(int i=0; i<4; i++) go.color_fld_idx[i] = -1;
 			if(classify) {
 				OGRFieldDefnH fld = OGR_Fld_Create("value", OFTInteger);
 				OGR_Fld_SetWidth(fld, 4);

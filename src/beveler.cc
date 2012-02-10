@@ -34,7 +34,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 namespace dangdal {
 
 struct VertRef {
-	VertRef() { }
+	VertRef() : ring_idx(0), vert_idx(0) { }
 	VertRef(size_t _r, size_t _v) : ring_idx(_r), vert_idx(_v) { }
 
 	const Vertex &getVert(const Mpoly &mp) const {

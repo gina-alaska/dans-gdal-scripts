@@ -35,6 +35,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 namespace dangdal {
 
 struct Edge {
+	Edge() : angle(0), seg_len(0), group(0) { }
+	
 	Vertex p0, p1;
 	double angle;
 	double seg_len;
@@ -42,6 +44,10 @@ struct Edge {
 };
 
 struct EdgeGroup {
+	EdgeGroup() :
+		arc_len(0), wx(0), wy(0), avg_ang(0), use(0), sort_key(0)
+	{ }
+
 	double arc_len;
 	double wx, wy;
 	double avg_ang;

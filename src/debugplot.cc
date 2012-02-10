@@ -32,7 +32,9 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 namespace dangdal {
 
-DebugPlot::DebugPlot(double w, double h) {
+DebugPlot::DebugPlot(double w, double h, DebugPlotMode _mode) :
+	mode(_mode)
+{
 	if(w<0 || h<0) fatal_error("negative size for debug plot (%g,%g)", w, h);
 
 	canvas_w = w+2;
@@ -59,7 +61,7 @@ DebugPlot::DebugPlot(double w, double h) {
 	img.assign(img_w*img_h*3, 0);
 }
 
-void DebugPlot::writePlot(const std::string fn) {
+void DebugPlot::writePlot(const std::string &fn) {
 	FILE *fout = fopen(fn.c_str(), "wb");
 	fprintf(fout, "P6\n%zd %zd\n255\n", img_w, img_h);
 	fwrite(&img[0], img.size(), 1, fout);

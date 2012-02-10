@@ -151,12 +151,12 @@ int main(int argc, char **argv) {
 
 	if(!do_inspect) {
 		std::string suffix(" can only be used with -inspect-rect4 option");
-		if(fuzzy_match)            fatal_error("-fuzzy-match option"+suffix);
-		if(!ndv_def.empty())       fatal_error("NDV options"+suffix);
-		if(debug_report.size())    fatal_error("-report option"+suffix);
-		if(mask_out_fn.size())     fatal_error("-mask-out option"+suffix);
-		if(inspect_bandids.size()) fatal_error("-b option"+suffix);
-		if(do_erosion)             fatal_error("-erosion option"+suffix);
+		if(fuzzy_match)              fatal_error("-fuzzy-match option"+suffix);
+		if(!ndv_def.empty())         fatal_error("NDV options"+suffix);
+		if(debug_report.size())      fatal_error("-report option"+suffix);
+		if(mask_out_fn.size())       fatal_error("-mask-out option"+suffix);
+		if(!inspect_bandids.empty()) fatal_error("-b option"+suffix);
+		if(do_erosion)               fatal_error("-erosion option"+suffix);
 	}
 
 	CPLPushErrorHandler(CPLQuietErrorHandler);
@@ -171,8 +171,7 @@ int main(int argc, char **argv) {
 		}
 
 		if(debug_report.size()) {
-			dbuf = new DebugPlot(georef.w, georef.h);
-			dbuf->mode = PLOT_RECT4;
+			dbuf = new DebugPlot(georef.w, georef.h, PLOT_RECT4);
 		}
 
 		mask = get_bitgrid_for_dataset(ds, inspect_bandids, ndv_def, dbuf);

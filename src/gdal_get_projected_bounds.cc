@@ -316,7 +316,7 @@ void plot_points(const Ring &pl, const std::string &fn) {
 	bbox.max_y += (bbox.max_y - bbox.min_y) * .05;
 	double W = bbox.max_x - bbox.min_x;
 	double H = bbox.max_y - bbox.min_y;
-	DebugPlot dbuf(W, H);
+	DebugPlot dbuf(W, H, PLOT_NORMAL);
 	for(size_t i=0; i<pl.pts.size(); i++) {
 		Vertex v = pl.pts[i];
 		double x = v.x - bbox.min_x;

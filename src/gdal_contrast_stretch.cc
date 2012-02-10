@@ -37,9 +37,11 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 using namespace dangdal;
 
 struct Binning {
-	int nbins;
-	double offset;
-	double scale;
+	Binning() :
+		nbins(0),
+		offset(0),
+		scale(0)
+	{ }
 
 	int to_bin(double v) const {
 		if(std::isinf(v) == -1) return 0;
@@ -56,9 +58,18 @@ struct Binning {
 	double from_bin(int i) const {
 		return double(i) * scale + offset;
 	}
+
+	int nbins;
+	double offset;
+	double scale;
 };
 
 struct Histogram {
+	Histogram() :
+		min(0), max(0), mean(0), stddev(0),
+		data_count(0), ndv_count(0)
+	{ }
+
 	Binning binning;
 	double min, max, mean, stddev;
 	size_t data_count;
@@ -67,12 +78,12 @@ struct Histogram {
 };
 
 std::vector<std::pair<double, double> > compute_minmax(
-	const std::vector<GDALRasterBandH> src_bands, const NdvDef &ndv_def, 
+	const std::vector<GDALRasterBandH> &src_bands, const NdvDef &ndv_def, 
 	size_t w, size_t h
 );
 std::vector<Histogram> compute_histogram(
-	const std::vector<GDALRasterBandH> src_bands, const NdvDef &ndv_def, 
-	size_t w, size_t h, const std::vector<Binning> binnings
+	const std::vector<GDALRasterBandH> &src_bands, const NdvDef &ndv_def, 
+	size_t w, size_t h, const std::vector<Binning> &binnings
 );
 void get_scale_from_percentile(
 	const Histogram &histogram, int output_range,
@@ -278,7 +289,7 @@ int main(int argc, char *argv[]) {
 					binning.scale = 1;
 					break;
 				default:
-					if(!minmax.size()) {
+					if(minmax.empty()) {
 						printf("Computing min/max values...\n");
 						minmax = compute_minmax(src_bands, ndv_def, w, h);
 					}
@@ -484,7 +495,7 @@ int main(int argc, char *argv[]) {
 }
 
 std::vector<std::pair<double, double> > compute_minmax(
-	const std::vector<GDALRasterBandH> src_bands, const NdvDef &ndv_def, 
+	const std::vector<GDALRasterBandH> &src_bands, const NdvDef &ndv_def, 
 	size_t w, size_t h
 ) {
 	size_t band_count = src_bands.size();
@@ -556,8 +567,8 @@ std::vector<std::pair<double, double> > compute_minmax(
 }
 
 std::vector<Histogram> compute_histogram(
-	const std::vector<GDALRasterBandH> src_bands, const NdvDef &ndv_def, 
-	size_t w, size_t h, const std::vector<Binning> binnings
+	const std::vector<GDALRasterBandH> &src_bands, const NdvDef &ndv_def, 
+	size_t w, size_t h, const std::vector<Binning> &binnings
 ) {
 	size_t band_count = src_bands.size();
 	std::vector<Histogram> histograms(band_count);
@@ -705,7 +716,7 @@ std::vector<double> gen_gaussian(double variance, int bin_count) {
 
 std::vector<uint8_t> invert_histogram(
 	const Histogram &src_h_in,
-	const std::vector<double> dst_h,
+	const std::vector<double> &dst_h,
 	size_t output_range
 ) {
 	std::vector<size_t> src_h(src_h_in.counts);

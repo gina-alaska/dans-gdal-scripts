@@ -239,5 +239,7 @@ int main(int argc, char *argv[]) {
 		fatal_error("warning: input had extra data at end\n");
 	}
 
+	fclose(fin);
+
 	return 0;
 }

@@ -33,6 +33,11 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include <vector>
 
 struct ScaledBand {
+	ScaledBand() :
+		oversample(0), lo_w(0), lo_h(0), hi_w(0), hi_h(0),
+		delta_x(0), delta_y(0), band(NULL), line_buf_idx(0)
+	{ }
+
 	int oversample;
 	size_t lo_w, lo_h;
 	size_t hi_w, hi_h;
@@ -162,7 +167,7 @@ int main(int argc, char *argv[]) {
 	if(!rgb_band_count) usage(cmdname);
 
 	std::vector<ScaledBand> lum_bands;
-	if(lum_ds.size()) {
+	if(!lum_ds.empty()) {
 		for(size_t ds_idx=0; ds_idx<lum_ds.size(); ds_idx++) {
 			int nb = GDALGetRasterCount(lum_ds[ds_idx]);
 			for(int i=0; i<nb; i++) {
