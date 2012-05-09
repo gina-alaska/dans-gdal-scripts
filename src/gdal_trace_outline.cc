@@ -28,6 +28,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 #include <boost/lexical_cast.hpp>
 #include <boost/foreach.hpp>
+#include <map>
+#include <vector>
 
 #include "common.h"
 #include "polygon.h"
@@ -708,6 +710,7 @@ Mpoly containment_filters(
 	printf("\n");
 
 	Mpoly new_mp;
+	std::map<int, int> relabeling;
 
 	for(size_t outer_idx=0; outer_idx<mp_in.rings.size(); outer_idx++) {
 		const Ring &outer = mp_in.rings[outer_idx];
@@ -741,14 +744,30 @@ Mpoly containment_filters(
 			continue;
 		}
 
-		int id = int(new_mp.rings.size());
+		relabeling[outer_idx] = int(new_mp.rings.size());
 		new_mp.rings.push_back(outer);
+
 		for(size_t j=0; j<mp_in.rings.size(); j++) {
 			Ring inner = mp_in.rings[j];
 			// take children of outer ring
 			if(inner.parent_id != int(j)) continue;
-			inner.parent_id = id;
+
+			relabeling[j] = int(new_mp.rings.size());
 			new_mp.rings.push_back(inner);
+		}
+	}
+
+	for(size_t i=0; i<new_mp.rings.size(); i++) {
+		Ring &ring = new_mp.rings[i];
+		// Compute new parent.  Iterate outwards through the ring hierarchy
+		// until a ring is found that has been kept.
+		while(ring.parent_id >= 0) {
+			if(relabeling.count(ring.parent_id)) {
+				ring.parent_id = relabeling[ring.parent_id];
+				break;
+			} else {
+				ring.parent_id = mp_in.rings[ring.parent_id].parent_id;
+			}
 		}
 	}
 
