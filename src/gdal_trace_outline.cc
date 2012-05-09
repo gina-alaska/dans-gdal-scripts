@@ -77,6 +77,16 @@ void usage(const std::string &cmdname) {
 "  -no-donuts                   Take only top-level rings\n"
 "  -min-ring-area val           Drop rings with less than this area\n"
 "                               (in square pixels)\n"
+"  -containing [xy | en | ll | percent] xval yval\n"
+"                               Take only rings that contain the given point.\n"
+"                               This option can be specified more than once.\n"
+"                               'percent' means interpret coordinate as percent\n"
+"                               of image width/height.\n"
+"  -not-containing [xy | en | ll | percent] xval yval\n"
+"                               Take rings that don't contain the given point.\n"
+"                               This option can be specified more than once.\n"
+"                               'percent' means interpret coordinate as percent\n"
+"                               of image width/height.\n"
 "  -dp-toler val                Tolerance for polygon simplification\n"
 "                               (in pixels, default is 2.0)\n"
 "  -bevel-size                  How much to shave off corners at\n"
@@ -279,12 +289,20 @@ int main(int argc, char **argv) {
 					if(argp == arg_list.size()) usage(cmdname);
 					llproj_toler = boost::lexical_cast<double>(arg_list[argp++]);
 				} else if(arg == "-containing" || arg == "-not-containing") { // FIXME - docs
-					if(argp+2 > arg_list.size()) usage(cmdname);
+					if(argp+3 > arg_list.size()) usage(cmdname);
 					ContainingOption opt;
 					opt.wanted_point = (arg == "-containing");
+
+					std::string cs = arg_list[argp++];
+					if     (cs == "xy") opt.cs = CS_XY;
+					else if(cs == "en") opt.cs = CS_EN;
+					else if(cs == "ll") opt.cs = CS_LL;
+					else if(cs == "percent") opt.cs = CS_PERCENT;
+					else fatal_error("unrecognized coordinate system for -containing option (%s)", cs.c_str());
+
 					opt.x = boost::lexical_cast<double>(arg_list[argp++]);
 					opt.y = boost::lexical_cast<double>(arg_list[argp++]);
-					opt.cs = CS_PERCENT;
+
 					containing_options.push_back(opt);
 				} else if(arg == "-h" || arg == "--help") {
 					usage(cmdname);
@@ -478,13 +496,21 @@ int main(int argc, char **argv) {
 						v.x = opt.x / 100.0 * georef.w;
 						v.y = opt.y / 100.0 * georef.h;
 						break;
+					case CS_EN:
+						georef.en2xy(opt.x, opt.y, &v.x, &v.y);
+						break;
+					case CS_LL:
+						georef.ll2xy(opt.x, opt.y, &v.x, &v.y);
+						break;
 					default:
-						fatal_error("not implemented"); // FIXME
+						fatal_error("coord system not implemented"); // FIXME
 				};
 				if(opt.wanted_point) {
 					wanted_pts.push_back(v);
+					dbuf->plotPointBig(v.x, v.y, 0, 255, 0);
 				} else {
 					unwanted_pts.push_back(v);
+					dbuf->plotPointBig(v.x, v.y, 255, 0, 0);
 				}
 			}
 
@@ -736,6 +762,7 @@ Mpoly containment_filters(
 			printf(" (%.1f,%.1f)", v.x, v.y);
 		}
 	}
+	printf("\n");
 
 	Mpoly new_mp;
 
