@@ -288,7 +288,7 @@ int main(int argc, char **argv) {
 				} else if(arg == "-llproj-toler") {
 					if(argp == arg_list.size()) usage(cmdname);
 					llproj_toler = boost::lexical_cast<double>(arg_list[argp++]);
-				} else if(arg == "-containing" || arg == "-not-containing") { // FIXME - docs
+				} else if(arg == "-containing" || arg == "-not-containing") {
 					if(argp+3 > arg_list.size()) usage(cmdname);
 					ContainingOption opt;
 					opt.wanted_point = (arg == "-containing");
@@ -503,7 +503,7 @@ int main(int argc, char **argv) {
 						georef.ll2xy(opt.x, opt.y, &v.x, &v.y);
 						break;
 					default:
-						fatal_error("coord system not implemented"); // FIXME
+						fatal_error("coord system not implemented");
 				};
 				if(opt.wanted_point) {
 					wanted_pts.push_back(v);
@@ -658,44 +658,6 @@ int64_t min_ring_area, double bevel_size) {
 			mp.rings.size(), num_outer, num_inner, total_pts);
 	}
 
-	// this is now done directly by tracer
-	/*
-	if(min_ring_area > 0) {
-		if(VERBOSE) printf("removing small rings...\n");
-
-		ring_t *filtered_rings = MYALLOC(ring_t, mp.rings.size());
-		int *parent_map = MYALLOC(int, mp.rings.size());
-		for(int i=0; i<mp.rings.size(); i++) {
-			parent_map[i] = -1;
-		}
-		int num_filtered_rings = 0;
-		for(int i=0; i<mp.rings.size(); i++) {
-			double area = ring_area(mp.rings+i);
-			if(VERBOSE) if(area > 10) printf("ring %zd has area %.15f\n", i, area);
-			if(area >= min_ring_area) {
-				parent_map[i] = num_filtered_rings;
-				filtered_rings[num_filtered_rings++] = mp.rings[i];
-			} else {
-				free_ring(mp.rings + i);
-			}
-		}
-		for(int i=0; i<num_filtered_rings; i++) {
-			int old_parent = filtered_rings[i].parent_id;
-			if(old_parent >= 0) {
-				int new_parent = parent_map[old_parent];
-				if(new_parent < 0) fatal_error("took a ring but not its parent");
-				filtered_rings[i].parent_id = new_parent;
-			}
-		}
-		printf("filtered by area %zd => %zd rings\n",
-			mp.rings.size(), num_filtered_rings);
-
-		free(mp.rings);
-		mp.rings = filtered_rings;
-		mp.rings.size() = num_filtered_rings;
-	}
-	*/
-
 	if(major_ring_only && mp.rings.size() > 1) {
 		double biggest_area = 0;
 		size_t best_idx = 0;
@@ -714,22 +676,6 @@ int64_t min_ring_area, double bevel_size) {
 		new_mp.rings.push_back(mp.rings[best_idx]);
 		mp = new_mp;
 	}
-
-	// this is now done directly by tracer
-	/*
-	if(no_donuts) {
-		// we don't have to worry about remapping parent_id in this
-		// case because we only take rings with no parent
-		int out_idx = 0;
-		for(int i=0; i<mp.rings.size(); i++) {
-			if(mp.rings[i].parent_id < 0) {
-				mp.rings[out_idx++] = mp.rings[i];
-			}
-		}
-		mp.num_rings = out_idx;
-		if(VERBOSE) printf("number of non-donut rings is %zd", mp.rings.size());
-	}
-	*/
 
 	if(mp.rings.size() && bevel_size > 0) {
 		// the topology cannot be resolved by us or by geos/jump/postgis if
