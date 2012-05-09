@@ -178,9 +178,7 @@ struct ContainingOption {
 	bool wanted_point;
 };
 
-Mpoly calc_ring_from_mask(BitGrid &mask, size_t w, size_t h,
-	bool major_ring_only, bool no_donuts,
-	int64_t min_ring_area, double bevel_size);
+Mpoly take_largest_ring(const Mpoly &mp_in);
 
 Mpoly containment_filters(
 	const Mpoly &mp_in,
@@ -478,9 +476,34 @@ int main(int argc, char **argv) {
 			mask.erode();
 		}
 
-		Mpoly feature_poly = calc_ring_from_mask(mask, georef.w, georef.h,
-			major_ring_only, no_donuts, min_ring_area, bevel_size);
+		// Really, these options should be separate, so that the major
+		// connected component can be selected, along with its holes.  But
+		// major-ring implies no-donuts for reverse compatibility.
+		if(major_ring_only) no_donuts = 1;
+
+		Mpoly feature_poly = trace_mask(mask, georef.w, georef.h, min_ring_area, no_donuts);
 		mask = BitGrid(0, 0); // free some memory
+
+		if(VERBOSE) {
+			size_t num_inner = 0, num_outer = 0, total_pts = 0;
+			for(size_t r_idx=0; r_idx<feature_poly.rings.size(); r_idx++) {
+				if(feature_poly.rings[r_idx].is_hole) num_inner++;
+				else num_outer++;
+				total_pts += feature_poly.rings[r_idx].pts.size();
+			}
+			printf("tracer produced %zd rings (%zd outer, %zd holes) with a total of %zd points\n",
+				feature_poly.rings.size(), num_outer, num_inner, total_pts);
+		}
+
+		if(major_ring_only && feature_poly.rings.size() > 1) {
+			feature_poly = take_largest_ring(feature_poly);
+		}
+
+		if(!feature_poly.rings.empty() && bevel_size > 0) {
+			// the topology cannot be resolved by us or by geos/jump/postgis if
+			// there are self-intersections
+			bevel_self_intersections(feature_poly, bevel_size);
+		}
 
 		if(!feature_poly.rings.empty() && !containing_options.empty()) {
 			std::vector<Vertex> wanted_pts;
@@ -640,50 +663,23 @@ int main(int argc, char **argv) {
 	return 0;
 }
 
-Mpoly calc_ring_from_mask(BitGrid &mask, size_t w, size_t h,
-bool major_ring_only, bool no_donuts, 
-int64_t min_ring_area, double bevel_size) {
-	if(major_ring_only) no_donuts = 1;
-
-	Mpoly mp = trace_mask(mask, w, h, min_ring_area, no_donuts);
-
-	if(VERBOSE) {
-		size_t num_inner = 0, num_outer = 0, total_pts = 0;
-		for(size_t r_idx=0; r_idx<mp.rings.size(); r_idx++) {
-			if(mp.rings[r_idx].is_hole) num_inner++;
-			else num_outer++;
-			total_pts += mp.rings[r_idx].pts.size();
+Mpoly take_largest_ring(const Mpoly &mp_in) {
+	double biggest_area = 0;
+	size_t best_idx = 0;
+	for(size_t i=0; i<mp_in.rings.size(); i++) {
+		double area = mp_in.rings[i].area();
+		if(area > biggest_area) {
+			biggest_area = area;
+			best_idx = i;
 		}
-		printf("tracer produced %zd rings (%zd outer, %zd holes) with a total of %zd points\n",
-			mp.rings.size(), num_outer, num_inner, total_pts);
 	}
+	if(VERBOSE) printf("major ring was %zd with %zd pts, %.1f area\n",
+		best_idx, mp_in.rings[best_idx].pts.size(), biggest_area);
+	if(mp_in.rings[best_idx].parent_id >= 0) fatal_error("largest ring should not have a parent");
 
-	if(major_ring_only && mp.rings.size() > 1) {
-		double biggest_area = 0;
-		size_t best_idx = 0;
-		for(size_t i=0; i<mp.rings.size(); i++) {
-			double area = mp.rings[i].area();
-			if(area > biggest_area) {
-				biggest_area = area;
-				best_idx = i;
-			}
-		}
-		if(VERBOSE) printf("major ring was %zd with %zd pts, %.1f area\n",
-			best_idx, mp.rings[best_idx].pts.size(), biggest_area);
-		if(mp.rings[best_idx].parent_id >= 0) fatal_error("largest ring should not have a parent");
-
-		Mpoly new_mp;
-		new_mp.rings.push_back(mp.rings[best_idx]);
-		mp = new_mp;
-	}
-
-	if(mp.rings.size() && bevel_size > 0) {
-		// the topology cannot be resolved by us or by geos/jump/postgis if
-		// there are self-intersections
-		bevel_self_intersections(mp, bevel_size);
-	}
-
-	return mp;
+	Mpoly new_mp;
+	new_mp.rings.push_back(mp_in.rings[best_idx]);
+	return new_mp;
 }
 
 Mpoly containment_filters(
