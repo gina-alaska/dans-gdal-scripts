@@ -182,8 +182,9 @@ Mpoly take_largest_ring(const Mpoly &mp_in);
 
 Mpoly containment_filters(
 	const Mpoly &mp_in,
-	const std::vector<Vertex> &wanted_pts,
-	const std::vector<Vertex> &unwanted_pts
+	const std::vector<ContainingOption> &containing_options,
+	const GeoRef &georef,
+	DebugPlot *dbuf
 );
 
 int main(int argc, char **argv) {
@@ -476,10 +477,11 @@ int main(int argc, char **argv) {
 			mask.erode();
 		}
 
-		// Really, these options should be separate, so that the major
-		// connected component can be selected, along with its holes.  But
-		// major-ring implies no-donuts for reverse compatibility.
-		if(major_ring_only) no_donuts = 1;
+		// If we are only taking the largest ring, and don't need to compute
+		// containments, then skip donuts for speed.
+		if(major_ring_only && containing_options.empty()) {
+			no_donuts = 1;
+		}
 
 		Mpoly feature_poly = trace_mask(mask, georef.w, georef.h, min_ring_area, no_donuts);
 		mask = BitGrid(0, 0); // free some memory
@@ -495,6 +497,10 @@ int main(int argc, char **argv) {
 				feature_poly.rings.size(), num_outer, num_inner, total_pts);
 		}
 
+		if(!feature_poly.rings.empty() && !containing_options.empty()) {
+			feature_poly = containment_filters(feature_poly, containing_options, georef, dbuf);
+		}
+
 		if(major_ring_only && feature_poly.rings.size() > 1) {
 			feature_poly = take_largest_ring(feature_poly);
 		}
@@ -505,49 +511,10 @@ int main(int argc, char **argv) {
 			bevel_self_intersections(feature_poly, bevel_size);
 		}
 
-		if(!feature_poly.rings.empty() && !containing_options.empty()) {
-			std::vector<Vertex> wanted_pts;
-			std::vector<Vertex> unwanted_pts;
-			BOOST_FOREACH(const ContainingOption &opt, containing_options) {
-				Vertex v;
-				switch(opt.cs) {
-					case CS_XY:
-						v.x = opt.x;
-						v.y = opt.y;
-						break;
-					case CS_PERCENT:
-						v.x = opt.x / 100.0 * georef.w;
-						v.y = opt.y / 100.0 * georef.h;
-						break;
-					case CS_EN:
-						georef.en2xy(opt.x, opt.y, &v.x, &v.y);
-						break;
-					case CS_LL:
-						georef.ll2xy(opt.x, opt.y, &v.x, &v.y);
-						break;
-					default:
-						fatal_error("coord system not implemented");
-				};
-				if(opt.wanted_point) {
-					wanted_pts.push_back(v);
-					dbuf->plotPointBig(v.x, v.y, 0, 255, 0);
-				} else {
-					unwanted_pts.push_back(v);
-					dbuf->plotPointBig(v.x, v.y, 255, 0, 0);
-				}
-			}
-
-			feature_poly = containment_filters(feature_poly, wanted_pts, unwanted_pts);
-		}
-
 		if(feature_poly.rings.size() && do_pinch_excursions) {
 			printf("Pinching excursions...\n");
 			feature_poly = pinch_excursions2(feature_poly, dbuf);
 			printf("Done pinching excursions.\n");
-		}
-
-		if(feature_poly.rings.empty()) {
-			printf("WARNING! No rings found!\n");
 		}
 
 		if(mask_out_fn.size()) {
@@ -559,7 +526,9 @@ int main(int argc, char **argv) {
 			feature_poly = reduced_poly;
 		}
 
-		if(feature_poly.rings.size()) {
+		if(feature_poly.rings.empty()) {
+			printf("WARNING! No rings found!\n");
+		} else {
 			size_t num_outer=0, num_inner=0, total_pts=0;
 			for(size_t r_idx=0; r_idx<feature_poly.rings.size(); r_idx++) {
 				if(feature_poly.rings[r_idx].is_hole) num_inner++;
@@ -684,22 +653,54 @@ Mpoly take_largest_ring(const Mpoly &mp_in) {
 
 Mpoly containment_filters(
 	const Mpoly &mp_in,
-	const std::vector<Vertex> &wanted_pts,
-	const std::vector<Vertex> &unwanted_pts
+	const std::vector<ContainingOption> &containing_options,
+	const GeoRef &georef,
+	DebugPlot *dbuf
 ) {
+	std::vector<Vertex> wanted_pts;
+	std::vector<Vertex> unwanted_pts;
+	BOOST_FOREACH(const ContainingOption &opt, containing_options) {
+		Vertex v;
+		switch(opt.cs) {
+			case CS_XY:
+				v.x = opt.x;
+				v.y = opt.y;
+				break;
+			case CS_PERCENT:
+				v.x = opt.x / 100.0 * georef.w;
+				v.y = opt.y / 100.0 * georef.h;
+				break;
+			case CS_EN:
+				georef.en2xy(opt.x, opt.y, &v.x, &v.y);
+				break;
+			case CS_LL:
+				georef.ll2xy(opt.x, opt.y, &v.x, &v.y);
+				break;
+			default:
+				fatal_error("coord system not implemented");
+		};
+		if(opt.wanted_point) {
+			wanted_pts.push_back(v);
+			dbuf->plotPointBig(v.x, v.y, 0, 255, 0);
+		} else {
+			unwanted_pts.push_back(v);
+			dbuf->plotPointBig(v.x, v.y, 255, 0, 0);
+		}
+	}
+
 	if(wanted_pts.empty() && unwanted_pts.empty()) {
 		fatal_error("no wanted/unwanted pts given");
 	}
 
-	printf("Looking for polygons:");
+	printf("Looking for polygons");
 	if(!wanted_pts.empty()) {
-		printf(" containing");
+		printf(" containing:");
 		BOOST_FOREACH(const Vertex &v, wanted_pts) {
 			printf(" (%.1f,%.1f)", v.x, v.y);
 		}
 	}
 	if(!unwanted_pts.empty()) {
-		printf(" not containing");
+		printf(" not containing:");
 		BOOST_FOREACH(const Vertex &v, unwanted_pts) {
 			printf(" (%.1f,%.1f)", v.x, v.y);
 		}
