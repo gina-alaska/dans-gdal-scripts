@@ -129,8 +129,8 @@ void DebugPlot::debugPlotMpoly(const Mpoly &mpoly) {
 			r=255; g=255; b=0;
 		}
 		if(VERBOSE) {
-			printf("ring %zd: %zd pts color=%02x%02x%02x\n",
-				i, ring.pts.size(), r, g, b);
+			printf("ring %zd: parent %d, %zd pts color=%02x%02x%02x\n",
+				i, ring.parent_id, ring.pts.size(), r, g, b);
 		}
 		debugPlotRing(ring, r, g, b);
 		for(size_t j=0; j<ring.pts.size(); j++) {

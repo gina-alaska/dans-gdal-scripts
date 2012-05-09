@@ -416,6 +416,20 @@ bool Mpoly::contains(Vertex p) const {
 	return num_crossings & 1;
 }
 
+bool Mpoly::component_contains(Vertex p, int outer_ring_id) const {
+	const Ring &outer = rings[outer_ring_id];
+	if(outer.is_hole) fatal_error("ring was a hole in Mpoly::component_contains");
+	if(!outer.contains(p)) return false;
+
+	for(size_t j=0; j<rings.size(); j++) {
+		const Ring &inner = rings[j];
+		// take children of outer ring
+		if(inner.parent_id != int(outer_ring_id)) continue;
+		if(inner.contains(p)) return false;
+	}
+	return true;
+}
+
 void Mpoly::deleteRing(size_t idx) {
 	rings.erase(rings.begin() + idx);
 }

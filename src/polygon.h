@@ -122,6 +122,9 @@ public:
 	Bbox getBbox() const;
 	std::vector<Bbox> getRingBboxes() const;
 	bool contains(Vertex p) const;
+	// Returns true if the given point is contained in the specified ring, but
+	// not contained in any of that ring's holes.
+	bool component_contains(Vertex p, int outer_ring_id) const;
 	void deleteRing(size_t idx);
 
 	void xy2en(const GeoRef &georef);

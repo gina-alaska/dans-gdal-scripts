@@ -27,6 +27,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 #include <boost/lexical_cast.hpp>
+#include <boost/foreach.hpp>
 
 #include "common.h"
 #include "polygon.h"
@@ -50,13 +51,6 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #else
 #define WKB_BYTE_ORDER wkbXDR
 #endif
-
-enum CoordSystem {
-	CS_UNKNOWN,
-	CS_XY,
-	CS_EN,
-	CS_LL
-};
 
 using namespace dangdal;
 
@@ -131,9 +125,13 @@ void usage(const std::string &cmdname) {
 	exit(1);
 }
 
-Mpoly calc_ring_from_mask(BitGrid &mask, size_t w, size_t h,
-	bool major_ring_only, bool no_donuts,
-	int64_t min_ring_area, double bevel_size);
+enum CoordSystem {
+	CS_UNKNOWN,
+	CS_XY,
+	CS_EN,
+	CS_LL,
+	CS_PERCENT
+};
 
 struct GeomOutput {
 	explicit GeomOutput(CoordSystem _out_cs=CS_UNKNOWN) :
@@ -163,6 +161,23 @@ struct GeomOutput {
 	int color_fld_idx[4];
 };
 
+struct ContainingOption {
+	enum cs_t { XY, EN, LL, PERCENT };
+	double x, y;
+	CoordSystem cs;
+	bool wanted_point;
+};
+
+Mpoly calc_ring_from_mask(BitGrid &mask, size_t w, size_t h,
+	bool major_ring_only, bool no_donuts,
+	int64_t min_ring_area, double bevel_size);
+
+Mpoly containment_filters(
+	const Mpoly &mp_in,
+	const std::vector<Vertex> &wanted_pts,
+	const std::vector<Vertex> &unwanted_pts
+);
+
 int main(int argc, char **argv) {
 	const std::string cmdname = argv[0];
 	if(argc == 1) usage(cmdname);
@@ -186,6 +201,7 @@ int main(int argc, char **argv) {
 	double llproj_toler = 1;
 	double bevel_size = .1;
 	bool do_pinch_excursions = 0;
+	std::vector<ContainingOption> containing_options;
 
 	GeoOpts geo_opts = GeoOpts(arg_list);
 	NdvDef ndv_def = NdvDef(arg_list);
@@ -262,6 +278,14 @@ int main(int argc, char **argv) {
 				} else if(arg == "-llproj-toler") {
 					if(argp == arg_list.size()) usage(cmdname);
 					llproj_toler = boost::lexical_cast<double>(arg_list[argp++]);
+				} else if(arg == "-containing" || arg == "-not-containing") { // FIXME - docs
+					if(argp+2 > arg_list.size()) usage(cmdname);
+					ContainingOption opt;
+					opt.wanted_point = (arg == "-containing");
+					opt.x = boost::lexical_cast<double>(arg_list[argp++]);
+					opt.y = boost::lexical_cast<double>(arg_list[argp++]);
+					opt.cs = CS_PERCENT;
+					containing_options.push_back(opt);
 				} else if(arg == "-h" || arg == "--help") {
 					usage(cmdname);
 				} else {
@@ -440,10 +464,41 @@ int main(int argc, char **argv) {
 			major_ring_only, no_donuts, min_ring_area, bevel_size);
 		mask = BitGrid(0, 0); // free some memory
 
+		if(!feature_poly.rings.empty() && !containing_options.empty()) {
+			std::vector<Vertex> wanted_pts;
+			std::vector<Vertex> unwanted_pts;
+			BOOST_FOREACH(const ContainingOption &opt, containing_options) {
+				Vertex v;
+				switch(opt.cs) {
+					case CS_XY:
+						v.x = opt.x;
+						v.y = opt.y;
+						break;
+					case CS_PERCENT:
+						v.x = opt.x / 100.0 * georef.w;
+						v.y = opt.y / 100.0 * georef.h;
+						break;
+					default:
+						fatal_error("not implemented"); // FIXME
+				};
+				if(opt.wanted_point) {
+					wanted_pts.push_back(v);
+				} else {
+					unwanted_pts.push_back(v);
+				}
+			}
+
+			feature_poly = containment_filters(feature_poly, wanted_pts, unwanted_pts);
+		}
+
 		if(feature_poly.rings.size() && do_pinch_excursions) {
 			printf("Pinching excursions...\n");
 			feature_poly = pinch_excursions2(feature_poly, dbuf);
 			printf("Done pinching excursions.\n");
+		}
+
+		if(feature_poly.rings.empty()) {
+			printf("WARNING! No rings found!\n");
 		}
 
 		if(mask_out_fn.size()) {
@@ -657,4 +712,81 @@ int64_t min_ring_area, double bevel_size) {
 	}
 
 	return mp;
+}
+
+Mpoly containment_filters(
+	const Mpoly &mp_in,
+	const std::vector<Vertex> &wanted_pts,
+	const std::vector<Vertex> &unwanted_pts
+) {
+	if(wanted_pts.empty() && unwanted_pts.empty()) {
+		fatal_error("no wanted/unwanted pts given");
+	}
+
+	printf("Looking for polygons:");
+	if(!wanted_pts.empty()) {
+		printf(" containing");
+		BOOST_FOREACH(const Vertex &v, wanted_pts) {
+			printf(" (%.1f,%.1f)", v.x, v.y);
+		}
+	}
+	if(!unwanted_pts.empty()) {
+		printf(" not containing");
+		BOOST_FOREACH(const Vertex &v, unwanted_pts) {
+			printf(" (%.1f,%.1f)", v.x, v.y);
+		}
+	}
+
+	Mpoly new_mp;
+
+	for(size_t outer_idx=0; outer_idx<mp_in.rings.size(); outer_idx++) {
+		const Ring &outer = mp_in.rings[outer_idx];
+		if(outer.is_hole) continue;
+
+		bool contains_wanted_pt = false;
+		BOOST_FOREACH(const Vertex &v, wanted_pts) {
+			if(mp_in.component_contains(v, outer_idx)) {
+				if(VERBOSE) printf("ring %zd contains wanted point %g,%g\n",
+					outer_idx, v.x, v.y);
+				contains_wanted_pt = true;
+				break;
+			}
+		}
+		if(!wanted_pts.empty() && !contains_wanted_pt) {
+			// not interested in this ring
+			continue;
+		}
+
+		bool contains_unwanted_pt = false;
+		BOOST_FOREACH(const Vertex &v, unwanted_pts) {
+			if(mp_in.component_contains(v, outer_idx)) {
+				if(VERBOSE) printf("ring %zd contains unwanted point %g,%g\n",
+					outer_idx, v.x, v.y);
+				contains_unwanted_pt = true;
+				break;
+			}
+		}
+		if(contains_unwanted_pt) {
+			// not interested in this ring
+			continue;
+		}
+
+		int id = int(new_mp.rings.size());
+		new_mp.rings.push_back(outer);
+		for(size_t j=0; j<mp_in.rings.size(); j++) {
+			Ring inner = mp_in.rings[j];
+			// take children of outer ring
+			if(inner.parent_id != int(j)) continue;
+			inner.parent_id = id;
+			new_mp.rings.push_back(inner);
+		}
+	}
+
+	if(new_mp.rings.empty()) {
+		printf("   None found!\n");
+	} else {
+		printf("   Found %zd rings.\n", new_mp.rings.size());
+	}
+
+	return new_mp;
 }
