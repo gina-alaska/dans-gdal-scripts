@@ -750,7 +750,7 @@ Mpoly containment_filters(
 		for(size_t j=0; j<mp_in.rings.size(); j++) {
 			Ring inner = mp_in.rings[j];
 			// take children of outer ring
-			if(inner.parent_id != int(j)) continue;
+			if(inner.parent_id != int(outer_idx)) continue;
 
 			relabeling[j] = int(new_mp.rings.size());
 			new_mp.rings.push_back(inner);
