@@ -182,6 +182,8 @@ struct ContainingOption {
 
 Mpoly take_largest_ring(const Mpoly &mp_in);
 
+Mpoly remove_holes(const Mpoly &mp_in);
+
 Mpoly containment_filters(
 	const Mpoly &mp_in,
 	const std::vector<ContainingOption> &containing_options,
@@ -204,7 +206,8 @@ int main(int argc, char **argv) {
 	std::vector<GeomOutput> geom_outputs;
 	std::string mask_out_fn;
 	bool major_ring_only = 0;
-	bool no_donuts = 0;
+	bool trace_no_donuts = 0;
+	bool output_no_donuts = 0;
 	int64_t min_ring_area = 0;
 	double reduction_tolerance = 2;
 	bool do_erosion = 0;
@@ -272,7 +275,7 @@ int main(int argc, char **argv) {
 				} else if(arg == "-major-ring") {
 					major_ring_only = 1;
 				} else if(arg == "-no-donuts") {
-					no_donuts = 1;
+					output_no_donuts = 1;
 				} else if(arg == "-min-ring-area") {
 					if(argp == arg_list.size()) usage(cmdname);
 					min_ring_area = boost::lexical_cast<int64_t>(arg_list[argp++]);
@@ -323,10 +326,10 @@ int main(int argc, char **argv) {
 
 	bool do_geom_output = geom_outputs.size();
 
-	if(major_ring_only && no_donuts) fatal_error(
+	if(major_ring_only && output_no_donuts) fatal_error(
 		"-major-ring and -no-donuts options cannot both be used at the same time");
 
-	if(do_pinch_excursions && !(no_donuts || major_ring_only)) {
+	if(do_pinch_excursions && !(output_no_donuts || major_ring_only)) {
 		// some extra logic would be needed in pinch_excursions2 in order to
 		// support holes
 		fatal_error("the -pinch-excursions option requires the -no-donuts or -major-ring options");
@@ -477,13 +480,28 @@ int main(int argc, char **argv) {
 			mask.erode();
 		}
 
+		if(!containing_options.empty()) {
+			// We need to trace donuts even if not outputting them, in order to
+			// see if the polygons satisfy the containment options.  Ideally
+			// the user should be able to specify which happens first, hole
+			// removal or containment options.  Maybe there needs to be a
+			// rudimentary scripting language?  Or maybe just process the
+			// options in the order they are specified on the command line.
+
+			// Note: in this case, donuts must be removed later on!
+			trace_no_donuts = 0;
+		} else {
+			trace_no_donuts = output_no_donuts;
+			// If taking only the major ring, no holes are needed.
+			trace_no_donuts |= major_ring_only;
+		}
 		// If we are only taking the largest ring, and don't need to compute
 		// containments, then skip donuts for speed.
 		if(major_ring_only && containing_options.empty()) {
-			no_donuts = 1;
+			trace_no_donuts = 1;
 		}
 
-		Mpoly feature_poly = trace_mask(mask, georef.w, georef.h, min_ring_area, no_donuts);
+		Mpoly feature_poly = trace_mask(mask, georef.w, georef.h, min_ring_area, trace_no_donuts);
 		mask = BitGrid(0, 0); // free some memory
 
 		if(VERBOSE) {
@@ -502,7 +520,14 @@ int main(int argc, char **argv) {
 		}
 
 		if(major_ring_only && feature_poly.rings.size() > 1) {
+			printf("Taking largest ring.\n");
 			feature_poly = take_largest_ring(feature_poly);
+		}
+
+		if(output_no_donuts && !trace_no_donuts) {
+			// Hole removal was deferred until now.
+			printf("Removing donut holes.\n");
+			feature_poly = remove_holes(feature_poly);
 		}
 
 		if(!feature_poly.rings.empty() && bevel_size > 0) {
@@ -648,6 +673,21 @@ Mpoly take_largest_ring(const Mpoly &mp_in) {
 
 	Mpoly new_mp;
 	new_mp.rings.push_back(mp_in.rings[best_idx]);
+	return new_mp;
+}
+
+Mpoly remove_holes(const Mpoly &mp_in) {
+	Mpoly new_mp;
+
+	for(size_t i=0; i<mp_in.rings.size(); i++) {
+		const Ring &ring = mp_in.rings[i];
+		// Take only top-level rings.  Since we are filling holes, it doesn't
+		// make sense to keep an island within a hole.
+		if(ring.parent_id < 0) {
+			new_mp.rings.push_back(ring);
+		}
+	}
+
 	return new_mp;
 }
 
