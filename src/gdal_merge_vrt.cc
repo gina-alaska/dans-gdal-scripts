@@ -95,11 +95,13 @@ int main(int argc, char *argv[]) {
 	GDALDatasetH dst_ds = GDALCreateCopy(dst_driver, dst_fn.c_str(), src_ds[0], 0, NULL, NULL, NULL);
 	if(!dst_ds) fatal_error("could not create output");
 
+	std::vector<GDALDatasetH> to_close;
 	int band_idx = GDALGetRasterCount(src_ds[0]);
 	for(size_t ds_idx=1; ds_idx<src_fn.size(); ds_idx++) {
 		int nb = GDALGetRasterCount(src_ds[ds_idx]);
 
 		GDALDatasetH src_vrt_ds = GDALCreateCopy(dst_driver, "", src_ds[ds_idx], 0, NULL, NULL, NULL);
+		to_close.push_back(src_vrt_ds);
 		if(!src_vrt_ds) fatal_error("could not create VRT copy");
 
 		for(int i=0; i<nb; i++) {
@@ -116,14 +118,17 @@ int main(int argc, char *argv[]) {
 
 			band_idx++;
 		}
-
-		GDALClose(src_vrt_ds);
 	}
 
-	for(size_t ds_idx=0; ds_idx<src_fn.size(); ds_idx++) {
-		GDALClose(src_ds[ds_idx]);
-	}
 	GDALClose(dst_ds);
+
+	// These must be closed *after* dst_ds.
+	for(size_t i=0; i<to_close.size(); i++) {
+		GDALClose(to_close[i]);
+	}
+	for(size_t i=0; i<src_ds.size(); i++) {
+		GDALClose(src_ds[i]);
+	}
 
 	return 0;
 }
