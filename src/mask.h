@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2009, Regents of the University of Alaska
+Copyright (c) 2012, Regents of the University of Alaska
 
 All rights reserved.
 
