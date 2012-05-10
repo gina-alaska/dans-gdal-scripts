@@ -174,7 +174,7 @@ struct GeomOutput {
 };
 
 struct ContainingOption {
-	enum cs_t { XY, EN, LL, PERCENT };
+	ContainingOption() : x(0), y(0), cs(CS_UNKNOWN), wanted_point(false) { }
 	double x, y;
 	CoordSystem cs;
 	bool wanted_point;
