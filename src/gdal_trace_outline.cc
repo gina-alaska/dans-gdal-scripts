@@ -323,8 +323,6 @@ int main(int argc, char **argv) {
 
 	bool do_geom_output = geom_outputs.size();
 
-	if(major_ring_only && min_ring_area) fatal_error(
-		"-major-ring and -min-ring-area options cannot both be used at the same time");
 	if(major_ring_only && no_donuts) fatal_error(
 		"-major-ring and -no-donuts options cannot both be used at the same time");
 
