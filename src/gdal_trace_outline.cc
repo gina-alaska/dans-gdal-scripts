@@ -750,6 +750,8 @@ Mpoly containment_filters(
 	Mpoly new_mp;
 	std::map<int, int> relabeling;
 
+	int num_outer=0, num_holes=0;
+
 	for(size_t outer_idx=0; outer_idx<mp_in.rings.size(); outer_idx++) {
 		const Ring &outer = mp_in.rings[outer_idx];
 		if(outer.is_hole) continue;
@@ -784,6 +786,7 @@ Mpoly containment_filters(
 
 		relabeling[outer_idx] = int(new_mp.rings.size());
 		new_mp.rings.push_back(outer);
+		num_outer++;
 
 		for(size_t j=0; j<mp_in.rings.size(); j++) {
 			Ring inner = mp_in.rings[j];
@@ -792,6 +795,7 @@ Mpoly containment_filters(
 
 			relabeling[j] = int(new_mp.rings.size());
 			new_mp.rings.push_back(inner);
+			num_holes++;
 		}
 	}
 
@@ -812,7 +816,7 @@ Mpoly containment_filters(
 	if(new_mp.rings.empty()) {
 		printf("   None found!\n");
 	} else {
-		printf("   Found %zd rings.\n", new_mp.rings.size());
+		printf("   Found %d connected components (with %d holes).\n", num_outer, num_holes);
 	}
 
 	return new_mp;
