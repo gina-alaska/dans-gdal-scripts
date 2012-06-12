@@ -23,7 +23,7 @@
 
 
 
-AC_PREREQ(2.60)
+AC_PREREQ(2.37)
 AC_INIT([dans-gdal-scripts], [0.21], [dan@stahlke.org])
 AC_CONFIG_SRCDIR([src/common.h])
 AC_CONFIG_HEADER([config.h])
@@ -59,6 +59,12 @@ GDALLIBS=`${GDALCONFIG} --libs`
 # end of GDAL stuff #####################
 
 # Checks for libraries.
+
+# Replacements for functions not available in old autoconf versions.  These
+# functions are needed by boost.m4.  Hopefully all systems should have working
+# versions of sed and grep.
+AC_DEFUN([AC_PROG_SED], [ SED="sed" AC_SUBST([SED]) ])
+AC_DEFUN([AC_PROG_GREP], [ GREP="grep" AC_SUBST([GREP]) ])
 
 # hopefully this is the right minimum version, I haven't really tested it
 BOOST_REQUIRE([1.37])
