@@ -38,7 +38,20 @@ Trace the outline of an image and generate WKT or Shapefile (options exist for c
 ### gdal_wkt_to_mask           
 Generate a bitmap of the area covered by a polygon
 
+## Install
+
+Debian/ubuntu: apt-get install dans-gdal-scripts
+
+from source:
+
+  ./autogen.sh
+  ./configure  # --prefix=/your/favorite/prefix
+  make
+  make install
+
 ## Credits
 
-These programs were written by Dan Stahlke of the Geographic Information Network of Alaska.
-Send questions or comments to our [contact us](http://www.gina.alaska.edu/information/contact-us) page.
+These programs were written by Dan Stahlke of the Geographic Information 
+Network of Alaska.  Send questions or comments to our 
+[contact us](http://www.gina.alaska.edu/information/contact-us) page.
+
