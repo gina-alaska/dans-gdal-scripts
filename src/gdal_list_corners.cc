@@ -304,9 +304,9 @@ int main(int argc, char **argv) {
 		}
 	} else {
 		const char *e_labels[] = { "left", "mid", "right" };
-		double e_pos[] = { 0, (double)georef.w/2.0, georef.w };
+		double e_pos[] = { 0, (double)georef.w/2.0, (double)georef.w };
 		const char *n_labels[] = { "upper", "mid", "lower" };
-		double n_pos[] = { 0, (double)georef.h/2.0, georef.h };
+		double n_pos[] = { 0, (double)georef.h/2.0, (double)georef.h };
 		if(georef.fwd_xform && georef.hasAffine()) {
 			fprintf(yaml_fh, "geometry_ll:\n  type: rectangle8\n");
 			for(int i=0; i<3; i++) for(int j=0; j<3; j++) {
