@@ -59,17 +59,19 @@ void usage(const std::string &cmdname) {
 "      -rgb <src_rgb.tif> [ -rgb <src.tif> ... ]\n"
 "      [ -lum <lum.tif> <weight> ... ] -pan <pan.tif>\n"
 "      [ -ndv <nodataval> ] -o <out-rgb.tif>\n"
-"Where:\n"
+"\nWhere:\n"
 "    rgb.tif    Source bands that are to be enhanced\n"
 "    lum.tif    Bands used to simulate lo-res pan band\n"
 "    pan.tif    Hi-res panchromatic band\n"
-"Examples:\n"
+"\nExamples, basic usage:\n"
+"    gdal_landsat_pansharp -rgb quickbird_rgb.tif -pan quickbird_pan.tif -o out.tif\n"
+"\nExamples, using simulated pan band (gives better results):\n"
+"(coefficients from http://www.dpi.inpe.br/~leila/publications/boggione2003spb.pdf)\n"
 "    gdal_landsat_pansharp -rgb lansat321.tif -lum landsat234.tif 0.25 0.23 0.52 \\\n"
 "      -pan landsat8.tif -ndv 0 -o out.tif\n\n"
 "    gdal_landsat_pansharp -rgb landsat3.tif -rgb landsat2.tif -rgb landsat1.tif \\\n"
 "      -lum landsat2.tif 0.25 -lum landsat3.tif 0.23 -lum landsat4.tif 0.52 \\\n"
 "      -pan landsat8.tif -ndv 0 -o out.tif\n\n"
-"    gdal_landsat_pansharp -rgb quickbird_rgb.tif -pan quickbird_pan.tif -o out.tif\n"
 );
 	exit(1);
 }
