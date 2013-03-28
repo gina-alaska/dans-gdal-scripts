@@ -66,7 +66,7 @@ void usage(const std::string &cmdname) {
 "  Output basic geocoding info:\n"
 "    gdal_list_corners raster.tif > geocode.yaml\n"
 "  Inspect image to find corners of actual data (arbitrary four-sided region):\n"
-"    gdal_list_corners raster.tif -inspect-rect4 -nodataval 0 > geocode.yaml\n"
+"    gdal_list_corners raster.tif -inspect-rect4 -ndv 0 > geocode.yaml\n"
 "\n"
 );
 	exit(1);
