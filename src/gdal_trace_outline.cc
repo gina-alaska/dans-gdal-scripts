@@ -398,8 +398,6 @@ int main(int argc, char **argv) {
 		mask = get_bitgrid_for_dataset(ds, inspect_bandids, ndv_def, dbuf);
 	}
 
-	GDALClose(ds);
-
 	for(size_t go_idx=0; go_idx<geom_outputs.size(); go_idx++) {
 		GeomOutput &go = geom_outputs[go_idx];
 		
@@ -651,6 +649,8 @@ int main(int argc, char **argv) {
 		if(num_shapes_written) printf("Wrote %d shapes.\n", num_shapes_written);
 		else printf("Wrote empty shapefile.\n");
 	}
+
+	GDALClose(ds);
 
 	CPLPopErrorHandler();
 
