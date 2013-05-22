@@ -14,18 +14,20 @@ $BINDIR/gdal_trace_outline testcase_maze.png  -b 1 -ndv 255 -out-cs xy -wkt-out 
 $BINDIR/gdal_trace_outline testcase_noise.png -b 1 -ndv   0 -out-cs xy -wkt-out out_test2_noise.wkt -report out_test2_noise.ppm -dp-toler 0
 $BINDIR/gdal_trace_outline testcase_noise.png -b 1 -ndv   0 -out-cs xy -wkt-out out_test2_noise_dp3.wkt -report out_test2_noise_dp3.ppm -dp-toler 3
 
-for i in 1 2 3 4 5 maze noise noise_dp3 ; do 
-	for j in test2_$i.{wkt,ppm} ; do
-		if diff --brief good_$j out_$j ; then
-			echo "GOOD $j"
-		else
-			echo "BAD $j"
-		fi
-	done
+echo '####################'
 
-	if [ "z$TEST_DB" != "z" ]; then
+for i in good_test2_* ; do
+	if diff --brief $i ${i/good/out} ; then
+		echo "GOOD ${i/good_/}"
+	else
+		echo "BAD ${i/good_/}"
+	fi
+done
+
+if [ "z$TEST_DB" != "z" ]; then
+	for i in 1 2 3 4 5 maze noise noise_dp3 ; do 
 		fn=out_test2_$i.wkt
 		echo -n "postgis test of $fn: "
 		( echo -n "select isvalid(mpolyfromtext('" ; cat $fn ; echo -n "'));" ) |psql $TEST_DB |grep -q '\<t\>' && echo "Good" || echo "Bad"
-	fi
-done
+	done
+fi

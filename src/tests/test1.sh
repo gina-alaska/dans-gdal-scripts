@@ -31,27 +31,10 @@ $BINDIR/gdal_make_ndv_mask -ndv '155 52 52' -ndv '24 173 79..81' testcase_3.tif 
 
 echo '####################'
 
-#for i in 1 2 3 4 5 ; do md5sum good-tc$i.wkt test-tc$i.wkt ; done
-for i in 1 1_en 2 3 3_classify 3_classify_pal 4 5 maze noise noise_dp3 ; do 
-	if diff --brief good_test1_$i.wkt out_test1_$i.wkt ; then
-		echo "GOOD outline test1_$i"
+for i in good_test1_* ; do
+	if diff --brief $i ${i/good/out} ; then
+		echo "GOOD ${i/good_/}"
 	else
-		echo "BAD outline test1_$i"
-	fi
-done
-
-for i in \
-	4-rect.wkt \
-	1_mask.ppm \
-	projbounds_report.ppm \
-	projbounds.yml \
-	1_metdata.yml \
-	3_ndvmask.pbm \
-	3_ndvmask2.pbm ;
-do
-	if diff --brief good_test1_$i out_test1_$i ; then
-		echo "GOOD $i"
-	else
-		echo "BAD $i"
+		echo "BAD ${i/good_/}"
 	fi
 done
