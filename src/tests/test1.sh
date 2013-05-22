@@ -2,6 +2,7 @@
 
 rm -f out_test1_*
 
+#BINDIR="valgrind -q .."
 BINDIR=..
 
 $BINDIR/gdal_trace_outline testcase_1.tif -ndv 255 -out-cs xy -wkt-out out_test1_1.wkt    -report out_test1_1.ppm -split-polys -dp-toler 0

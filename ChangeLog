@@ -1,3 +1,7 @@
+=== Version 0.21
+	updated test scripts, test cases are now consistent with current code
+	fix: dataset was closed too early in gdal_trace_outline
+
 === Version 0.20
 	gdal_contrast_stretch has histogram dump mode
 	bug fix in gdal_contrast_stretch

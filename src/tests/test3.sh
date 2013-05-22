@@ -2,6 +2,7 @@
 
 rm -f out_test3_test3_*
 
+#BINDIR="valgrind -q .."
 BINDIR=..
 
 $BINDIR/gdal_dem2rgb nedcut.tif out_test3_dem.tif -default-palette && tifftopnm out_test3_dem.tif >out_test3_dem.pnm
