@@ -4,12 +4,12 @@ height: 256
 num_bands: 3
 datatype: Byte,Byte,Byte
 metadata:
+  - 'AREA_OR_POINT=Area'
   - 'TIFFTAG_DOCUMENTNAME=/mnt/scratch2/SDMI-test/testcase.tif'
   - 'TIFFTAG_IMAGEDESCRIPTION=Created with The GIMP'
+  - 'TIFFTAG_RESOLUTIONUNIT=2 (pixels/inch)'
   - 'TIFFTAG_XRESOLUTION=72'
   - 'TIFFTAG_YRESOLUTION=72'
-  - 'TIFFTAG_RESOLUTIONUNIT=2 (pixels/inch)'
-  - 'AREA_OR_POINT=Area'
 s_srs: '+proj=utm +zone=6 +ellps=WGS84 +units=m +no_defs '
 units_name: 'metre'
 units_val: 1.000000
