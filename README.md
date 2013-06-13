@@ -44,10 +44,10 @@ Debian/ubuntu: apt-get install dans-gdal-scripts
 
 from source:
 
-  ./autogen.sh
-  ./configure  # --prefix=/your/favorite/prefix
-  make
-  make install
+    ./autogen.sh
+    ./configure  # --prefix=/your/favorite/prefix
+    make
+    make install
 
 ### OSX (homebrew)
 
