@@ -44,10 +44,18 @@ Debian/ubuntu: apt-get install dans-gdal-scripts
 
 from source:
 
-  ./autogen.sh
-  ./configure  # --prefix=/your/favorite/prefix
-  make
-  make install
+    ./autogen.sh
+    ./configure  # --prefix=/your/favorite/prefix
+    make
+    make install
+
+### OSX (homebrew)
+
+To get dans-gdal-scripts working on OSX you'll need to get a few deps:
+
+* [Homebrew](http://mxcl.github.io/homebrew/)
+ * brew install gdal
+ * brew install boost
 
 ## Credits
 
