@@ -49,6 +49,14 @@ from source:
   make
   make install
 
+### OSX (homebrew)
+
+To get dans-gdal-scripts working on OSX you'll need to get a few deps:
+
+* [Homebrew](http://mxcl.github.io/homebrew/)
+ * brew install gdal
+ * brew install boost
+
 ## Credits
 
 These programs were written by Dan Stahlke of the Geographic Information Network of Alaska.
