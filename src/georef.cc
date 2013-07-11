@@ -56,8 +56,8 @@ void GeoOpts::printUsage() {
 GeoOpts::GeoOpts(std::vector<std::string> &arg_list) :
 	w(0),
 	h(0),
-	got_ll_en(0),
-	got_ul_en(0),
+	got_ll_en(false),
+	got_ul_en(false),
 	given_left_e(0),
 	given_lower_n(0),
 	given_upper_n(0),
@@ -84,12 +84,12 @@ GeoOpts::GeoOpts(std::vector<std::string> &arg_list) :
 					if(argp+2 > arg_list.size()) usage(cmdname);
 					given_left_e = boost::lexical_cast<double>(arg_list[argp++]);
 					given_lower_n = boost::lexical_cast<double>(arg_list[argp++]);
-					got_ll_en++;
+					got_ll_en = true;
 				} else if(arg == "-ul_en") {
 					if(argp+2 > arg_list.size()) usage(cmdname);
 					given_left_e = boost::lexical_cast<double>(arg_list[argp++]);
 					given_upper_n = boost::lexical_cast<double>(arg_list[argp++]);
-					got_ul_en++;
+					got_ul_en = true;
 				} else if(arg == "-wh") {
 					if(argp+2 > arg_list.size()) usage(cmdname);
 					w = boost::lexical_cast<size_t>(arg_list[argp++]);
