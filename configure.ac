@@ -71,9 +71,13 @@ BOOST_REQUIRE([1.37])
 
 # Checks for header files.
 AC_HEADER_STDC
-AC_CHECK_HEADERS([math.h stdio.h])
-# these are from gdal
-AC_CHECK_HEADERS([cpl_conv.h cpl_port.h cpl_string.h gdal.h ogr_api.h ogr_spatialref.h ogrsf_frmts.h])
+
+# Check for GDAL header files
+SAVE_CPPFLAGS="${CPPFLAGS}"
+CPPFLAGS="${CPPFLAGS} ${GDALCFLAGS}"
+AC_CHECK_HEADERS([cpl_conv.h cpl_port.h cpl_string.h gdal.h ogr_api.h ogr_spatialref.h ogrsf_frmts.h], , \
+				 [AC_MSG_ERROR([Could not find GDAL header files])])
+CPPFLAGS="${SAVE_CPPFLAGS}"
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
