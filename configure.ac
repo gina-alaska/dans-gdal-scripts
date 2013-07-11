@@ -56,9 +56,14 @@ GDALCFLAGS=`${GDALCONFIG} --cflags`
 AC_SUBST(GDALLIBS)
 GDALLIBS=`${GDALCONFIG} --libs`
 
-# end of GDAL stuff #####################
+# Check for GDAL header files
+SAVE_CPPFLAGS="${CPPFLAGS}"
+CPPFLAGS="${CPPFLAGS} ${GDALCFLAGS}"
+AC_CHECK_HEADERS([cpl_conv.h cpl_port.h cpl_string.h gdal.h ogr_api.h ogr_spatialref.h ogrsf_frmts.h], , \
+				 [AC_MSG_ERROR([Could not find GDAL header files])])
+CPPFLAGS="${SAVE_CPPFLAGS}"
 
-# Checks for libraries.
+# end of GDAL stuff #####################
 
 # Replacements for functions not available in old autoconf versions.  These
 # functions are needed by boost.m4.  Hopefully all systems should have working
@@ -71,13 +76,6 @@ BOOST_REQUIRE([1.37])
 
 # Checks for header files.
 AC_HEADER_STDC
-
-# Check for GDAL header files
-SAVE_CPPFLAGS="${CPPFLAGS}"
-CPPFLAGS="${CPPFLAGS} ${GDALCFLAGS}"
-AC_CHECK_HEADERS([cpl_conv.h cpl_port.h cpl_string.h gdal.h ogr_api.h ogr_spatialref.h ogrsf_frmts.h], , \
-				 [AC_MSG_ERROR([Could not find GDAL header files])])
-CPPFLAGS="${SAVE_CPPFLAGS}"
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
