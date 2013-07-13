@@ -350,6 +350,7 @@ int main(int argc, char *argv[]) {
 		}
 	} else{
 		use_table = false;
+		bool was_nop = false;
 		if(mode_percentile) {
 			for(size_t band_idx=0; band_idx<dst_band_count; band_idx++) {
 				get_scale_from_percentile(
@@ -363,17 +364,21 @@ int main(int argc, char *argv[]) {
 				lin_offsets[band_idx] = hg.mean - dst_avg / lin_scales[band_idx];
 			}
 		} else { // no transformation
+			printf("\nWarning: no transformation was specified!  I'll just cast the input to 8-bit.\n");
+			was_nop = true;
 			for(size_t band_idx=0; band_idx<dst_band_count; band_idx++) {
 				lin_scales[band_idx] = 1;
 				lin_offsets[band_idx] = 0;
 			}
 		}
-		printf("Linear stretch:\n");
-		for(size_t band_idx=0; band_idx<dst_band_count; band_idx++) {
-			double scale = lin_scales[band_idx];
-			double offset = lin_offsets[band_idx];
-			printf("band %zd: scale=%f, offset=%f, src_range=[%f, %f]\n",
-				band_idx, scale, offset, offset, ((double)(output_range-1)/scale)+offset);
+		if(!was_nop) {
+			printf("\nLinear stretch:\n");
+			for(size_t band_idx=0; band_idx<dst_band_count; band_idx++) {
+				double scale = lin_scales[band_idx];
+				double offset = lin_offsets[band_idx];
+				printf("band %zd: scale=%f, offset=%f, src_range=[%f, %f]\n",
+					band_idx, scale, offset, offset, ((double)(output_range-1)/scale)+offset);
+			}
 		}
 	}
 
