@@ -312,7 +312,7 @@ int main(int argc, char *argv[]) {
 	for(size_t band_idx=0; band_idx<dst_band_count; band_idx++) {
 		Histogram &hg = histograms[band_idx];
 		printf("band %zd: min=%g, max=%g, mean=%g, stddev=%g, valid_count=%zd, ndv_count=%zd\n",
-			band_idx, hg.min, hg.max, hg.mean, hg.stddev, hg.data_count, hg.ndv_count);
+			band_idx+1, hg.min, hg.max, hg.mean, hg.stddev, hg.data_count, hg.ndv_count);
 		if(mode_dump_histogram) {
 			for(int i=0; i<hg.binning.nbins; i++) {
 				printf("bin %d: val=%g cnt=%zd\n",
@@ -377,7 +377,7 @@ int main(int argc, char *argv[]) {
 				double scale = lin_scales[band_idx];
 				double offset = lin_offsets[band_idx];
 				printf("band %zd: scale=%f, offset=%f, src_range=[%f, %f]\n",
-					band_idx, scale, offset, offset, ((double)(output_range-1)/scale)+offset);
+					band_idx+1, scale, offset, offset, ((double)(output_range-1)/scale)+offset);
 			}
 		}
 	}
@@ -553,6 +553,7 @@ std::vector<std::pair<double, double> > compute_minmax(
 					double v = buf_in[band_idx][i];
 					if(std::isnan(v) || std::isinf(v)) continue;
 
+					assert(!minmax.empty());
 					double &min = minmax[band_idx].first;
 					double &max = minmax[band_idx].second;
 					if(!got_data[band_idx]) {
@@ -596,7 +597,7 @@ std::vector<Histogram> compute_histogram(
 	std::vector<uint8_t> ndv_mask(block_len);
 	std::vector<uint8_t> band_mask(block_len);
 
-	bool first_valid_pixel = true;
+	std::vector<bool> first_valid_pixel(band_count, true);
 
 	for(size_t boff_y=0; boff_y<h; boff_y+=blocksize_y) {
 		size_t bsize_y = blocksize_y;
@@ -634,9 +635,9 @@ std::vector<Histogram> compute_histogram(
 					} else {
 						double v = p[i];
 						hg.counts[hg.binning.to_bin(v)]++;
-						if(first_valid_pixel) {
+						if(first_valid_pixel[band_idx]) {
 							hg.min = hg.max = v;
-							first_valid_pixel = false;
+							first_valid_pixel[band_idx] = false;
 						}
 						if(v < hg.min) hg.min = v;
 						if(v > hg.max) hg.max = v;
