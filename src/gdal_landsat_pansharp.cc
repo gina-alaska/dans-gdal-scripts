@@ -52,6 +52,7 @@ struct ScaledBand {
 void copyGeoCode(GDALDatasetH dst_ds, GDALDatasetH src_ds);
 ScaledBand getScaledBand(GDALDatasetH lores_ds, int band_id, GDALDatasetH hires_ds);
 void readLineScaled(ScaledBand &sb, int row, double *hires_buf);
+double avoidNDV(double in, double ndv, GDALDataType out_dt);
 
 void usage(const std::string &cmdname) {
 	printf("Usage:\n %s\n", cmdname.c_str());
@@ -89,7 +90,7 @@ int main(int argc, char *argv[]) {
 	std::string dst_fn;
 	std::string output_format;
 	double ndv = 0;
-	char use_ndv = 0;
+	bool use_ndv = 0;
 
 	GDALAllRegister();
 
@@ -101,9 +102,8 @@ int main(int argc, char *argv[]) {
 			try {
 				if(arg == "-ndv") {
 					if(argp == arg_list.size()) usage(cmdname);
-					ndv = boost::lexical_cast<int>(arg_list[argp++].c_str());
-					use_ndv++;
-					if(ndv < 0 || ndv > 255) fatal_error("no_data_val must be in the range 0-255");
+					ndv = boost::lexical_cast<double>(arg_list[argp++].c_str());
+					use_ndv = true;
 				} 
 				else if(arg == "-of" ) { if(argp == arg_list.size()) usage(cmdname); output_format = arg_list[argp++]; }
 				else if(arg == "-o"  ) { if(argp == arg_list.size()) usage(cmdname); dst_fn = arg_list[argp++]; }
@@ -156,6 +156,9 @@ int main(int argc, char *argv[]) {
 
 	GDALRasterBandH pan_band = GDALGetRasterBand(pan_ds, 1);
 
+	// this will be updated via GDALDataTypeUnion as RGB bands are opened
+	GDALDataType out_dt = GDALGetRasterDataType(pan_band);
+
 	/////
 
 	std::vector<ScaledBand> rgb_bands;
@@ -163,6 +166,8 @@ int main(int argc, char *argv[]) {
 		int nb = GDALGetRasterCount(rgb_ds[ds_idx]);
 		for(int i=0; i<nb; i++) {
 			rgb_bands.push_back(getScaledBand(rgb_ds[ds_idx], i+1, pan_ds));
+			out_dt = GDALDataTypeUnion(out_dt, GDALGetRasterDataType(
+				GDALGetRasterBand(rgb_ds[ds_idx], i+1)));
 		}
 	}
 	size_t rgb_band_count = rgb_bands.size();
@@ -196,16 +201,20 @@ int main(int argc, char *argv[]) {
 	//////// open output ////////
 
 	printf("Output size is %zd x %zd x %zd\n", w, h, rgb_band_count);
+	printf("Output datatype is %s\n", GDALGetDataTypeName(out_dt));
 
 	GDALDriverH dst_driver = GDALGetDriverByName(output_format.c_str());
 	if(!dst_driver) fatal_error("unrecognized output format (%s)", output_format.c_str());
-	GDALDatasetH dst_ds = GDALCreate(dst_driver, dst_fn.c_str(), w, h, rgb_band_count, GDT_Byte, NULL);
+	GDALDatasetH dst_ds = GDALCreate(dst_driver, dst_fn.c_str(), w, h, rgb_band_count, out_dt, NULL);
 	if(!dst_ds) fatal_error("could not create output");
 	copyGeoCode(dst_ds, pan_ds);
 
 	std::vector<GDALRasterBandH> dst_bands;
 	for(size_t i=0; i<rgb_band_count; i++) {
 		dst_bands.push_back(GDALGetRasterBand(dst_ds, i+1));
+		if(use_ndv) {
+			GDALSetRasterNoDataValue(dst_bands[i], ndv);
+		}
 	}
 
 	//////// process data ////////
@@ -216,7 +225,7 @@ int main(int argc, char *argv[]) {
 	}
 	std::vector<double> pan_buf(w);
 	std::vector<double> rgb_buf(w);
-	std::vector<uint8_t> out_buf(w);
+	std::vector<double> out_buf(w);
 	std::vector<double> scale_buf(w);
 
 	for(size_t row=0; row<h; row++) {
@@ -257,27 +266,20 @@ int main(int argc, char *argv[]) {
 
 			for(size_t col=0; col<w; col++) {
 				if(use_ndv && rgb_buf[col] == ndv) {
-					out_buf[col] = (uint8_t)ndv;
+					out_buf[col] = ndv;
 				} else {
 					double dbl_val = rgb_buf[col] * scale_buf[col];
 
-					uint8_t byte_val = 
-						dbl_val < 0 ? 0 :
-						dbl_val > 255.0 ? 255 :
-						(uint8_t)dbl_val;
-
-					// avoid ndv in output
-					if(use_ndv && byte_val == ndv) {
-						if(ndv < 128) byte_val++;
-						else byte_val--;
+					if(use_ndv) {
+						dbl_val = avoidNDV(dbl_val, ndv, out_dt);
 					}
 
-					out_buf[col] = byte_val;
+					out_buf[col] = dbl_val;
 				}
 			}
 
 			GDALRasterIO(dst_bands[band_idx], GF_Write, 0, row, w, 1,
-				&out_buf[0], w, 1, GDT_Byte, 0, 0);
+				&out_buf[0], w, 1, GDT_Float64, 0, 0);
 		}
 	} // row
 
@@ -437,5 +439,35 @@ void readLineScaled(ScaledBand &sb, int row, double *hires_buf) {
 			accum += sb.lines_buf[j][col] * kernel[j];
 		}
 		hires_buf[col] = accum;
+	}
+}
+
+// Helper for avoidNDV, used when datatype is an integer type.
+template <typename T>
+double avoidNDV_int(double in, double ndv) {
+	int64_t in_int = int64_t(round(in));
+	int64_t ndv_int = int64_t(round(ndv));
+	if(in_int != ndv_int) return in_int;
+
+	int64_t valid_low  = std::numeric_limits<T>::min();
+	int64_t valid_high = std::numeric_limits<T>::max();
+
+	// Compute center of valid range.
+	// NOTE: this addition doesn't overflow.
+	int64_t mid = (valid_low+valid_high)/2;
+	// Avoid NDV, by moving toward center of valid range.
+	// This way, we don't fall off the edge.
+	return (ndv < mid) ? in_int+1 : in_int-1;
+}
+
+// If in==ndv, then perturb the value to avoid NDV.
+double avoidNDV(double in, double ndv, GDALDataType out_dt) {
+	switch(out_dt) {
+		case GDT_Byte:   return avoidNDV_int< uint8_t>(in, ndv);
+		case GDT_UInt16: return avoidNDV_int<uint16_t>(in, ndv);
+		case GDT_Int16:  return avoidNDV_int< int16_t>(in, ndv);
+		case GDT_UInt32: return avoidNDV_int<uint32_t>(in, ndv);
+		case GDT_Int32:  return avoidNDV_int< int32_t>(in, ndv);
+		default:         return (in==ndv) ? in+1 : in;
 	}
 }
