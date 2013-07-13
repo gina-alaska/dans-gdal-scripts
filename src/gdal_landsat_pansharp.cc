@@ -462,6 +462,15 @@ double avoidNDV_int(double in, double ndv) {
 
 // If in==ndv, then perturb the value to avoid NDV.
 double avoidNDV(double in, double ndv, GDALDataType out_dt) {
+	// First, clip to valid range.  This is the only way to know whether the pixel will end up
+	// being NDV after being written.  This is probably not the fastest way to do it though...
+	{
+		// size of largest possible datatype (GDT_CFloat64), doubled (just in case).
+		char tmp[32];
+		GDALCopyWords(&in, GDT_Float64, 0, tmp, out_dt, 0, 1);
+		GDALCopyWords(tmp, out_dt, 0, &in, GDT_Float64, 0, 1);
+	}
+
 	switch(out_dt) {
 		case GDT_Byte:   return avoidNDV_int< uint8_t>(in, ndv);
 		case GDT_UInt16: return avoidNDV_int<uint16_t>(in, ndv);
