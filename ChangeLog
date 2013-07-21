@@ -1,10 +1,12 @@
-=== Version 0.22
-	Getting homebrew recipe and tagging working for OSX happyness.
+=== Version 0.23
 	Fix for compiler warnings/errors.
 	Fix finding of GDAL headers.
 	gdal_landsat_pansharp supports all datatypes except for complex
 	fix: gdal_contrast_stretch showed wrong 'min' pixel value
 	fix: gdal_contrast_stretch messages now number bands starting from '1'
+
+=== Version 0.22
+	Getting homebrew recipe and tagging working for OSX happyness.
 
 === Version 0.21
 	updated test scripts, test cases are now consistent with current code
