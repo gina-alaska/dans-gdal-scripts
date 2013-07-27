@@ -416,7 +416,8 @@ int main(int argc, char **argv) {
 			OGRSFDriverH ogr_driver = OGRGetDriverByName(go.ogr_fmt.c_str());
 			if(!ogr_driver) fatal_error("cannot get OGR driver (%s)", go.ogr_fmt.c_str());
 			go.ogr_ds = OGR_Dr_CreateDataSource(ogr_driver, go.ogr_fn.c_str(), NULL);
-			if(!go.ogr_ds) fatal_error("cannot create OGR data source");
+			if(!go.ogr_ds) fatal_error(
+				"cannot create OGR data source (does output file already exist?)");
 
 			std::string layer_name = go.ogr_fn;
 
