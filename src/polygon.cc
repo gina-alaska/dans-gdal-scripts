@@ -847,4 +847,62 @@ Mpoly mpoly_from_wktfile(const std::string &fn) {
 	return ogr_to_mpoly(geom);
 }
 
+void Ring::debug_dump_binary(FILE *fh) const {
+	uint32_t magic = 0x676e6952; // "Ring"
+	fwrite(&magic, sizeof(magic), 1, fh);
+	uint8_t is_hole_byte = is_hole;
+	fwrite(&is_hole_byte, sizeof(is_hole_byte), 1, fh);
+	fwrite(&parent_id, sizeof(parent_id), 1, fh);
+	size_t npts = pts.size();
+	fwrite(&npts, sizeof(npts), 1, fh);
+	fwrite(&pts[0], sizeof(Vertex), npts, fh);
+}
+
+Ring Ring::debug_load_binary(FILE *fh) {
+	Ring ret;
+
+	uint32_t magic;
+	fread(&magic, sizeof(magic), 1, fh);
+	if(magic != 0x676e6952) {
+		fatal_error("couldn't read ring: bad magic number");
+	}
+	uint8_t is_hole_byte;
+	fread(&is_hole_byte, sizeof(is_hole_byte), 1, fh);
+	ret.is_hole = is_hole_byte;
+	fread(&ret.parent_id, sizeof(ret.parent_id), 1, fh);
+	size_t npts;
+	fread(&npts, sizeof(npts), 1, fh);
+	ret.pts.resize(npts);
+	fread(&ret.pts[0], sizeof(Vertex), npts, fh);
+
+	return ret;
+}
+
+void Mpoly::debug_dump_binary(FILE *fh) const {
+	uint32_t magic = 0x796c704d; // "Mply"
+	fwrite(&magic, sizeof(magic), 1, fh);
+	size_t nrings = rings.size();
+	fwrite(&nrings, sizeof(nrings), 1, fh);
+	for(size_t i=0; i<nrings; i++) {
+		rings[i].debug_dump_binary(fh);
+	}
+}
+
+Mpoly Mpoly::debug_load_binary(FILE *fh) {
+	Mpoly ret;
+
+	uint32_t magic;
+	fread(&magic, sizeof(magic), 1, fh);
+	if(magic != 0x796c704d) {
+		fatal_error("couldn't read mply: bad magic number");
+	}
+	size_t nrings;
+	fread(&nrings, sizeof(nrings), 1, fh);
+	for(size_t i=0; i<nrings; i++) {
+		ret.rings.push_back(Ring::debug_load_binary(fh));
+	}
+
+	return ret;
+}
+
 } // namespace dangdal

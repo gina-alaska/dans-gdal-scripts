@@ -32,6 +32,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include <vector>
 #include <string>
 #include <algorithm>
+#include <cassert>
 
 #include <ogr_api.h>
 
@@ -239,6 +240,9 @@ public:
 		return ret;
 	}
 
+	void debug_dump_binary(FILE *fh) const;
+	static Ring debug_load_binary(FILE *fh);
+
 	std::vector<Vertex> pts;
 	bool is_hole;
 	int parent_id;
@@ -257,6 +261,9 @@ public:
 	void xy2en(const GeoRef &georef);
 	void en2xy(const GeoRef &georef);
 	void xy2ll_with_interp(const GeoRef &georef, double toler);
+
+	void debug_dump_binary(FILE *fh) const;
+	static Mpoly debug_load_binary(FILE *fh);
 
 	std::vector<Ring> rings;
 };
