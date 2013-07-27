@@ -73,6 +73,12 @@ public:
 		empty(false)
 	{ }
 
+	bool contains(const Vertex &v) const {
+		return !empty &&
+			v.x >= min_x && v.x <= max_x &&
+			v.y >= min_y && v.y <= max_y;
+	}
+
 	void expand(const Vertex &v) {
 		if(empty) {
 			empty = false;
@@ -103,12 +109,19 @@ static inline bool is_disjoint(const Bbox &bb1, const Bbox &bb2) {
 		bb2.min_y >  bb1.max_y;
 }
 
+// BboxBinarySpacePartition helps you quickly find which of a list of items (that have bounding
+// boxes) intersect a given bounding box.  Think of it as a std::map whose keys are bounding
+// boxes.  Since several items may intersect a given query box, query returns a list of
+// matches.
+//
+// When many object have overlapping bbox, this tree may not be so efficient and maybe
+// something better should be cooked up if it turns out to be slow.
 template <typename T>
 class BboxBinarySpacePartition {
 public:
 	BboxBinarySpacePartition(
 		std::vector<std::pair<Bbox, T> > items,
-		size_t max_leaf_size = 10,
+		size_t max_leaf_size = 20,
 		bool axis = 0
 	) :
 		left(NULL),
@@ -116,9 +129,9 @@ public:
 	{
 		leaf_items = items;
 
-		// compute bbox of all items
+		// Compute bbox containing all items.
 		for(size_t i=0; i<items.size(); i++) {
-			bbox.expand(items[i].first);
+			node_bbox.expand(items[i].first);
 		}
 
 		if(items.size() > max_leaf_size) {
@@ -144,10 +157,10 @@ private:
 	) const {
 		if(left) {
 			assert(right);
-			if(!is_disjoint(needle, left->bbox)) {
+			if(!is_disjoint(needle, left->node_bbox)) {
 				left ->append_intersecting_items(out, needle);
 			}
-			if(!is_disjoint(needle, right->bbox)) {
+			if(!is_disjoint(needle, right->node_bbox)) {
 				right->append_intersecting_items(out, needle);
 			}
 		} else {
@@ -160,50 +173,59 @@ private:
 	}
 
 	void subdivide(size_t max_leaf_size, bool axis) {
+		std::vector<double> midpts(leaf_items.size());
+		double cmin = 0, cmax = 0, cavg = 0;
+		size_t num_nonempty = 0;
+		for(size_t i=0; i<leaf_items.size(); i++) {
+			const Bbox &ibb = leaf_items[i].first;
+			if(ibb.empty) continue;
+			num_nonempty++;
+			node_bbox.expand(ibb);
+			double item_mid = axis ?
+				(ibb.min_y + ibb.max_y) / 2.0 :
+				(ibb.min_x + ibb.max_x) / 2.0;
+			if(i == 0) cmin = cmax = item_mid;
+			cmin = std::min(cmin, item_mid);
+			cmax = std::max(cmax, item_mid);
+			cavg += item_mid;
+		}
+		cavg /= num_nonempty;
+
 		// Subdivide space into two halves.  Note: this is used to decide which branch of the
 		// tree each item goes into.  However, each branch will then compute the exact Bbox
 		// that contains each of its items (it won't use these ones we compute here).
 		Bbox left_bbox, right_bbox;
 		if(axis) {
-			double mid_y = (bbox.min_y + bbox.max_y) / 2.0;
 			left_bbox = Bbox(
-				bbox.min_x, bbox.max_x,
-				bbox.min_y, mid_y);
+				node_bbox.min_x, node_bbox.max_x,
+				cmin, cavg);
 			right_bbox = Bbox(
-				bbox.min_x, bbox.max_x,
-				mid_y, bbox.max_y);
+				node_bbox.min_x, node_bbox.max_x,
+				cavg, cmax);
 		} else {
-			double mid_x = (bbox.min_x + bbox.max_x) / 2.0;
 			left_bbox = Bbox(
-				bbox.min_x, mid_x,
-				bbox.min_y, bbox.max_y);
+				cmin, cavg,
+				node_bbox.min_y, node_bbox.max_y);
 			right_bbox = Bbox(
-				mid_x, bbox.max_x,
-				bbox.min_y, bbox.max_y);
+				cavg, cmax,
+				node_bbox.min_y, node_bbox.max_y);
 		}
 
-		// find which items go in each box
+		// Find which items go in each box.
+		//
+		// Note: it would be possible to just move items to the left and right side of the
+		// original array like with quicksort, and never have to allocate all of these little
+		// vectors for every node.
 		std::vector<std::pair<Bbox, T> > left_items, right_items;
 		for(size_t i=0; i<leaf_items.size(); i++) {
-			bool hit_l = !is_disjoint(left_bbox,  leaf_items[i].first);
-			bool hit_r = !is_disjoint(right_bbox, leaf_items[i].first);
-			bool goes_on_right;
-			if(hit_l && hit_r) {
-				// If it overlaps both, then choose randomly (well, sort of).  The random
-				// choice leads to a more balanced tree.
-				goes_on_right = i % 2;
-			} else if(hit_l) {
-				goes_on_right = 0;
-			} else if(hit_r) {
-				goes_on_right = 1;
-			} else {
-				// It's gotta be in one of the halfs!
-				assert(0);
-			}
-			if(goes_on_right) {
-				right_items.push_back(leaf_items[i]);
-			} else {
+			const Bbox &ibb = leaf_items[i].first;
+			Vertex item_mid = Vertex(
+				(ibb.min_x + ibb.max_x) / 2.0,
+				(ibb.min_y + ibb.max_y) / 2.0);
+			if(left_bbox.contains(item_mid)) {
 				left_items.push_back(leaf_items[i]);
+			} else {
+				right_items.push_back(leaf_items[i]);
 			}
 		}
 
@@ -215,7 +237,7 @@ private:
 	}
 
 private:
-	Bbox bbox;
+	Bbox node_bbox;
 	BboxBinarySpacePartition<T> *left, *right;
 	// only used by leafs
 	std::vector<std::pair<Bbox, T> > leaf_items;

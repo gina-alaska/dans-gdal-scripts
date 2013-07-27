@@ -367,60 +367,59 @@ void fix_topology(const Mpoly &mpoly, std::vector<ReducedRing> &reduced_rings) {
 		mp_problems[r1_idx].resize(rring.segs.size(), 0);
 	}
 
-	// FIXME - no longer needed
-	std::vector<Bbox> bboxes = mpoly.getRingBboxes();
+	int num_problems = 0;
+	{
+		const BboxBinarySpacePartition<std::pair<size_t, size_t> > bsp =
+			get_bsp_for_reduced_rings(mpoly, reduced_rings);
 
-	printf("** make tree\n"); fflush(stdout);
-	const BboxBinarySpacePartition<std::pair<size_t, size_t> > bsp =
-		get_bsp_for_reduced_rings(mpoly, reduced_rings);
-	printf("** done making tree\n"); fflush(stdout);
+		// flag segments that cross
+		for(size_t r1_idx=0; r1_idx < mpoly.rings.size(); r1_idx++) {
+			GDALTermProgress(firsthalf_progress*
+				pow((double)r1_idx / (double)mpoly.rings.size(), 2), NULL, NULL);
+			const Ring &c1 = mpoly.rings[r1_idx];
+			const ReducedRing &r1 = reduced_rings[r1_idx];
+			std::vector<bool> &p1 = mp_problems[r1_idx];
 
-	// flag segments that cross
-	int have_problems = 0;
-	for(size_t r1_idx=0; r1_idx < mpoly.rings.size(); r1_idx++) {
-		GDALTermProgress(firsthalf_progress*
-			pow((double)r1_idx / (double)mpoly.rings.size(), 2), NULL, NULL);
-		const Ring &c1 = mpoly.rings[r1_idx];
-		const ReducedRing &r1 = reduced_rings[r1_idx];
-		std::vector<bool> &p1 = mp_problems[r1_idx];
+			for(size_t seg1_idx=0; seg1_idx < r1.segs.size(); seg1_idx++) {
+				Bbox seg1_bbox = r1.segs[seg1_idx].get_bbox(c1);
+				std::vector<std::pair<size_t, size_t> > intersecting_segments =
+					bsp.get_intersecting_items(seg1_bbox);
+				for(size_t i_s_idx=0; i_s_idx < intersecting_segments.size(); i_s_idx++) {
+					size_t r2_idx = intersecting_segments[i_s_idx].first;
+					size_t seg2_idx = intersecting_segments[i_s_idx].second;
 
-		for(size_t seg1_idx=0; seg1_idx < r1.segs.size(); seg1_idx++) {
-			Bbox seg1_bbox = r1.segs[seg1_idx].get_bbox(c1);
-			std::vector<std::pair<size_t, size_t> > intersecting_segments =
-				bsp.get_intersecting_items(seg1_bbox);
-			for(size_t i_s_idx=0; i_s_idx < intersecting_segments.size(); i_s_idx++) {
-				size_t r2_idx = intersecting_segments[i_s_idx].first;
-				size_t seg2_idx = intersecting_segments[i_s_idx].second;
-				if(r2_idx > r1_idx) continue; // symmetry optimization
-				if(r2_idx == r1_idx && seg2_idx > seg1_idx) continue; // symmetry optimization
+					// symmetry optimization
+					if(r2_idx > r1_idx) continue;
+					if(r2_idx == r1_idx && seg2_idx > seg1_idx) continue;
 
-				const Ring &c2 = mpoly.rings[r2_idx];
-				const ReducedRing &r2 = reduced_rings[r2_idx];
-				std::vector<bool> &p2 = mp_problems[r2_idx];
+					const Ring &c2 = mpoly.rings[r2_idx];
+					const ReducedRing &r2 = reduced_rings[r2_idx];
+					std::vector<bool> &p2 = mp_problems[r2_idx];
 
-				int crosses = segs_cross(r1_idx==r2_idx, 
-					c1, r1.segs[seg1_idx], c2, r2.segs[seg2_idx]);
-				if(crosses) {
-					//printf("found a crossing: %d,%d,%d,%d\n",
-					//	r1_idx, seg1_idx, r2_idx, seg2_idx);
-					p1[seg1_idx] = 1;
-					p2[seg2_idx] = 1;
-					have_problems += 2;
-				}
-			} // ring2/seg2 loop
-		} // seg1 loop
-	} // ring1 loop
+					int crosses = segs_cross(r1_idx==r2_idx, 
+						c1, r1.segs[seg1_idx], c2, r2.segs[seg2_idx]);
+					if(crosses) {
+						//printf("found a crossing: %d,%d,%d,%d\n",
+						//	r1_idx, seg1_idx, r2_idx, seg2_idx);
+						p1[seg1_idx] = 1;
+						p2[seg2_idx] = 1;
+						num_problems += 2;
+					}
+				} // ring2/seg2 loop
+			} // seg1 loop
+		} // ring1 loop
+	}
 
 	double progress = firsthalf_progress;
 	GDALTermProgress(progress, NULL, NULL);
 
-	if(have_problems) {
-		if(VERBOSE) printf("fixing %d crossed segments from reduction\n", have_problems/2);
+	if(num_problems) {
+		if(VERBOSE) printf("fixing %d crossed segments from reduction\n", num_problems/2);
 	}
 
 	int did_something = 1;
-	while(have_problems && did_something) {
-		//printf("%d crossings to fix\n", have_problems/2);
+	while(num_problems && did_something) {
+		//printf("%d crossings to fix\n", num_problems/2);
 		did_something = 0;
 		// subdivide problem segments
 		for(size_t r1_idx=0; r1_idx < mpoly.rings.size(); r1_idx++) {
@@ -443,7 +442,10 @@ void fix_topology(const Mpoly &mpoly, std::vector<ReducedRing> &reduced_rings) {
 			} // seg loop
 		} // ring loop
 
-		have_problems = 0;
+		const BboxBinarySpacePartition<std::pair<size_t, size_t> > bsp =
+			get_bsp_for_reduced_rings(mpoly, reduced_rings);
+
+		num_problems = 0;
 		// now test for resolved problems and new problems
 		for(size_t r1_idx=0; r1_idx < mpoly.rings.size(); r1_idx++) {
 			{
@@ -454,49 +456,51 @@ void fix_topology(const Mpoly &mpoly, std::vector<ReducedRing> &reduced_rings) {
 
 			const Ring &c1 = mpoly.rings[r1_idx];
 			const ReducedRing &r1 = reduced_rings[r1_idx];
-			const Bbox bbox1 = bboxes[r1_idx];
 			std::vector<bool> &p1 = mp_problems[r1_idx];
 			for(size_t seg1_idx=0; seg1_idx < r1.segs.size(); seg1_idx++) {
 				if(!p1[seg1_idx]) continue;
 				p1[seg1_idx] = 0;
-				// FIXME - use BSP here as well
-				for(size_t r2_idx=0; r2_idx < mpoly.rings.size(); r2_idx++) {
+
+				Bbox seg1_bbox = r1.segs[seg1_idx].get_bbox(c1);
+				std::vector<std::pair<size_t, size_t> > intersecting_segments =
+					bsp.get_intersecting_items(seg1_bbox);
+				for(size_t i_s_idx=0; i_s_idx < intersecting_segments.size(); i_s_idx++) {
+					size_t r2_idx = intersecting_segments[i_s_idx].first;
+					size_t seg2_idx = intersecting_segments[i_s_idx].second;
+
 					const Ring &c2 = mpoly.rings[r2_idx];
 					const ReducedRing &r2 = reduced_rings[r2_idx];
-					const Bbox bbox2 = bboxes[r2_idx];
-					if(is_disjoint(bbox1, bbox2)) continue;
-					for(size_t seg2_idx=0; seg2_idx < r2.segs.size(); seg2_idx++) {
-						int crosses = segs_cross(r1_idx==r2_idx,
-							c1, r1.segs[seg1_idx], c2, r2.segs[seg2_idx]);
-						if(crosses) {
-							if(VERBOSE) {
-								printf("found a crossing (still): %zd,%zd,%zd,%zd (%f,%f)-(%f,%f) (%f,%f)-(%f,%f)\n",
-									r1_idx, seg1_idx, r2_idx, seg2_idx,
-									c1.pts[r1.segs[seg1_idx].begin].x,
-									c1.pts[r1.segs[seg1_idx].begin].y,
-									c1.pts[r1.segs[seg1_idx].end].x,
-									c1.pts[r1.segs[seg1_idx].end].y,
-									c2.pts[r2.segs[seg2_idx].begin].x,
-									c2.pts[r2.segs[seg2_idx].begin].y,
-									c2.pts[r2.segs[seg2_idx].end].x,
-									c2.pts[r2.segs[seg2_idx].end].y);
-							}
-							p1[seg1_idx] = 1;
-							std::vector<bool> &p2 = mp_problems[r2_idx];
-							p2[seg2_idx] = 1;
-							have_problems++;
+
+					int crosses = segs_cross(r1_idx==r2_idx,
+						c1, r1.segs[seg1_idx], c2, r2.segs[seg2_idx]);
+					if(crosses) {
+						if(VERBOSE) {
+							printf("found a crossing (still): %zd,%zd,%zd,%zd (%f,%f)-(%f,%f) (%f,%f)-(%f,%f)\n",
+								r1_idx, seg1_idx, r2_idx, seg2_idx,
+								c1.pts[r1.segs[seg1_idx].begin].x,
+								c1.pts[r1.segs[seg1_idx].begin].y,
+								c1.pts[r1.segs[seg1_idx].end].x,
+								c1.pts[r1.segs[seg1_idx].end].y,
+								c2.pts[r2.segs[seg2_idx].begin].x,
+								c2.pts[r2.segs[seg2_idx].begin].y,
+								c2.pts[r2.segs[seg2_idx].end].x,
+								c2.pts[r2.segs[seg2_idx].end].y);
 						}
-					} // seg loop
-				} // ring loop
-			} // seg loop
-		} // ring loop
+						p1[seg1_idx] = 1;
+						std::vector<bool> &p2 = mp_problems[r2_idx];
+						p2[seg2_idx] = 1;
+						num_problems++;
+					}
+				} // ring2/seg2 loop
+			} // seg1 loop
+		} // ring1 loop
 
 		progress += (1.0-progress)/2;
 	} // while problems
 
 	GDALTermProgress(1, NULL, NULL);
 
-	if(have_problems) {
+	if(num_problems) {
 		printf("WARNING: Could not fix all topology problems.\n  Please inspect output shapefile manually.\n");
 	}
 }
