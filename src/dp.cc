@@ -334,6 +334,7 @@ static inline int segs_cross(
 		1);
 }
 
+// This allows rapidly finding which segments intersect each other.
 // The std::pair consists of the ring and segment indices.
 BboxBinarySpacePartition<std::pair<size_t, size_t> > get_bsp_for_reduced_rings(
 	const Mpoly &mpoly, std::vector<ReducedRing> &reduced_rings
