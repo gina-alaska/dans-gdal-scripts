@@ -1,3 +1,6 @@
+=== Version 0.24dev
+	gdal_trace_outline no longer hangs at the "fixing topology" stage
+
 === Version 0.23
 	Fix for compiler warnings/errors.
 	Fix finding of GDAL headers.
