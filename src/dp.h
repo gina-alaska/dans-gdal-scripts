@@ -39,6 +39,13 @@ struct segment_t {
 	segment_t() : begin(0), end(0) { }
 	segment_t(size_t _begin, size_t _end) : begin(_begin), end(_end) { }
 
+	Bbox get_bbox(const Ring &ring) const {
+		Bbox bbox;
+		bbox.expand(ring.pts[begin]);
+		bbox.expand(ring.pts[end]);
+		return bbox;
+	}
+
 	size_t begin;
 	size_t end;
 };

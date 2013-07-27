@@ -27,6 +27,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 #include <vector>
+#include <cassert>
 
 #include "common.h"
 #include "polygon.h"
@@ -333,10 +334,31 @@ static inline int segs_cross(
 		1);
 }
 
+// The std::pair consists of the ring and segment indices.
+BboxBinarySpacePartition<std::pair<size_t, size_t> > get_bsp_for_reduced_rings(
+	const Mpoly &mpoly, std::vector<ReducedRing> &reduced_rings
+) {
+	typedef std::pair<size_t, size_t> segptr_t;
+	std::vector<std::pair<Bbox, segptr_t> > items;
+
+	for(size_t ring_idx=0; ring_idx < mpoly.rings.size(); ring_idx++) {
+		const Ring &ring = mpoly.rings[ring_idx];
+		const ReducedRing &reduced = reduced_rings[ring_idx];
+		for(size_t seg_idx=0; seg_idx < reduced.segs.size(); seg_idx++) {
+			Bbox bbox = reduced.segs[seg_idx].get_bbox(ring);
+			items.push_back(std::make_pair(bbox, segptr_t(ring_idx, seg_idx)));
+		}
+	}
+
+	return BboxBinarySpacePartition<segptr_t>(items);
+}
+
 void fix_topology(const Mpoly &mpoly, std::vector<ReducedRing> &reduced_rings) {
 	const double firsthalf_progress = 0.5;
 	printf("Fixing topology: ");
 	fflush(stdout);
+
+	assert(mpoly.rings.size() == reduced_rings.size());
 
 	// initialize problem arrays
 	std::vector<std::vector<bool> > mp_problems(mpoly.rings.size());
@@ -345,7 +367,13 @@ void fix_topology(const Mpoly &mpoly, std::vector<ReducedRing> &reduced_rings) {
 		mp_problems[r1_idx].resize(rring.segs.size(), 0);
 	}
 
+	// FIXME - no longer needed
 	std::vector<Bbox> bboxes = mpoly.getRingBboxes();
+
+	printf("** make tree\n"); fflush(stdout);
+	const BboxBinarySpacePartition<std::pair<size_t, size_t> > bsp =
+		get_bsp_for_reduced_rings(mpoly, reduced_rings);
+	printf("** done making tree\n"); fflush(stdout);
 
 	// flag segments that cross
 	int have_problems = 0;
@@ -355,35 +383,33 @@ void fix_topology(const Mpoly &mpoly, std::vector<ReducedRing> &reduced_rings) {
 		const Ring &c1 = mpoly.rings[r1_idx];
 		const ReducedRing &r1 = reduced_rings[r1_idx];
 		std::vector<bool> &p1 = mp_problems[r1_idx];
-		const Bbox bbox1 = bboxes[r1_idx];
-		if(bbox1.empty) continue;
-		for(size_t r2_idx=0; r2_idx < mpoly.rings.size(); r2_idx++) {
-			if(r2_idx > r1_idx) continue; // symmetry optimization
 
-			const Bbox bbox2 = bboxes[r2_idx];
-			if(is_disjoint(bbox1, bbox2)) continue;
+		for(size_t seg1_idx=0; seg1_idx < r1.segs.size(); seg1_idx++) {
+			Bbox seg1_bbox = r1.segs[seg1_idx].get_bbox(c1);
+			std::vector<std::pair<size_t, size_t> > intersecting_segments =
+				bsp.get_intersecting_items(seg1_bbox);
+			for(size_t i_s_idx=0; i_s_idx < intersecting_segments.size(); i_s_idx++) {
+				size_t r2_idx = intersecting_segments[i_s_idx].first;
+				size_t seg2_idx = intersecting_segments[i_s_idx].second;
+				if(r2_idx > r1_idx) continue; // symmetry optimization
+				if(r2_idx == r1_idx && seg2_idx > seg1_idx) continue; // symmetry optimization
 
-			const Ring &c2 = mpoly.rings[r2_idx];
-			const ReducedRing &r2 = reduced_rings[r2_idx];
-			std::vector<bool> &p2 = mp_problems[r2_idx];
+				const Ring &c2 = mpoly.rings[r2_idx];
+				const ReducedRing &r2 = reduced_rings[r2_idx];
+				std::vector<bool> &p2 = mp_problems[r2_idx];
 
-			for(size_t seg1_idx=0; seg1_idx < r1.segs.size(); seg1_idx++) {
-				for(size_t seg2_idx=0; seg2_idx < r2.segs.size(); seg2_idx++) {
-					if(r2_idx == r1_idx && seg2_idx > seg1_idx) continue; // symmetry optimization
-
-					int crosses = segs_cross(r1_idx==r2_idx, 
-						c1, r1.segs[seg1_idx], c2, r2.segs[seg2_idx]);
-					if(crosses) {
-						//printf("found a crossing: %d,%d,%d,%d\n",
-						//	r1_idx, seg1_idx, r2_idx, seg2_idx);
-						p1[seg1_idx] = 1;
-						p2[seg2_idx] = 1;
-						have_problems += 2;
-					}
-				} // seg loop
-			} // seg loop
-		} // ring loop
-	} // ring loop
+				int crosses = segs_cross(r1_idx==r2_idx, 
+					c1, r1.segs[seg1_idx], c2, r2.segs[seg2_idx]);
+				if(crosses) {
+					//printf("found a crossing: %d,%d,%d,%d\n",
+					//	r1_idx, seg1_idx, r2_idx, seg2_idx);
+					p1[seg1_idx] = 1;
+					p2[seg2_idx] = 1;
+					have_problems += 2;
+				}
+			} // ring2/seg2 loop
+		} // seg1 loop
+	} // ring1 loop
 
 	double progress = firsthalf_progress;
 	GDALTermProgress(progress, NULL, NULL);
@@ -433,6 +459,7 @@ void fix_topology(const Mpoly &mpoly, std::vector<ReducedRing> &reduced_rings) {
 			for(size_t seg1_idx=0; seg1_idx < r1.segs.size(); seg1_idx++) {
 				if(!p1[seg1_idx]) continue;
 				p1[seg1_idx] = 0;
+				// FIXME - use BSP here as well
 				for(size_t r2_idx=0; r2_idx < mpoly.rings.size(); r2_idx++) {
 					const Ring &c2 = mpoly.rings[r2_idx];
 					const ReducedRing &r2 = reduced_rings[r2_idx];
