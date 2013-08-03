@@ -28,7 +28,8 @@
 
 
 
-AM_CPPFLAGS = @GDALCFLAGS@ @BOOST_CPPFLAGS@ -Wall -Wextra -O3 -g
+# FIXME - change -std=c++0x to -std=c++11 once that option is widely supported
+AM_CPPFLAGS = @GDALCFLAGS@ @BOOST_CPPFLAGS@ -std=c++0x -Wall -Wextra -O3 -g
 LIBS = @GDALLIBS@
 
 bin_PROGRAMS = gdal_raw2geotiff gdal_dem2rgb gdal_list_corners gdal_trace_outline gdal_contrast_stretch gdal_landsat_pansharp gdal_wkt_to_mask gdal_merge_simple gdal_merge_vrt gdal_get_projected_bounds gdal_make_ndv_mask
@@ -43,7 +44,7 @@ gdal_dem2rgb_SOURCES = gdal_dem2rgb.cc common.cc georef.cc ndv.cc palette.cc
 
 gdal_list_corners_SOURCES = gdal_list_corners.cc common.cc polygon.cc polygon-rasterizer.cc debugplot.cc georef.cc mask.cc rectangle_finder.cc ndv.cc
 
-gdal_trace_outline_SOURCES = gdal_trace_outline.cc common.cc polygon.cc polygon-rasterizer.cc debugplot.cc georef.cc mask.cc mask-tracer.cc beveler.cc dp.cc ndv.cc excursion_pincher2.cc
+gdal_trace_outline_SOURCES = gdal_trace_outline.cc common.cc polygon.cc polygon-rasterizer.cc debugplot.cc georef.cc mask.cc mask-tracer.cc beveler.cc dp.cc ndv.cc excursion_pincher2.cc raster_features.cc
 
 gdal_contrast_stretch_SOURCES = gdal_contrast_stretch.cc common.cc ndv.cc
 

@@ -36,81 +36,6 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 namespace dangdal {
 
-std::vector<uint8_t> read_dataset_8bit(GDALDatasetH ds, int band_idx, uint8_t *usage_array, DebugPlot *dbuf) {
-	for(int i=0; i<256; i++) usage_array[i] = 0;
-
-	size_t w = GDALGetRasterXSize(ds);
-	size_t h = GDALGetRasterYSize(ds);
-	int band_count = GDALGetRasterCount(ds);
-	if(VERBOSE) printf("input is %zd x %zd x %d\n", w, h, band_count);
-
-	if(band_idx < 1 || band_idx > band_count) fatal_error("bandid out of range");
-
-	GDALRasterBandH band = GDALGetRasterBand(ds, band_idx);
-
-	int blocksize_x_int, blocksize_y_int;
-	GDALGetBlockSize(band, &blocksize_x_int, &blocksize_y_int);
-	size_t blocksize_x = blocksize_x_int;
-	size_t blocksize_y = blocksize_y_int;
-
-	GDALDataType gdt = GDALGetRasterDataType(band);
-	if(gdt != GDT_Byte) {
-		printf("Warning: input is not of type Byte, there may be loss while downsampling!\n");
-	}
-
-	if(VERBOSE) printf("band %d: block size = %zd,%zd\n",
-		band_idx, blocksize_x, blocksize_y);
-
-	printf("Reading one band of size %zd x %zd\n", w, h);
-
-	std::vector<uint8_t> outbuf(w*h);
-	std::vector<uint8_t> inbuf(blocksize_x*blocksize_y);
-	for(size_t boff_y=0; boff_y<h; boff_y+=blocksize_y) {
-		size_t bsize_y = blocksize_y;
-		if(bsize_y + boff_y > h) bsize_y = h - boff_y;
-		for(size_t boff_x=0; boff_x<w; boff_x+=blocksize_x) {
-			size_t bsize_x = blocksize_x;
-			if(bsize_x + boff_x > w) bsize_x = w - boff_x;
-
-			double progress = 
-				double(
-					boff_y * w +
-					boff_x * bsize_y
-				) / (w * h);
-			GDALTermProgress(progress, NULL, NULL);
-
-			GDALRasterIO(band, GF_Read, boff_x, boff_y, bsize_x, bsize_y, 
-				&inbuf[0], bsize_x, bsize_y, GDT_Byte, 0, 0);
-
-			uint8_t *p_in = &inbuf[0];
-			for(size_t j=0; j<bsize_y; j++) {
-				size_t y = j + boff_y;
-				bool is_dbuf_stride_y = dbuf && ((y % dbuf->stride_y) == 0);
-				uint8_t *p_out = &outbuf[w*y + boff_x];
-				for(size_t i=0; i<bsize_x; i++) {
-					uint8_t val = *(p_in++);
-					*(p_out++) = val;
-					usage_array[val] = 1;
-
-					bool is_dbuf_stride = is_dbuf_stride_y && ((i % dbuf->stride_x) == 0);
-					if(is_dbuf_stride) {
-						size_t x = i + boff_x;
-						uint8_t db_v = 50 + val/3;
-						if(db_v < 50) db_v = 50;
-						if(db_v > 254) db_v = 254;
-						uint8_t r = (uint8_t)(db_v*.75);
-						dbuf->plotPoint(x, y, r, db_v, db_v);
-					}
-				}
-			}
-		}
-	}
-
-	GDALTermProgress(1, NULL, NULL);
-
-	return outbuf;
-}
-
 BitGrid get_bitgrid_for_dataset(
 	GDALDatasetH ds, const std::vector<size_t> &bandlist,
 	const NdvDef &ndv_def, DebugPlot *dbuf
@@ -238,19 +163,6 @@ BitGrid get_bitgrid_for_dataset(
 	}
 
 	GDALTermProgress(1, NULL, NULL);
-
-	return mask;
-}
-
-BitGrid get_bitgrid_for_8bit_raster(size_t w, size_t h, const uint8_t *raster, uint8_t wanted) {
-	BitGrid mask(w, h);
-
-	const uint8_t *p = raster;
-	for(size_t y=0; y<h; y++) {
-		for(size_t x=0; x<w; x++) {
-			mask.set(x, y, *(p++) == wanted);
-		}
-	}
 
 	return mask;
 }

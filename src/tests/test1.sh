@@ -15,8 +15,10 @@ $BINDIR/gdal_trace_outline testcase_maze.png  -ndv 255 -out-cs xy -wkt-out out_t
 $BINDIR/gdal_trace_outline testcase_noise.png -b 1 -ndv   0 -out-cs xy -wkt-out out_test1_noise.wkt -report out_test1_noise.ppm -split-polys -dp-toler 0
 $BINDIR/gdal_trace_outline testcase_noise.png -b 1 -ndv   0 -out-cs xy -wkt-out out_test1_noise_dp3.wkt -report out_test1_noise_dp3.ppm -split-polys -dp-toler 3
 
-$BINDIR/gdal_trace_outline testcase_3.tif -out-cs xy -wkt-out out_test1_3_classify.wkt -dp-toler 0 -classify
-$BINDIR/gdal_trace_outline pal.tif -out-cs xy -wkt-out out_test1_3_classify_pal.wkt -dp-toler 0 -classify
+$BINDIR/gdal_trace_outline testcase_3.tif -out-cs xy -wkt-out out_test1_3_classify.wkt -ogr-out out_test1_3_classify.shp -dp-toler 0 -classify
+$BINDIR/gdal_trace_outline testcase_3_paletted.tif -out-cs xy -wkt-out out_test1_3_classify_pal.wkt -ogr-out out_test1_3_classify_pal.shp -dp-toler 0 -classify
+$BINDIR/gdal_trace_outline testcase_features.png -out-cs xy -wkt-out out_test1_features.wkt -ogr-out out_test1_features.shp -dp-toler 0 -classify
+$BINDIR/gdal_trace_outline testcase_double.tif -out-cs xy -wkt-out out_test1_double.wkt -ogr-out out_test1_double.shp -dp-toler 0 -classify
 
 $BINDIR/gdal_list_corners -inspect-rect4 -erosion -ndv 0 testcase_4.png -report out_test1_4-rect.ppm > out_test1_4-rect.wkt
 
@@ -30,6 +32,12 @@ $BINDIR/gdal_make_ndv_mask -ndv '155 52 52' -ndv '24 173 79'     testcase_3.tif 
 $BINDIR/gdal_make_ndv_mask -ndv '155 52 52' -ndv '24 173 79..81' testcase_3.tif out_test1_3_ndvmask2.pbm
 
 echo '####################'
+
+for i in out_test1_* ; do
+	if [ ! -e ${i/out/good} ] ; then
+		echo "!!! ${i/out/good} doesn't exist"
+	fi
+done
 
 for i in good_test1_* ; do
 	if diff --brief $i ${i/good/out} ; then

@@ -16,6 +16,12 @@ $BINDIR/gdal_trace_outline testcase_noise.png -b 1 -ndv   0 -out-cs xy -wkt-out 
 
 echo '####################'
 
+for i in out_test2_* ; do
+	if [ ! -e ${i/out/good} ] ; then
+		echo "!!! ${i/out/good} doesn't exist"
+	fi
+done
+
 for i in good_test2_* ; do
 	if diff --brief $i ${i/good/out} ; then
 		echo "GOOD ${i/good_/}"

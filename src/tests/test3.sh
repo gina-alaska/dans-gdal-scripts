@@ -10,6 +10,12 @@ $BINDIR/gdal_contrast_stretch -ndv '0..255 0..255 0..255 0' -histeq 50 testcase_
 
 echo '####################'
 
+for i in out_test3_* ; do
+	if [ ! -e ${i/out/good} ] ; then
+		echo "!!! ${i/out/good} doesn't exist"
+	fi
+done
+
 for i in good_test3_* ; do
 	if diff --brief $i ${i/good/out} ; then
 		echo "GOOD ${i/good_/}"

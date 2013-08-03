@@ -42,6 +42,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include "dp.h"
 #include "excursion_pincher.h"
 #include "beveler.h"
+#include "raster_features.h"
 
 #include <ogrsf_frmts.h>
 #include <cpl_string.h>
@@ -151,11 +152,8 @@ struct GeomOutput {
 		wkt_fh(NULL),
 		wkb_fh(NULL),
 		ogr_ds(NULL),
-		ogr_layer(NULL),
-		class_fld_idx(-1)
-	{
-		for(int i=0; i<4; i++) color_fld_idx[i] = -1;
-	}
+		ogr_layer(NULL)
+	{ }
 
 	CoordSystem out_cs;
 
@@ -169,8 +167,6 @@ struct GeomOutput {
 	std::string ogr_fmt;
 	OGRDataSourceH ogr_ds;
 	OGRLayerH ogr_layer;
-	int class_fld_idx;
-	int color_fld_idx[4];
 };
 
 struct ContainingOption {
@@ -336,7 +332,6 @@ int main(int argc, char **argv) {
 	}
 
 	if(classify) {
-		if(!ndv_def.empty()) fatal_error("-classify option is not compatible with NDV options");
 		if(do_invert) fatal_error("-classify option is not compatible with -invert option");
 		if(mask_out_fn.size()) fatal_error("-classify option is not compatible with -mask-out option");
 	}
@@ -347,15 +342,12 @@ int main(int argc, char **argv) {
 	if(!ds) fatal_error("open failed");
 
 	if(inspect_bandids.empty()) {
-		size_t nbands = classify ? 1 : GDALGetRasterCount(ds);
+		size_t nbands = GDALGetRasterCount(ds);
 		for(size_t i=0; i<nbands; i++) inspect_bandids.push_back(i+1);
 	}
 
-	// FIXME - optional NDV for classify
-	if(!classify) {
-		if(ndv_def.empty()) {
-			ndv_def = NdvDef(ds, inspect_bandids);
-		}
+	if(ndv_def.empty()) {
+		ndv_def = NdvDef(ds, inspect_bandids);
 	}
 
 	CPLPushErrorHandler(CPLQuietErrorHandler);
@@ -378,29 +370,20 @@ int main(int argc, char **argv) {
 			do_pinch_excursions ? PLOT_PINCH : PLOT_CONTOURS);
 	}
 
-	std::vector<uint8_t> raster;
+	// only used if classify==true, but doesn't hurt otherwise
+	const FeatureInterpreter feature_interp(ds, inspect_bandids);
+
+	FeatureBitmap *features_bitmap = NULL;
 	BitGrid mask(0, 0);
-	uint8_t usage_array[256];
-	GDALColorTableH color_table = NULL;
 	if(classify) {
-		if(inspect_bandids.size() != 1) {
-			fatal_error("only one band may be used in classify mode");
-		}
-
-		std::vector<uint8_t> tmp_raster = read_dataset_8bit(ds, inspect_bandids[0], usage_array, dbuf);
-		std::swap(raster, tmp_raster);
-
-		GDALRasterBandH band = GDALGetRasterBand(ds, inspect_bandids[0]);
-		if(GDALGetRasterColorInterpretation(band) == GCI_PaletteIndex) {
-			color_table = GDALGetRasterColorTable(band);
-		}
+		features_bitmap = read_raster_features(ds, inspect_bandids, ndv_def, dbuf);
 	} else {
 		mask = get_bitgrid_for_dataset(ds, inspect_bandids, ndv_def, dbuf);
 	}
 
 	for(size_t go_idx=0; go_idx<geom_outputs.size(); go_idx++) {
 		GeomOutput &go = geom_outputs[go_idx];
-		
+
 		if(go.wkt_fn.size()) {
 			go.wkt_fh = fopen(go.wkt_fn.c_str(), "w");
 			if(!go.wkt_fh) fatal_error("cannot open output file for WKT");
@@ -433,42 +416,26 @@ int main(int argc, char **argv) {
 			if(!go.ogr_layer) fatal_error("cannot create OGR layer");
 
 			if(classify) {
-				OGRFieldDefnH fld = OGR_Fld_Create("value", OFTInteger);
-				OGR_Fld_SetWidth(fld, 4);
-				OGR_L_CreateField(go.ogr_layer, fld, TRUE);
-				go.class_fld_idx = OGR_FD_GetFieldIndex(OGR_L_GetLayerDefn(go.ogr_layer), "value");
-
-				if(color_table) {
-					const char *names[4] = { "c1", "c2", "c3", "c4" };
-					for(int i=0; i<4; i++) {
-						fld = OGR_Fld_Create(names[i], OFTInteger);
-						OGR_Fld_SetWidth(fld, 4);
-						OGR_L_CreateField(go.ogr_layer, fld, TRUE);
-						go.color_fld_idx[i] = OGR_FD_GetFieldIndex(OGR_L_GetLayerDefn(go.ogr_layer), names[i]);
-					}
-				}
+				feature_interp.create_ogr_fields(go.ogr_layer);
 			}
 		}
 	}
 
 	int num_shapes_written = 0;
 
-	for(int class_id=0; class_id<256; class_id++) {
-		const GDALColorEntry *color = NULL;
+	std::map<FeatureRawVal, FeatureBitmap::Index> features_list;
+	if(classify) {
+		features_list = features_bitmap->feature_table();
+	} else {
+		// If we are not running in feature classify mode, then just add an arbitrary element
+		// to this list so that the loop below runs once.
+		features_list[FeatureRawVal()];
+	}
+
+	for(const std::pair<FeatureRawVal, FeatureBitmap::Index> &feature : features_list) {
 		if(classify) {
-			if(!usage_array[class_id]) continue;
-			printf("\nFeature class %d\n", class_id);
-
-			if(color_table) {
-				color = GDALGetColorEntry(color_table, class_id);
-				if(color) printf("  Color=%d,%d,%d,%d\n",
-					color->c1, color->c2, color->c3, color->c4);
-			}
-
-			mask = get_bitgrid_for_8bit_raster(georef.w, georef.h,
-				&raster[0], (uint8_t)class_id);
-		} else {
-			if(class_id != 0) continue;
+			printf("\nTracing feature %s\n", feature_interp.pixel_to_string(feature.first).c_str());
+			mask = features_bitmap->get_mask_for_feature(feature.second);
 		}
 
 		if(do_invert) {
@@ -610,17 +577,11 @@ int main(int argc, char **argv) {
 
 						if(go.ogr_ds) {
 							OGRFeatureH ogr_feat = OGR_F_Create(OGR_L_GetLayerDefn(go.ogr_layer));
-							if(go.class_fld_idx >= 0) OGR_F_SetFieldInteger(ogr_feat, go.class_fld_idx, class_id);
-							if(color) {
-								if(go.color_fld_idx[0] >= 0) OGR_F_SetFieldInteger(
-									ogr_feat, go.color_fld_idx[0], color->c1);
-								if(go.color_fld_idx[1] >= 0) OGR_F_SetFieldInteger(
-									ogr_feat, go.color_fld_idx[1], color->c2);
-								if(go.color_fld_idx[2] >= 0) OGR_F_SetFieldInteger(
-									ogr_feat, go.color_fld_idx[2], color->c3);
-								if(go.color_fld_idx[3] >= 0) OGR_F_SetFieldInteger(
-									ogr_feat, go.color_fld_idx[3], color->c4);
+
+							if(classify) {
+								feature_interp.set_ogr_fields(go.ogr_layer, ogr_feat, feature.first);
 							}
+
 							OGR_F_SetGeometryDirectly(ogr_feat, ogr_geom); // assumes ownership of geom
 							OGR_L_CreateFeature(go.ogr_layer, ogr_feat);
 							OGR_F_Destroy(ogr_feat);
