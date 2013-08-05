@@ -1,5 +1,6 @@
 === Version 0.24dev
 	gdal_trace_outline no longer hangs at the "fixing topology" stage
+	gdal_trace_outline -classify can now handle arbitrary datatypes, multiple bands, and ndv
 
 === Version 0.23
 	Fix for compiler warnings/errors.
