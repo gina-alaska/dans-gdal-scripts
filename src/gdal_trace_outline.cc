@@ -598,6 +598,8 @@ int main(int argc, char **argv) {
 
 	printf("\n");
 
+	delete(features_bitmap);
+
 	for(size_t go_idx=0; go_idx<geom_outputs.size(); go_idx++) {
 		GeomOutput &go = geom_outputs[go_idx];
 		if(go.wkt_fh) fclose(go.wkt_fh);

@@ -63,11 +63,13 @@ FeatureBitmap *read_raster_features(
 	size_t blocksize_y = blocksize_y_int;
 	size_t blocksize_xy = blocksize_x * blocksize_y;
 
+	std::vector<GDALDataType> datatypes;
 	std::vector<size_t> dt_sizes;
 	size_t dt_total_size = 0;
 	if(VERBOSE >= 2) printf("datatype sizes:");
 	for(const GDALRasterBandH band : bands) {
 		GDALDataType dt = GDALGetRasterDataType(band);
+		datatypes.push_back(dt);
 		size_t s = GDALGetDataTypeSize(dt) / 8;
 		dt_sizes.push_back(s);
 		dt_total_size += s;
@@ -83,8 +85,13 @@ FeatureBitmap *read_raster_features(
 
 	std::vector<uint8_t> ndv_mask(blocksize_xy);
 	std::vector<uint8_t> band_mask(blocksize_xy);
+	// we need to convert to a known datatype in order to interpret NDV values
+	std::vector<double> band_buf_dbl(blocksize_xy);
 
 	FeatureBitmap *fbm = new FeatureBitmap(w, h, dt_total_size);
+
+	size_t num_valid = 0;
+	size_t num_ndv = 0;
 
 	printf("Reading input...\n");
 
@@ -109,11 +116,18 @@ FeatureBitmap *read_raster_features(
 			for(size_t band_idx=0; band_idx<bands.size(); band_idx++) {
 				GDALReadBlock(bands[band_idx], block_x, block_y, &band_buf[band_idx][0]);
 
-				if(band_idx == 0) {
-					ndv_def.arrayCheckNdv(band_idx, &band_buf[band_idx][0], &ndv_mask[0], blocksize_xy);
-				} else {
-					ndv_def.arrayCheckNdv(band_idx, &band_buf[band_idx][0], &band_mask[0], blocksize_xy);
-					ndv_def.aggregateMask(&ndv_mask[0], &band_mask[0], blocksize_xy);
+				if(!ndv_def.empty()) {
+					GDALCopyWords(
+						&band_buf[band_idx][0], datatypes[band_idx], dt_sizes[band_idx],
+						&band_buf_dbl[0], GDT_Float64, sizeof(double),
+						blocksize_xy);
+
+					if(band_idx == 0) {
+						ndv_def.arrayCheckNdv(band_idx, &band_buf_dbl[0], &ndv_mask[0], blocksize_xy);
+					} else {
+						ndv_def.arrayCheckNdv(band_idx, &band_buf_dbl[0], &band_mask[0], blocksize_xy);
+						ndv_def.aggregateMask(&ndv_mask[0], &band_mask[0], blocksize_xy);
+					}
 				}
 			}
 
@@ -133,7 +147,8 @@ FeatureBitmap *read_raster_features(
 					size_t x = sub_x + boff_x;
 					bool is_dbuf_stride = is_dbuf_stride_y && ((sub_x % dbuf->stride_x) == 0);
 
-					// read a pixel from the buffers
+					// Read a pixel from the buffers.  This is called even for NDV pixels,
+					// because it is needed to increment the pointers.
 					{
 						size_t p = 0;
 						for(size_t band_id=0; band_id<bands.size(); band_id++) {
@@ -145,10 +160,14 @@ FeatureBitmap *read_raster_features(
 					}
 
 					if(*(ndv_mask_p++)) {
+						num_ndv++;
+
 						if(is_dbuf_stride) {
 							dbuf->plotPoint(x, y, 0, 0, 0);
 						}
 					} else {
+						num_valid++;
+
 						FeatureBitmap::Index index_val = fbm->get_index(pixel);
 						fbm->raster[y*w + x] = index_val;
 
@@ -167,6 +186,8 @@ FeatureBitmap *read_raster_features(
 	}
 
 	GDALTermProgress(1, NULL, NULL);
+
+	printf("Found %zd valid and %zd NDV pixels.\n", num_valid, num_ndv);
 
 	return fbm;
 }
