@@ -676,8 +676,10 @@ void compute_tierow_invaffine(
 	int num_cols, int row, int grid_spacing,
 	double *invaffine_tierow
 ) {
-	double tiecol_left[4];
-	double tiecol_right[4];
+	// this will be initialized on the first iteration, but it is set here to avoid a compiler
+	// warning.
+	double tiecol_left[4] = { 0, 0, 0, 0 };
+	double tiecol_right[4] = { 0, 0, 0, 0 };
 
 	compute_invaffine(georef, 0, row, tiecol_right);
 

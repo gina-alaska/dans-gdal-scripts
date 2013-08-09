@@ -32,6 +32,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include <vector>
 #include <string>
 #include <algorithm>
+#include <utility>
 #include <cassert>
 
 #include <ogr_api.h>
