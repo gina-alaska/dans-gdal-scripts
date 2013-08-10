@@ -26,6 +26,8 @@ This code was developed by Kevin Engle for the Geographic Information Network of
 
 
 
+namespace dangdal {
+
 // Palette by Kevin Engle.
 const char *DEFAULT_PALETTE[] = {
 	"NaN 0 0 0",
@@ -192,3 +194,5 @@ const char *DEFAULT_PALETTE[] = {
 	"6900.000000 104 46 3",
 	"7000.000000 104 46 3",
 	NULL };
+
+} // namespace dangdal

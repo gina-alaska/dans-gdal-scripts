@@ -76,10 +76,14 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 #define D2R (M_PI / 180.0)
 
+namespace dangdal {
+
 extern int VERBOSE;
 
 void fatal_error(const std::string &s) __attribute__((noreturn));
 void fatal_error(const char *s, ...) __attribute__((noreturn, format(printf, 1, 2)));
 std::vector<std::string> argv_to_list(int argc, char **argv);
+
+} // namespace dangdal
 
 #endif // ifndef DANGDAL_COMMON_H

@@ -32,6 +32,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 #include <vector>
 
+using namespace dangdal;
+
 struct ScaledBand {
 	ScaledBand() :
 		oversample(0), lo_w(0), lo_h(0), hi_w(0), hi_h(0),

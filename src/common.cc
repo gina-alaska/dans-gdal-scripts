@@ -31,6 +31,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 #include "common.h"
 
+namespace dangdal {
+
 int VERBOSE = 0;
 
 void fatal_error(const std::string &s) {
@@ -59,3 +61,5 @@ std::vector<std::string> argv_to_list(int argc, char **argv) {
 	}
 	return ret;
 }
+
+} // namespace dangdal

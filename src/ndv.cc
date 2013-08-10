@@ -27,12 +27,15 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 #include <algorithm>
+#include <cstring>
+#include <cassert>
 
 #include <boost/lexical_cast.hpp>
 #include <boost/tokenizer.hpp>
 
 #include "common.h"
 #include "ndv.h"
+#include "datatype_conversion.h"
 
 void usage(const std::string &cmdname); // externally defined
 
@@ -44,13 +47,18 @@ void NdvDef::printUsage() {
 "  -ndv val                           Set a no-data value\n"
 "  -ndv 'val val ...'                 Set a no-data value using all input bands\n"
 "  -ndv 'min..max min..max ...'       Set a range of no-data values\n"
-"                                     (-Inf and Inf are allowed)\n"
+"                                     (-Inf and Inf are allowed; '*' == '-Inf..Inf')\n"
 "  -valid-range 'min..max min..max ...'  Set a range of valid data values\n"
 );
 }
 
-NdvInterval::NdvInterval(const std::string &s) {
+NdvInterval::NdvInterval(const std::string &s_in) {
+	// copy the string in case we want to change it
+	std::string s = s_in;
+
 	if(VERBOSE >= 2) printf("minmax [%s]\n", s.c_str());
+
+	if(s == "*") s = "-Inf..Inf";
 
 	double min, max;
 	size_t delim = s.find("..");
@@ -60,7 +68,7 @@ NdvInterval::NdvInterval(const std::string &s) {
 		} else {
 			std::string s1 = s.substr(0, delim);
 			std::string s2 = s.substr(delim+2);
-			// FIXME - allow -Inf, Inf
+			// This is capable of interpreting -Inf and Inf
 			min = boost::lexical_cast<double>(s1);
 			max = boost::lexical_cast<double>(s2);
 		}
@@ -167,107 +175,76 @@ void NdvDef::debugPrint() const {
 	printf("=== end NDV\n");
 }
 
-template<class T>
-void flagMatches(
-	const NdvInterval &range,
-	const T *in_data,
-	uint8_t *mask_out,
-	size_t nsamps
-) {
-	for(size_t i=0; i<nsamps; i++) {
-		T val = in_data[i];
-		if(range.contains(val)) mask_out[i] = 1;
-	}
+template <typename T>
+static inline bool contains_templated(const NdvInterval *interval, const void *p) {
+	T val = *(reinterpret_cast<const T *>(p));
+	return interval->contains(val);
 }
 
-template<>
-void flagMatches<uint8_t>(
-	const NdvInterval &range,
-	const uint8_t *in_data,
-	uint8_t *mask_out,
-	size_t nsamps
-) {
-	uint8_t min_byte = (uint8_t)std::max(ceil (range.first ), 0.0);
-	uint8_t max_byte = (uint8_t)std::min(floor(range.second), 255.0);
-	for(size_t i=0; i<nsamps; i++) {
-		uint8_t v = in_data[i];
-		uint8_t match = (v >= min_byte) && (v <= max_byte);
-		if(match) mask_out[i] = 1;
-	}
+inline bool NdvInterval::contains(const void *p, GDALDataType dt) const {
+	return DANGDAL_RUNTIME_TEMPLATE(dt, contains_templated, this, p);
 }
 
-template<class T>
-void flagNaN(
-	const T *in_data,
-	uint8_t *mask_out,
-	size_t nsamps
-) {
-	for(size_t i=0; i<nsamps; i++) {
-		if(std::isnan(in_data[i])) mask_out[i] = 1;
-	}
-}
-
-template<>
-void flagNaN<uint8_t>(
-	const uint8_t *in_data __attribute__((unused)),
-	uint8_t *mask_out __attribute__((unused)),
-	size_t nsamps __attribute__((unused))
-) { } // no-op
-
-template<class T>
-void NdvDef::arrayCheckNdv(
-	size_t band, const T *in_data,
-	uint8_t *mask_out, size_t nsamps
+void NdvDef::getNdvMask(
+	const std::vector<const void *> &bands,
+	const std::vector<GDALDataType> &dt_list,
+	uint8_t *mask_out, size_t num_pixels
 ) const {
-	for(size_t i=0; i<nsamps; i++) mask_out[i] = 0;
-	for(size_t slab_idx=0; slab_idx<slabs.size(); slab_idx++) {
-		const NdvSlab &slab = slabs[slab_idx];
-		NdvInterval range;
-		if(band > 0 && slab.range_by_band.size() == 1) {
-			// if only a single range is defined, use it for all bands
-			range = slab.range_by_band[0];
-		} else if(band < slab.range_by_band.size()) {
-			range = slab.range_by_band[band];
-		} else {
-			fatal_error("wrong number of bands in NDV def");
-		}
-		flagMatches(range, in_data, mask_out, nsamps);
+	assert(bands.size() == dt_list.size());
+	// use uint8_t to allow incrementing the pointer by bytes
+	std::vector<const uint8_t *> in_p;
+	std::vector<size_t> dt_sizes;
+	for(size_t i=0; i<bands.size(); i++) {
+		in_p.push_back(reinterpret_cast<const uint8_t *>(bands[i]));
+		dt_sizes.push_back(GDALGetDataTypeSize(dt_list[i]) / 8);
 	}
-	if(invert) {
-		for(size_t i=0; i<nsamps; i++) {
-			mask_out[i] = mask_out[i] ? 0 : 1;
+
+	for(const NdvSlab &slab : slabs) {
+		size_t num_intervals = slab.range_by_band.size();
+		assert(num_intervals == bands.size() || num_intervals == 1);
+	}
+
+	memset(mask_out, 0, num_pixels);
+	for(size_t pix_idx=0; pix_idx<num_pixels; pix_idx++) {
+		mask_out[pix_idx] = 0;
+
+		// A NaN value on any band makes this pixel NDV.
+		for(size_t i=0; i<bands.size(); i++) {
+			if(gdal_scalar_pointer_isnan(in_p[i], dt_list[i])) {
+				mask_out[pix_idx] = 1;
+			}
+		}
+
+		for(const NdvSlab &slab : slabs) {
+			bool all_match = true;
+			for(size_t i=0; i<bands.size(); i++) {
+				size_t num_intervals = slab.range_by_band.size();
+				// if only one interval is given, use it for all bands
+				size_t j = num_intervals==1 ? 0 : i;
+				all_match &= slab.range_by_band[j].contains(in_p[i], dt_list[i]);
+			}
+			mask_out[pix_idx] |= all_match;
+		}
+
+		if(invert) {
+			mask_out[pix_idx] = mask_out[pix_idx] ? 0 : 1;
+		}
+
+		for(size_t band_idx=0; band_idx<bands.size(); band_idx++) {
+			in_p[band_idx] += dt_sizes[band_idx];
 		}
 	}
-	//printf("XXX %d\n", mask_out[0]?1:0);
-	flagNaN(in_data, mask_out, nsamps);
 }
 
-void NdvDef::aggregateMask(
-	uint8_t *total_mask,
-	const uint8_t *band_mask,
-	size_t nsamps
+void NdvDef::getNdvMask(
+	const void *band, GDALDataType dt,
+	uint8_t *mask_out, size_t num_pixels
 ) const {
-	if(invert) {
-		// pixel is valid only if all bands are within valid range
-		for(size_t i=0; i<nsamps; i++) {
-			if(band_mask[i]) total_mask[i] = 1;
-		}
-	} else {
-		// pixel is NDV only if all bands are NDV
-		for(size_t i=0; i<nsamps; i++) {
-			if(!band_mask[i]) total_mask[i] = 0;
-		}
-	}
+	std::vector<const void *> bands;
+	bands.push_back(band);
+	std::vector<GDALDataType> dt_list;
+	dt_list.push_back(dt);
+	getNdvMask(bands, dt_list, mask_out, num_pixels);
 }
-
-template void NdvDef::arrayCheckNdv<uint8_t>(
-	size_t band, const uint8_t *in_data,
-	uint8_t *mask_out, size_t nsamps
-) const;
-
-template void NdvDef::arrayCheckNdv<double>(
-	size_t band, const double *in_data,
-	uint8_t *mask_out, size_t nsamps
-) const;
 
 } // namespace dangdal

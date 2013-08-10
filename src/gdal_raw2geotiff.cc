@@ -32,6 +32,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 #include "common.h"
 
+using namespace dangdal;
+
 void usage(const std::string &cmdname) {
 	printf("Usage: %s\n", cmdname.c_str());
 	printf("\t-wh <width> <height>\n");

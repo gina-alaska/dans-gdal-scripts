@@ -417,7 +417,6 @@ int main(int argc, char *argv[]) {
 		buf_out[band_idx].resize(block_len);
 	}
 	std::vector<uint8_t> ndv_mask(block_len);
-	std::vector<uint8_t> band_mask(block_len);
 
 	for(size_t boff_y=0; boff_y<h; boff_y+=blocksize_y) {
 		size_t bsize_y = blocksize_y;
@@ -437,14 +436,9 @@ int main(int argc, char *argv[]) {
 			for(size_t band_idx=0; band_idx<dst_band_count; band_idx++) {
 				GDALRasterIO(src_bands[band_idx], GF_Read, boff_x, boff_y, bsize_x, bsize_y, 
 					&buf_in[band_idx][0], bsize_x, bsize_y, GDT_Float64, 0, 0);
-
-				if(band_idx == 0) {
-					ndv_def.arrayCheckNdv(band_idx, &buf_in[band_idx][0], &ndv_mask[0], block_len);
-				} else {
-					ndv_def.arrayCheckNdv(band_idx, &buf_in[band_idx][0], &band_mask[0], block_len);
-					ndv_def.aggregateMask(&ndv_mask[0], &band_mask[0], block_len);
-				}
 			}
+
+			ndv_def.getNdvMask(buf_in, &ndv_mask[0], block_len);
 
 			for(size_t band_idx=0; band_idx<dst_band_count; band_idx++) {
 				double *p_in = &buf_in[band_idx][0];
@@ -517,7 +511,6 @@ std::vector<std::pair<double, double> > compute_minmax(
 		buf_in[band_idx].resize(block_len);
 	}
 	std::vector<uint8_t> ndv_mask(block_len);
-	std::vector<uint8_t> band_mask(block_len);
 
 	std::vector<bool> got_data(band_count);
 
@@ -539,14 +532,10 @@ std::vector<std::pair<double, double> > compute_minmax(
 			for(size_t band_idx=0; band_idx<band_count; band_idx++) {
 				GDALRasterIO(src_bands[band_idx], GF_Read, boff_x, boff_y, bsize_x, bsize_y, 
 					&buf_in[band_idx][0], bsize_x, bsize_y, GDT_Float64, 0, 0);
-
-				if(band_idx == 0) {
-					ndv_def.arrayCheckNdv(band_idx, &buf_in[band_idx][0], &ndv_mask[0], block_len);
-				} else {
-					ndv_def.arrayCheckNdv(band_idx, &buf_in[band_idx][0], &band_mask[0], block_len);
-					ndv_def.aggregateMask(&ndv_mask[0], &band_mask[0], block_len);
-				}
 			}
+
+			ndv_def.getNdvMask(buf_in, &ndv_mask[0], block_len);
+
 			for(size_t band_idx=0; band_idx<band_count; band_idx++) {
 				for(size_t i=0; i<block_len; i++) {
 					if(ndv_mask[i]) continue;
@@ -595,7 +584,6 @@ std::vector<Histogram> compute_histogram(
 		buf_in[band_idx].resize(block_len);
 	}
 	std::vector<uint8_t> ndv_mask(block_len);
-	std::vector<uint8_t> band_mask(block_len);
 
 	std::vector<bool> first_valid_pixel(band_count, true);
 
@@ -617,14 +605,10 @@ std::vector<Histogram> compute_histogram(
 			for(size_t band_idx=0; band_idx<band_count; band_idx++) {
 				GDALRasterIO(src_bands[band_idx], GF_Read, boff_x, boff_y, bsize_x, bsize_y, 
 					&buf_in[band_idx][0], bsize_x, bsize_y, GDT_Float64, 0, 0);
-
-				if(band_idx == 0) {
-					ndv_def.arrayCheckNdv(band_idx, &buf_in[band_idx][0], &ndv_mask[0], block_len);
-				} else {
-					ndv_def.arrayCheckNdv(band_idx, &buf_in[band_idx][0], &band_mask[0], block_len);
-					ndv_def.aggregateMask(&ndv_mask[0], &band_mask[0], block_len);
-				}
 			}
+
+			ndv_def.getNdvMask(buf_in, &ndv_mask[0], block_len);
+
 			for(size_t band_idx=0; band_idx<band_count; band_idx++) {
 				Histogram &hg = histograms[band_idx];
 				double *p = &buf_in[band_idx][0];

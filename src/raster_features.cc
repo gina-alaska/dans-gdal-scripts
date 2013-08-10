@@ -77,16 +77,13 @@ FeatureBitmap *read_raster_features(
 	}
 	if(VERBOSE >= 2) printf("\n");
 
-	std::vector<std::vector<uint8_t>> band_buf;
+	std::vector<std::vector<uint8_t>> band_buf(bands.size());
 	for(size_t i=0; i<bands.size(); i++) {
 		size_t num_bytes = blocksize_xy * dt_sizes[i];
-		band_buf.push_back(std::vector<uint8_t>(num_bytes));
+		band_buf[i].resize(num_bytes);
 	}
 
 	std::vector<uint8_t> ndv_mask(blocksize_xy);
-	std::vector<uint8_t> band_mask(blocksize_xy);
-	// we need to convert to a known datatype in order to interpret NDV values
-	std::vector<double> band_buf_dbl(blocksize_xy);
 
 	FeatureBitmap *fbm = new FeatureBitmap(w, h, dt_total_size);
 
@@ -115,20 +112,9 @@ FeatureBitmap *read_raster_features(
 
 			for(size_t band_idx=0; band_idx<bands.size(); band_idx++) {
 				GDALReadBlock(bands[band_idx], block_x, block_y, &band_buf[band_idx][0]);
-
-				if(!ndv_def.empty()) {
-					GDALCopyWords(
-						&band_buf[band_idx][0], datatypes[band_idx], dt_sizes[band_idx],
-						&band_buf_dbl[0], GDT_Float64, sizeof(double),
-						blocksize_xy);
-
-					if(band_idx == 0) {
-						ndv_def.arrayCheckNdv(band_idx, &band_buf_dbl[0], &ndv_mask[0], blocksize_xy);
-					} else {
-						ndv_def.arrayCheckNdv(band_idx, &band_buf_dbl[0], &band_mask[0], blocksize_xy);
-						ndv_def.aggregateMask(&ndv_mask[0], &band_mask[0], blocksize_xy);
-					}
-				}
+			}
+			if(!ndv_def.empty()) {
+				ndv_def.getNdvMask(band_buf, datatypes, &ndv_mask[0], blocksize_xy);
 			}
 
 			FeatureRawVal pixel;

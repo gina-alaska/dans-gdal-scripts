@@ -45,6 +45,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include "common.h"
 #include "mask.h"
 #include "debugplot.h"
+#include "datatype_conversion.h"
 
 namespace dangdal {
 
@@ -69,20 +70,12 @@ struct FeatureInterpreter {
 
 		// GDALCopyWords doesn't allow const input
 		int32_t val_to_int(FeatureRawVal rawval) const {
-			int ret;
-			GDALCopyWords(
-				&rawval[raw_val_offset], dt, 0,
-				&ret, GDT_Int32, 0, 1);
-			return ret;
+			return gdal_scalar_to_int32(&rawval[raw_val_offset], dt);
 		}
 
 		// GDALCopyWords doesn't allow const input
 		double val_to_double(FeatureRawVal rawval) const {
-			double ret;
-			GDALCopyWords(
-				&rawval[raw_val_offset], dt, 0,
-				&ret, GDT_Float64, 0, 1);
-			return ret;
+			return gdal_scalar_to_double(&rawval[raw_val_offset], dt);
 		}
 
 		std::string val_to_str(const FeatureRawVal &rawval) const {

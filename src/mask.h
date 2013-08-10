@@ -96,7 +96,8 @@ private:
 	std::vector<uint8_t> grid;
 };
 
-BitGrid get_bitgrid_for_dataset(GDALDatasetH ds, const std::vector<size_t> &bandlist, 
+// Returns a BitGrid with 'true' values correspond to valid (not ndv) pixels.
+BitGrid get_bitgrid_for_dataset(GDALDatasetH ds, const std::vector<size_t> &bandlist,
 	const NdvDef &ndv_def, DebugPlot *dbuf);
 
 } // namespace dangdal

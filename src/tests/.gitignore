@@ -1,2 +1,6 @@
 # testcase output
 out_*
+
+# generated as needed
+gradient[123].tif
+has_nan.tif

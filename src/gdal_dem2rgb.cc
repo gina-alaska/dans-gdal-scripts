@@ -387,9 +387,9 @@ int main(int argc, char *argv[]) {
 			GDALRasterIO(src_band, GF_Read, 0, 0, w, 1, &inbuf_prev[0], w, 1, GDT_Float64, 0, 0);
 			GDALRasterIO(src_band, GF_Read, 0, 0, w, 1, &inbuf_this[0], w, 1, GDT_Float64, 0, 0);
 			GDALRasterIO(src_band, GF_Read, 0, 1, w, 1, &inbuf_next[0], w, 1, GDT_Float64, 0, 0);
-			ndv_def.arrayCheckNdv(0, &inbuf_prev[0], &inbuf_ndv_prev[0], w);
-			ndv_def.arrayCheckNdv(0, &inbuf_this[0], &inbuf_ndv_this[0], w);
-			ndv_def.arrayCheckNdv(0, &inbuf_next[0], &inbuf_ndv_next[0], w);
+			ndv_def.getNdvMask(&inbuf_prev[0], GDT_Float64, &inbuf_ndv_prev[0], w);
+			ndv_def.getNdvMask(&inbuf_this[0], GDT_Float64, &inbuf_ndv_this[0], w);
+			ndv_def.getNdvMask(&inbuf_next[0], GDT_Float64, &inbuf_ndv_next[0], w);
 			scale_values(&inbuf_prev[0], w, src_scale, src_offset);
 			scale_values(&inbuf_this[0], w, src_scale, src_offset);
 			scale_values(&inbuf_next[0], w, src_scale, src_offset);
@@ -408,7 +408,7 @@ int main(int argc, char *argv[]) {
 
 			int read_row = (row == h-1) ? row : row+1;
 			GDALRasterIO(src_band, GF_Read, 0, read_row, w, 1, &inbuf_next[0], w, 1, GDT_Float64, 0, 0);
-			ndv_def.arrayCheckNdv(0, &inbuf_next[0], &inbuf_ndv_next[0], w);
+			ndv_def.getNdvMask(&inbuf_next[0], GDT_Float64, &inbuf_ndv_next[0], w);
 			scale_values(&inbuf_next[0], w, src_scale, src_offset);
 		}
 		if(!tex_bands.empty()) {

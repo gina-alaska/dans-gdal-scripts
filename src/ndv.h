@@ -30,21 +30,34 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #ifndef DANGDAL_NDV_H
 #define DANGDAL_NDV_H
 
+#include <gdal.h>
+
 #include <string>
 #include <utility>
 #include <vector>
+#include <complex>
+
+#include "datatype_conversion.h"
 
 namespace dangdal {
 
 struct NdvInterval : std::pair<double, double> {
 	NdvInterval() { }
-	NdvInterval(double _min, double _max) : 
+	NdvInterval(double _min, double _max) :
 		std::pair<double, double>(_min, _max) { }
 	explicit NdvInterval(const std::string &s);
 
-	bool contains(double v) const {
+	template <typename T>
+	bool contains(T v) const {
 		return v >= first && v <= second;
 	}
+
+	template <typename T>
+	bool contains(std::complex<T> v) const {
+		return v.real() >= first && v.real() <= second;
+	}
+
+	bool contains(const void *, GDALDataType) const;
 };
 
 struct NdvSlab {
@@ -64,17 +77,47 @@ public:
 	bool empty() const { return slabs.empty(); }
 	bool isInvert() const { return invert; }
 
-	template<class T>
-	void arrayCheckNdv(
-		size_t band, const T *in_data,
-		uint8_t *mask_out, size_t nsamps
+	void getNdvMask(
+		const void *band, GDALDataType dt,
+		uint8_t *mask_out, size_t num_pixels
 	) const;
 
-	void aggregateMask(
-		uint8_t *total_mask,
-		const uint8_t *band_mask,
-		size_t nsamps
+	void getNdvMask(
+		const std::vector<const void *> &bands,
+		const std::vector<GDALDataType> &dt_list,
+		uint8_t *mask_out, size_t num_pixels
 	) const;
+
+	template <typename T>
+	void getNdvMask(
+		const std::vector<std::vector<T> > &bands,
+		uint8_t *mask_out, size_t num_pixels
+	) const {
+		GDALDataType dt = GetGDALDataTypeFor<T>::t;
+
+		std::vector<const void *> band_p;
+		std::vector<GDALDataType> dt_list;
+		for(const std::vector<T> &v : bands) {
+			band_p.push_back(reinterpret_cast<const void *>(&v[0]));
+			dt_list.push_back(dt);
+		}
+		getNdvMask(band_p, dt_list, mask_out, num_pixels);
+	}
+
+	// For this one, it doesn't matter what T is, it is the GDALDataType that determines how
+	// the data will be read from memory (i.e. we cast &bands[i][0] to (void *)).
+	template <typename T>
+	void getNdvMask(
+		const std::vector<std::vector<T> > &bands,
+		const std::vector<GDALDataType> &dt_list,
+		uint8_t *mask_out, size_t num_pixels
+	) const {
+		std::vector<const void *> band_p;
+		for(const std::vector<T> &v : bands) {
+			band_p.push_back(reinterpret_cast<const void *>(&v[0]));
+		}
+		getNdvMask(band_p, dt_list, mask_out, num_pixels);
+	}
 
 	bool invert;
 	std::vector<NdvSlab> slabs;

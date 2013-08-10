@@ -30,6 +30,8 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 #include "common.h"
 
+using namespace dangdal;
+
 void copyGeoCode(GDALDatasetH dst_ds, GDALDatasetH src_ds);
 
 void usage(const std::string &cmdname) {
