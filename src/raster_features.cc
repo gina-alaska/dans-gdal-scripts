@@ -254,7 +254,7 @@ BitGrid FeatureBitmap::get_mask_for_feature(FeatureBitmap::Index wanted) const {
 	return mask;
 }
 
-FeatureBitmap *read_raster_features(
+FeatureBitmap *FeatureBitmap::from_raster(
 	GDALDatasetH ds, std::vector<size_t> band_ids, const NdvDef &ndv_def, DebugPlot *dbuf
 ) {
 	assert(!band_ids.empty());

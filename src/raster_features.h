@@ -55,6 +55,7 @@ struct FeatureRawVal : public std::vector<uint8_t> { };
 
 // Converts pixel values to strings or OGR fields.
 struct FeatureInterpreter {
+private:
 	static const int gdal_color_table_size = 4;
 
 	struct BandInfo {
@@ -79,11 +80,13 @@ struct FeatureInterpreter {
 		std::pair<std::string, OGRFieldDefnH> ogr_pal_fld[gdal_color_table_size];
 	};
 
+public:
 	FeatureInterpreter(GDALDatasetH ds, std::vector<size_t> band_ids);
 	std::string pixel_to_string(const FeatureRawVal &rawval) const;
 	void create_ogr_fields(OGRLayerH ogr_layer) const;
 	void set_ogr_fields(OGRLayerH ogr_layer, OGRFeatureH ogr_feat, const FeatureRawVal &rawval) const;
 
+private:
 	std::vector<BandInfo> band_info_list;
 };
 
@@ -94,6 +97,9 @@ struct FeatureBitmap {
 
 	FeatureBitmap(const size_t _w, const size_t _h, const size_t _raw_vals_size);
 
+	static FeatureBitmap *from_raster(
+		GDALDatasetH ds, std::vector<size_t> band_ids, const NdvDef &ndv_def, DebugPlot *dbuf);
+
 	const std::map<FeatureRawVal, Index> &feature_table() const {
 		return table;
 	}
@@ -102,13 +108,11 @@ struct FeatureBitmap {
 	void dump_feature_table() const;
 	BitGrid get_mask_for_feature(Index wanted) const;
 
+private:
 	const size_t w, h;
 	const size_t raw_vals_size;
 	std::vector<Index> raster;
 	std::map<FeatureRawVal, Index> table;
 };
-
-FeatureBitmap *read_raster_features(
-	GDALDatasetH ds, std::vector<size_t> band_ids, const NdvDef &ndv_def, DebugPlot *dbuf);
 
 } // namespace dangdal

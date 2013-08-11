@@ -376,7 +376,7 @@ int main(int argc, char **argv) {
 	FeatureBitmap *features_bitmap = NULL;
 	BitGrid mask(0, 0);
 	if(classify) {
-		features_bitmap = read_raster_features(ds, inspect_bandids, ndv_def, dbuf);
+		features_bitmap = FeatureBitmap::from_raster(ds, inspect_bandids, ndv_def, dbuf);
 	} else {
 		mask = get_bitgrid_for_dataset(ds, inspect_bandids, ndv_def, dbuf);
 	}
