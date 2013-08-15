@@ -40,60 +40,75 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 namespace dangdal {
 
-class BitGrid {
+template <typename T>
+class GridArray {
 public:
-	BitGrid(int _w, int _h) :
+	GridArray(int _w, int _h) :
 		w(_w), h(_h),
-		arrlen((size_t(w)*h+7)/8),
-		grid(arrlen)
+		grid(w*h)
 	{ }
 
 // default dtor, copy, assign are OK
 
 public:
-	inline bool operator()(int x, int y) const { return get(x, y); }
+	typename std::vector<T>::const_reference operator()(int x, int y) const {
+		// out-of-bounds used to be okay and return 'false' but not now
+		// FIXME - make sure that is okay
+		assert(x>=0 && y>=0 && x<w && y<h);
+		return grid[size_t(y)*w + x];
+	}
 
-	inline bool get(int x, int y) const {
-		// out-of-bounds is OK and returns false
+	typename std::vector<T>::reference operator()(int x, int y) {
+		// out-of-bounds used to be okay and return 'false' but not now
+		// FIXME - make sure that is okay
+		assert(x>=0 && y>=0 && x<w && y<h);
+		return grid[size_t(y)*w + x];
+	}
+
+	T get(
+		int x, int y, const T &default_val
+	) const {
 		if(x>=0 && y>=0 && x<w && y<h) {
-			size_t p = size_t(y)*w + x;
-			return grid[p/8] & (1 << (p&7));
+			return (*this)(x, y);
 		} else {
-			return false;
+			return default_val;
 		}
 	}
 
-	inline void set(int x, int y, bool val) {
-		assert(x>=0 && y>=0 && x<w && y<h);
+	// FIXME - deprecate
+	const typename std::vector<T>::const_reference get(int x, int y) const {
+		return (*this)(x, y);
+	}
 
-		size_t p = size_t(y)*w + x;
-		if(val) {
-			grid[p/8] |= (1 << (p&7));
-		} else {
-			grid[p/8] &= ~(1 << (p&7));
-		}
+	// FIXME - deprecate
+	void set(int x, int y, const T &val) {
+		(*this)(x, y) = val;
 	}
 
 	void zero() {
-		for(size_t i=0; i<arrlen; i++) {
+		for(size_t i=0; i<grid.size(); i++) {
 			grid[i] = 0;
 		}
 	}
 
+protected:
+	int w, h;
+	std::vector<T> grid;
+};
+
+class BitGrid : public GridArray<bool> {
+public:
+	BitGrid(int _w, int _h) : GridArray<bool>(_w, _h) { }
+
 	void invert() {
-		for(size_t i=0; i<arrlen; i++) {
-			grid[i] = ~grid[i];
+		for(size_t i=0; i<grid.size(); i++) {
+			grid[i] = !grid[i];
 		}
 	}
 
 	void erode();
 
 	Vertex centroid();
-
-private:
-	int w, h;
-	size_t arrlen;
-	std::vector<uint8_t> grid;
 };
 
 // Returns a BitGrid with 'true' values correspond to valid (not ndv) pixels.

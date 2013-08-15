@@ -104,10 +104,10 @@ static inline pixquad_t get_quad(const BitGrid &mask, int x, int y, bool select_
 	// 1 2
 	// 8 4
 	pixquad_t quad =
-		(mask(x-1, y-1) ? 1 : 0) +
-		(mask(x  , y-1) ? 2 : 0) +
-		(mask(x  , y  ) ? 4 : 0) +
-		(mask(x-1, y  ) ? 8 : 0);
+		(mask.get(x-1, y-1, 0) ? 1 : 0) +
+		(mask.get(x  , y-1, 0) ? 2 : 0) +
+		(mask.get(x  , y  , 0) ? 4 : 0) +
+		(mask.get(x-1, y  , 0) ? 8 : 0);
 	if(!select_color) quad ^= 0xf;
 	return quad;
 }
@@ -166,31 +166,20 @@ int initial_x, int initial_y, bool select_color) {
 }
 
 static int recursive_trace(BitGrid &mask, size_t w, size_t h,
-const Ring &bounds, int depth, Mpoly &out_poly, int parent_id, 
+const Ring &bounding_ring, int depth, Mpoly &out_poly, int parent_id,
 int64_t min_area, bool no_donuts) {
 	//printf("recursive_trace enter: depth=%d\n", depth);
 
 	bool select_color = !(depth & 1);
 
-	int bound_left, bound_right;
-	int bound_top, bound_bottom;
-	bound_left = bound_right = (int)bounds.pts[0].x;
-	bound_top = bound_bottom = (int)bounds.pts[0].y;
-	for(size_t v_idx=0; v_idx<bounds.pts.size(); v_idx++) {
-		int x = (int)bounds.pts[v_idx].x;
-		int y = (int)bounds.pts[v_idx].y;
-		if(x < bound_left) bound_left = x;
-		if(x > bound_right) bound_right = x;
-		if(y < bound_top) bound_top = y;
-		if(y > bound_bottom) bound_bottom = y;
-	}
+	Bbox bounding_bbox = bounding_ring.getBbox();
 
 	Mpoly bounds_mp;
-	bounds_mp.rings.push_back(bounds);
+	bounds_mp.rings.push_back(bounding_ring);
 
-	std::vector<row_crossings_t> crossings = 
-		get_row_crossings(bounds_mp, bound_top, bound_bottom-bound_top);
-	assert(crossings.size() == size_t(bound_bottom-bound_top));
+	std::vector<row_crossings_t> crossings =
+		get_row_crossings(bounds_mp, bounding_bbox.min_y, bounding_bbox.height());
+	assert(crossings.size() == size_t(bounding_bbox.height()));
 	int skip_this = min_area && (compute_area(crossings) < min_area);
 	int skip_child = skip_this || (depth && no_donuts);
 
@@ -200,63 +189,48 @@ int64_t min_area, bool no_donuts) {
 	}
 
 	if(!skip_child) {
-		for(int y=bound_top+1; y<bound_bottom; y++) {
+		for(int y=bounding_bbox.min_y+1; y<bounding_bbox.max_y; y++) {
 			if(!depth) {
-				GDALTermProgress((double)y/(double)(bound_bottom-bound_top-1), NULL, NULL);
+				GDALTermProgress((double)y/(double)(bounding_bbox.height()-1), NULL, NULL);
 			}
 
 			// make sure the range (y-1,y)*(x-1,x) is in bounds
 			row_crossings_t cross_both = crossings_intersection(
-				crossings[y-bound_top-1], crossings[y-bound_top]);
+				crossings[y-bounding_bbox.min_y-1], crossings[y-bounding_bbox.min_y]);
 			for(size_t cidx=0; cidx<cross_both.size()/2; cidx++) {
 				// make sure the range (y-1,y)*(x-1,x) is in bounds
 				int from = 1+cross_both[cidx*2  ];
 				int to   =   cross_both[cidx*2+1];
 
 				for(int x=from; x<to; x++) {
-					//pixquad_t quad = get_quad(mask, x, y, select_color);
-					//int is_seed = (quad != 0 && quad != 0xf);
-					int is_seed;
-					if(select_color) {
-						is_seed = 
-							mask(x-1, y-1) ||
-							mask(x  , y-1) ||
-							mask(x-1, y  ) ||
-							mask(x  , y  );
-					} else {
-						is_seed = 
-							(!mask(x-1, y-1)) ||
-							(!mask(x  , y-1)) ||
-							(!mask(x-1, y  )) ||
-							(!mask(x  , y  ));
-					}
+					pixquad_t quad = get_quad(mask, x, y, select_color);
+					int is_seed = (quad != 0);
 
 					if(is_seed) {
 						Ring r = trace_single_mpoly(mask, w, h, x, y, select_color);
 
 						r.parent_id = parent_id;
 						r.is_hole = depth % 2;
-						//r.parent_id = -1;
-						//r.is_hole = 0;
-
 						size_t outer_ring_id = out_poly.rings.size();
 						out_poly.rings.push_back(r);
 
 						int was_skip = recursive_trace(
 							mask, w, h, r, depth+1, out_poly, outer_ring_id,
 							min_area, no_donuts);
+
 						if(was_skip) {
 							out_poly.rings.pop_back();
 						}
 					}
-				} 
+				}
 			}
 		}
 	}
 
-	for(int y=bound_top; y<bound_bottom; y++) {
-		const row_crossings_t &r = crossings[y-bound_top];
-		if(depth>0) {
+	if(depth>0) {
+		// erase this polygon from the raster by filling it with select_color
+		for(int y=bounding_bbox.min_y; y<bounding_bbox.max_y; y++) {
+			const row_crossings_t &r = crossings[y-bounding_bbox.min_y];
 			for(size_t cidx=0; cidx<r.size()/2; cidx++) {
 				int from = r[cidx*2  ];
 				int to   = r[cidx*2+1];

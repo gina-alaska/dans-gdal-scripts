@@ -374,11 +374,8 @@ int main(int argc, char **argv) {
 	const FeatureInterpreter feature_interp(ds, inspect_bandids);
 
 	FeatureBitmap *features_bitmap = NULL;
-	BitGrid mask(0, 0);
 	if(classify) {
 		features_bitmap = FeatureBitmap::from_raster(ds, inspect_bandids, ndv_def, dbuf);
-	} else {
-		mask = get_bitgrid_for_dataset(ds, inspect_bandids, ndv_def, dbuf);
 	}
 
 	for(size_t go_idx=0; go_idx<geom_outputs.size(); go_idx++) {
@@ -433,17 +430,22 @@ int main(int argc, char **argv) {
 	}
 
 	for(const std::pair<FeatureRawVal, FeatureBitmap::Index> &feature : features_list) {
-		if(classify) {
-			printf("\nTracing feature %s\n", feature_interp.pixel_to_string(feature.first).c_str());
-			mask = features_bitmap->get_mask_for_feature(feature.second);
-		}
+		Mpoly feature_poly;
+		{
+			BitGrid mask(0, 0);
+			if(classify) {
+				printf("\nTracing feature %s\n",
+					feature_interp.pixel_to_string(feature.first).c_str());
+				mask = features_bitmap->get_mask_for_feature(feature.second);
+			} else {
+				printf("Reading raster.\n");
+				mask = get_bitgrid_for_dataset(ds, inspect_bandids, ndv_def, dbuf);
+			}
 
-		if(do_invert) {
-			mask.invert();
-		}
+			if(do_invert)  mask.invert();
+			if(do_erosion) mask.erode();
 
-		if(do_erosion) {
-			mask.erode();
+			feature_poly = trace_mask(mask, georef.w, georef.h, min_ring_area, trace_no_donuts);
 		}
 
 		if(!containing_options.empty()) {
@@ -466,9 +468,6 @@ int main(int argc, char **argv) {
 		if(major_ring_only && containing_options.empty()) {
 			trace_no_donuts = 1;
 		}
-
-		Mpoly feature_poly = trace_mask(mask, georef.w, georef.h, min_ring_area, trace_no_donuts);
-		mask = BitGrid(0, 0); // free some memory
 
 		if(VERBOSE) {
 			size_t num_inner = 0, num_outer = 0, total_pts = 0;

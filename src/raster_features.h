@@ -111,7 +111,7 @@ struct FeatureBitmap {
 private:
 	const size_t w, h;
 	const size_t raw_vals_size;
-	std::vector<Index> raster;
+	GridArray<Index> raster;
 	std::map<FeatureRawVal, Index> table;
 };
 

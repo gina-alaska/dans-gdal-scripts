@@ -95,6 +95,9 @@ public:
 
 	void expand(const Bbox &bb);
 
+	double width()  { return max_x - min_x; }
+	double height() { return max_y - min_y; }
+
 	double min_x, max_x, min_y, max_y;
 	bool empty;
 };

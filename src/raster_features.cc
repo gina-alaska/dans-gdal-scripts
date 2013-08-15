@@ -212,7 +212,7 @@ void FeatureInterpreter::set_ogr_fields(OGRLayerH ogr_layer, OGRFeatureH ogr_fea
 FeatureBitmap::FeatureBitmap(const size_t _w, const size_t _h, const size_t _raw_vals_size) :
 	w(_w), h(_h),
 	raw_vals_size(_raw_vals_size),
-	raster(w * h)
+	raster(w, h)
 { }
 
 FeatureBitmap::Index FeatureBitmap::get_index(const FeatureRawVal &pixel) {
@@ -244,10 +244,9 @@ void FeatureBitmap::dump_feature_table() const {
 BitGrid FeatureBitmap::get_mask_for_feature(FeatureBitmap::Index wanted) const {
 	BitGrid mask(w, h);
 
-	const FeatureBitmap::Index *p = &raster[0];
 	for(size_t y=0; y<h; y++) {
 		for(size_t x=0; x<w; x++) {
-			mask.set(x, y, *(p++) == wanted);
+			mask.set(x, y, raster(x, y) == wanted);
 		}
 	}
 
@@ -379,7 +378,7 @@ FeatureBitmap *FeatureBitmap::from_raster(
 						num_valid++;
 
 						FeatureBitmap::Index index_val = fbm->get_index(pixel);
-						fbm->raster[y*w + x] = index_val;
+						fbm->raster(x, y) = index_val;
 
 						if(is_dbuf_stride) {
 							size_t x = sub_x + boff_x;

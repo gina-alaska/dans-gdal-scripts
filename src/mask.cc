@@ -173,14 +173,14 @@ void BitGrid::erode() { // FIXME - untested
 	bool *rowl = new bool[w];
 	for(int i=0; i<w; i++) {
 		rowm[i] = 0;
-		rowl[i] = get(i, 0);
+		rowl[i] = get(i, 0, 0);
 	}
 
 	for(int y=0; y<h; y++) {
 		bool *tmp = rowu;
 		rowu = rowm; rowm = rowl; rowl = tmp;
 		for(int i=0; i<w; i++) {
-			rowl[i] = get(i, y+1);
+			rowl[i] = get(i, y+1, 0);
 		}
 
 		bool ul = 0, um = rowu[0];
