@@ -27,6 +27,9 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 #include <vector>
+#include <algorithm>
+
+#include <boost/foreach.hpp>
 
 #include "common.h"
 #include "mask.h"
@@ -50,7 +53,7 @@ BitGrid get_bitgrid_for_dataset(
 
 	std::vector<GDALRasterBandH> bands;
 	std::vector<GDALDataType> datatypes;
-	for(const size_t band_id : band_ids) {
+	BOOST_FOREACH(const size_t band_id, band_ids) {
 		if(VERBOSE) printf("opening band %zd\n", band_id);
 		GDALRasterBandH band = GDALGetRasterBand(ds, band_id);
 		if(!band) fatal_error("Could not open band %zd.", band_id);
@@ -62,7 +65,7 @@ BitGrid get_bitgrid_for_dataset(
 	int blocksize_x_int, blocksize_y_int;
 	GDALGetBlockSize(bands[0], &blocksize_x_int, &blocksize_y_int);
 	// Out of laziness, I am hoping that images always have the same block size for each band.
-	for(const GDALRasterBandH band : bands) {
+	BOOST_FOREACH(const GDALRasterBandH band, bands) {
 		int bx, by;
 		GDALGetBlockSize(band, &bx, &by);
 		if(bx != blocksize_x_int || by != blocksize_y_int) {
@@ -74,7 +77,7 @@ BitGrid get_bitgrid_for_dataset(
 	size_t blocksize_y = blocksize_y_int;
 	size_t blocksize_xy = blocksize_x * blocksize_y;
 
-	std::vector<std::vector<uint8_t>> band_buf(bands.size());
+	std::vector<std::vector<uint8_t> > band_buf(bands.size());
 	for(size_t i=0; i<bands.size(); i++) {
 		size_t dt_size = GDALGetDataTypeSize(datatypes[i]) / 8;
 		size_t num_bytes = blocksize_xy * dt_size;

@@ -30,6 +30,7 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #include <cstring>
 #include <cassert>
 
+#include <boost/foreach.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/tokenizer.hpp>
 
@@ -199,7 +200,7 @@ void NdvDef::getNdvMask(
 		dt_sizes.push_back(GDALGetDataTypeSize(dt_list[i]) / 8);
 	}
 
-	for(const NdvSlab &slab : slabs) {
+	BOOST_FOREACH(const NdvSlab &slab, slabs) {
 		size_t num_intervals = slab.range_by_band.size();
 		assert(num_intervals == bands.size() || num_intervals == 1);
 	}
@@ -215,7 +216,7 @@ void NdvDef::getNdvMask(
 			}
 		}
 
-		for(const NdvSlab &slab : slabs) {
+		BOOST_FOREACH(const NdvSlab &slab, slabs) {
 			bool all_match = true;
 			for(size_t i=0; i<bands.size(); i++) {
 				size_t num_intervals = slab.range_by_band.size();

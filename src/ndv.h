@@ -30,12 +30,14 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 #ifndef DANGDAL_NDV_H
 #define DANGDAL_NDV_H
 
-#include <gdal.h>
-
 #include <string>
 #include <utility>
 #include <vector>
 #include <complex>
+
+#include <boost/foreach.hpp>
+
+#include <gdal.h>
 
 #include "datatype_conversion.h"
 
@@ -97,7 +99,7 @@ public:
 
 		std::vector<const void *> band_p;
 		std::vector<GDALDataType> dt_list;
-		for(const std::vector<T> &v : bands) {
+		BOOST_FOREACH(const std::vector<T> &v, bands) {
 			band_p.push_back(reinterpret_cast<const void *>(&v[0]));
 			dt_list.push_back(dt);
 		}
@@ -113,7 +115,7 @@ public:
 		uint8_t *mask_out, size_t num_pixels
 	) const {
 		std::vector<const void *> band_p;
-		for(const std::vector<T> &v : bands) {
+		BOOST_FOREACH(const std::vector<T> &v, bands) {
 			band_p.push_back(reinterpret_cast<const void *>(&v[0]));
 		}
 		getNdvMask(band_p, dt_list, mask_out, num_pixels);

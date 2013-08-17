@@ -26,10 +26,11 @@ This code was developed by Dan Stahlke for the Geographic Information Network of
 
 
 
-#include <boost/lexical_cast.hpp>
-#include <boost/foreach.hpp>
 #include <map>
 #include <vector>
+
+#include <boost/lexical_cast.hpp>
+#include <boost/foreach.hpp>
 
 #include "common.h"
 #include "polygon.h"
@@ -429,7 +430,8 @@ int main(int argc, char **argv) {
 		features_list[FeatureRawVal()];
 	}
 
-	for(const std::pair<FeatureRawVal, FeatureBitmap::Index> &feature : features_list) {
+	typedef std::map<FeatureRawVal, FeatureBitmap::Index>::value_type feature_pair_t;
+	BOOST_FOREACH(const feature_pair_t &feature, features_list) {
 		Mpoly feature_poly;
 		{
 			BitGrid mask(0, 0);

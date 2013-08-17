@@ -28,8 +28,7 @@
 
 
 
-# FIXME - change -std=c++0x to -std=c++11 once that option is widely supported
-AM_CPPFLAGS = @GDALCFLAGS@ @BOOST_CPPFLAGS@ -std=c++0x -Wall -Wextra -O3 -g
+AM_CPPFLAGS = @GDALCFLAGS@ @BOOST_CPPFLAGS@ -Wall -Wextra -O3 -g
 LIBS = @GDALLIBS@
 
 bin_PROGRAMS = gdal_raw2geotiff gdal_dem2rgb gdal_list_corners gdal_trace_outline gdal_contrast_stretch gdal_landsat_pansharp gdal_wkt_to_mask gdal_merge_simple gdal_merge_vrt gdal_get_projected_bounds gdal_make_ndv_mask
