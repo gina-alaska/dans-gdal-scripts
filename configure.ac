@@ -89,7 +89,6 @@ AC_FUNC_STRTOD
 AC_CHECK_FUNCS([memset sqrt strtol])
 
 AC_CHECK_LIB([m], [pow], , AC_MSG_ERROR([math library is required]))
-AC_CHECK_LIB([proj], [pj_init], , AC_MSG_ERROR([proj4 library is required]))
 
 AC_CONFIG_FILES([Makefile
                  src/Makefile])
