@@ -778,7 +778,10 @@ void Mpoly::xy2ll_with_interp(const GeoRef &georef, double toler) {
 			}
 
 			if(need_midpt) {
-				if(num_consec++ > 10) fatal_error("convergence error in mpoly_xy2ll_with_interp");
+				//if(num_consec++ > 10) printf("n=%d\n", num_consec);
+				// If you get this error (probably for lines near the poles), increase this
+				// number and then email me.
+				if(num_consec++ > 100) fatal_error("convergence error in mpoly_xy2ll_with_interp");
 
 				if(VERBOSE) {
 					printf("    xy=[%lf,%lf]:[%lf,%lf]\n", xy1.x, xy1.y, xy2.x, xy2.y);
