@@ -1,10 +1,19 @@
-gdal_list_corners fails on venus gtdr.tif (lat>90)
+gdal_contrast_stretch:
+    * allow 16-bit output
+    * several inputs for contrast stretch
+    * manual min/max for contrast stretch
+      (gdal_translate -scale already does this)
+
+gdal_trace_outline:
+    * for feature classification, trace all feature classes simultaneously (for
+      much better speed)
+    * run erosion several times for outline tracer
+    * expose options for fuzzy rectangle bounds finder
+    * use concave hull instead of the current excursions pincher
+    * outline tracer should call OGR_G_IsValid on result
+
+gdal_list_corners: fails on venus gtdr.tif (lat>90)
 dem2rgb: prominant warning if resolution not known
 dem2rgb: should be operable with resolution in absence of origin
-run erosion several times for outline tracer
 gdal_merge_simple: usage text wrong?
 don't use %f, use %g with the right number of digits
-several inputs for contrast stretch
-manual min/max for contrast stretch
-expose options for fuzzy rectangle bounds finder
-outline tracer should call OGR_G_IsValid on result
