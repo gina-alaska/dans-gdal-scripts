@@ -431,13 +431,15 @@ int main(int argc, char **argv) {
 	}
 
 	typedef std::map<FeatureRawVal, FeatureBitmap::Index>::value_type feature_pair_t;
+	size_t feature_idx = 0;
 	BOOST_FOREACH(const feature_pair_t &feature, features_list) {
 		Mpoly feature_poly;
 		{
 			BitGrid mask(0, 0);
 			if(classify) {
-				printf("\nTracing feature %s\n",
-					feature_interp.pixel_to_string(feature.first).c_str());
+				printf("\nTracing feature %s (%zd of %zd)\n",
+					feature_interp.pixel_to_string(feature.first).c_str(),
+					(++feature_idx), features_list.size());
 				mask = features_bitmap->get_mask_for_feature(feature.second);
 			} else {
 				printf("Reading raster.\n");
