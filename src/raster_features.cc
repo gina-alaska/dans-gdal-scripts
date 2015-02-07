@@ -347,32 +347,17 @@ FeatureBitmap *FeatureBitmap::from_raster(
 			FeatureRawVal pixel;
 			pixel.resize(dt_total_size);
 
-			std::vector<uint8_t *> buf_p(bands.size());
-			for(size_t band_id=0; band_id<bands.size(); band_id++) {
-				buf_p[band_id] = &band_buf[band_id][0];
-			}
-			uint8_t *ndv_mask_p = &ndv_mask[0];
-
 			for(size_t sub_y=0; sub_y<bsize_y; sub_y++) {
 				size_t y = sub_y + boff_y;
 				bool is_dbuf_stride_y = dbuf && ((y % dbuf->stride_y) == 0);
+
 				for(size_t sub_x=0; sub_x<bsize_x; sub_x++) {
 					size_t x = sub_x + boff_x;
 					bool is_dbuf_stride = is_dbuf_stride_y && ((sub_x % dbuf->stride_x) == 0);
 
-					// Read a pixel from the buffers.  This is called even for NDV pixels,
-					// because it is needed to increment the pointers.
-					{
-						size_t p = 0;
-						for(size_t band_id=0; band_id<bands.size(); band_id++) {
-							for(size_t i=0; i<dt_sizes[band_id]; i++) {
-								pixel[p++] = *(buf_p[band_id]++);
-							}
-						}
-						assert(p == dt_total_size);
-					}
+					size_t in_idx = blocksize_x*sub_y + sub_x;
 
-					if(*(ndv_mask_p++)) {
+					if(ndv_mask[in_idx]) {
 						num_ndv++;
 
 						if(is_dbuf_stride) {
@@ -380,6 +365,15 @@ FeatureBitmap *FeatureBitmap::from_raster(
 						}
 					} else {
 						num_valid++;
+
+						size_t j = 0;
+						for(size_t band_id=0; band_id<bands.size(); band_id++) {
+							uint8_t *p = &band_buf[band_id][in_idx*dt_sizes[band_id]];
+							for(size_t i=0; i<dt_sizes[band_id]; i++) {
+								pixel[j++] = *(p++);
+							}
+						}
+						assert(j == dt_total_size);
 
 						FeatureBitmap::Index index_val = fbm->get_index(pixel);
 						fbm->raster(x, y) = index_val;
@@ -408,6 +402,7 @@ FeatureBitmap *FeatureBitmap::from_raster(
 } // namespace dangdal
 
 //using namespace dangdal;
+//void usage(const std::string &cmdname) {}
 //int main(int argc, char **argv) {
 //	if(argc != 2) fatal_error("give filename");
 //
@@ -427,13 +422,16 @@ FeatureBitmap *FeatureBitmap::from_raster(
 //
 //	DebugPlot *dbuf = new DebugPlot(w, h, PLOT_CONTOURS);
 //
-//	FeatureBitmap *fbm = read_raster_features(ds, band_ids, dbuf);
+//	NdvDef ndv_def = NdvDef(ds, band_ids);
+//
+//	FeatureBitmap *fbm = FeatureBitmap::from_raster(ds, band_ids, ndv_def, dbuf);
 //	FeatureInterpreter interp(ds, band_ids);
 //
 //	dbuf->writePlot("zz.ppm");
 //
-//	BOOST_FOREACH(const auto &f, fbm->get_sorted_feature_table()) {
-//		printf("feature %d: %s\n", f.first, interp.pixel_to_string(f.second).c_str());
+//	typedef std::map<FeatureRawVal, FeatureBitmap::Index>::value_type feature_pair_t;
+//	BOOST_FOREACH(const feature_pair_t &f, fbm->feature_table()) {
+//		printf("feature %d: %s\n", f.second, interp.pixel_to_string(f.first).c_str());
 //	}
 //
 //	GDALClose(ds);
