@@ -59,7 +59,7 @@ void usage(const std::string &cmdname) {
 	printf("  -t_bounds_wkt <fn>    File containing WKT for valid region of target SRS (optional)\n");
 	printf("  -s_srs <srs_def>      Source SRS\n");
 	printf("  -t_srs <srs_def>      Target SRS\n");
-	printf("  -report <out.ppm>     Ouput a graphical report (optional)\n");
+	printf("  -report <out.ppm>     Output a graphical report (optional)\n");
 	printf("\nOutput is the envelope of the source region projected into the target SRS.\n");
 	printf("If the -t_bounds_wkt option is given it will be used as a clip mask in the\n");
 	printf("projected space.\n");
