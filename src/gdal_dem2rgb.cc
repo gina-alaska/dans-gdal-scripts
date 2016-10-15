@@ -73,7 +73,7 @@ void usage(const std::string &cmdname) {
 	printf("  -alpha-overlay                      Generate an RGBA image that can be used as a hillshade mask\n");
 	printf("\n");
 	printf("Shading:\n");
-	printf("  -exag slope_exageration             Exagerate slope (default: %.1f)\n", default_slope_exageration);
+	printf("  -exag slope_exageration             Exaggerate slope (default: %.1f)\n", default_slope_exageration);
 	printf("  -shade ambient diffuse specular_intensity specular_falloff          (default: %.1f, %.1f, %.1f, %.1f)\n",
 		default_shade_params[0], default_shade_params[1], default_shade_params[2], default_shade_params[3]);
 	printf("  -lightvec sun_x sun_y sun_z                                         (default: %.1f, %.1f, %.1f)\n",
