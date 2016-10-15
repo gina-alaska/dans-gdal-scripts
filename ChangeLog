@@ -1,8 +1,10 @@
-=== Version 0.24dev
+=== Version 0.24
 	gdal_trace_outline no longer hangs at the "fixing topology" stage
 	gdal_trace_outline -classify can now handle arbitrary datatypes, multiple bands, and ndv
 	bugfix: "-ndv '1 1 1' -ndv '2 2 2'" would also match '1 1 2' values, for instance
 	ndv option accepts '*' as alias for '-Inf..Inf'
+	fixed boost version detection
+	various minor improvements
 
 === Version 0.23
 	Fix for compiler warnings/errors.

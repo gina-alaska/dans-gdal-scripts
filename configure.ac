@@ -24,7 +24,7 @@
 
 
 AC_PREREQ(2.37)
-AC_INIT([dans-gdal-scripts], [0.24dev], [dan@stahlke.org])
+AC_INIT([dans-gdal-scripts], [0.24], [dan@stahlke.org])
 AC_CONFIG_SRCDIR([src/common.h])
 AC_CONFIG_HEADER([config.h])
 
